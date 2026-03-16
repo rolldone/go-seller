@@ -1,0 +1,18 @@
+-- Add rich ban record fields for admins and users
+
+ALTER TABLE admins
+    ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS ban_reason TEXT NULL,
+    ADD COLUMN IF NOT EXISTS banned_by UUID NULL;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS banned_at TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS banned_until TIMESTAMPTZ NULL,
+    ADD COLUMN IF NOT EXISTS ban_reason TEXT NULL,
+    ADD COLUMN IF NOT EXISTS banned_by UUID NULL;
+
+CREATE INDEX IF NOT EXISTS idx_admins_is_banned ON admins(is_banned);
+CREATE INDEX IF NOT EXISTS idx_users_is_banned ON users(is_banned);

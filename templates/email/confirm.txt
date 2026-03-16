@@ -1,0 +1,8 @@
+Hai {{.Name}},
+
+Terima kasih telah mendaftar. Kunjungi tautan berikut untuk mengonfirmasi akun Anda:
+{{.ConfirmLink}}
+
+Tautan ini akan kedaluwarsa dalam {{.ExpiryMinutes}} menit.
+
+Jika Anda tidak meminta email ini, abaikan saja.

@@ -1,0 +1,2 @@
+ALTER TABLE discounts
+    DROP COLUMN IF EXISTS code;

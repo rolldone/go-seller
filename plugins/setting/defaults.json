@@ -1,0 +1,19 @@
+[
+  { "key": "store.name", "scope": "global", "value": "\"\"", "description": "Nama toko" },
+  { "key": "store.currency", "scope": "global", "value": "\"IDR\"", "description": "Mata uang default" },
+  { "key": "store.timezone", "scope": "global", "value": "\"Asia/Jakarta\"", "description": "Timezone toko" },
+  { "key": "store.phone", "scope": "global", "value": "\"\"", "description": "Nomor telepon toko" },
+  { "key": "store.address", "scope": "global", "value": "\"\"", "description": "Alamat toko" },
+
+  { "key": "tax.enabled", "scope": "global", "value": "false", "description": "Aktifkan pajak" },
+  { "key": "tax.rate", "scope": "global", "value": "0", "description": "Tarif pajak (persen)" },
+  { "key": "tax.included_in_price", "scope": "global", "value": "false", "description": "Harga sudah termasuk pajak" },
+  { "key": "tax.label", "scope": "global", "value": "\"PPN\"", "description": "Label pajak" },
+
+  { "key": "discount.max_percent", "scope": "global", "value": "100", "description": "Maks diskon dalam persen" },
+  { "key": "discount.allow_multiple", "scope": "global", "value": "false", "description": "Izinkan diskon bertumpuk" },
+
+  { "key": "order.min_amount", "scope": "global", "value": "0", "description": "Minimal nilai order" },
+  { "key": "order.auto_confirm", "scope": "global", "value": "false", "description": "Auto konfirmasi order" },
+  { "key": "order.allow_notes", "scope": "global", "value": "true", "description": "Izinkan catatan order" }
+]

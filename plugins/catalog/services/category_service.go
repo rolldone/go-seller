@@ -1,0 +1,68 @@
+package services
+
+import (
+	"context"
+	"strings"
+
+	catalogmodels "go_framework/plugins/catalog/models"
+)
+
+func (s *CatalogService) CreateCategory(ctx context.Context, c *catalogmodels.Category) error {
+	if strings.TrimSpace(c.Slug) == "" {
+		c.Slug = makeSlug(c.Name)
+	}
+	return s.DB.WithContext(ctx).Create(c).Error
+}
+
+func (s *CatalogService) ListCategories(ctx context.Context, page, limit int, parentID *string, filterByParent bool) ([]catalogmodels.Category, int64, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+
+	q := s.DB.WithContext(ctx).Model(&catalogmodels.Category{})
+	if filterByParent {
+		if parentID == nil || strings.TrimSpace(*parentID) == "" {
+			q = q.Where("parent_id IS NULL")
+		} else {
+			pid := strings.TrimSpace(*parentID)
+			q = q.Where("parent_id = ?", pid)
+			// Guard against self-parent legacy data so parent never appears in its own child list.
+			q = q.Where("id <> ?", pid)
+		}
+	}
+
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * limit
+	var rows []catalogmodels.Category
+	if err := q.Order("sort_priority asc, created_at desc").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+func (s *CatalogService) GetCategoryByID(ctx context.Context, id string) (*catalogmodels.Category, error) {
+	var out catalogmodels.Category
+	if err := s.DB.WithContext(ctx).Where("id = ?", id).First(&out).Error; err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *CatalogService) UpdateCategory(ctx context.Context, c *catalogmodels.Category) error {
+	if strings.TrimSpace(c.Slug) == "" {
+		c.Slug = makeSlug(c.Name)
+	}
+	return s.DB.WithContext(ctx).Save(c).Error
+}
+
+func (s *CatalogService) DeleteCategoryByID(ctx context.Context, id string) (int64, error) {
+	res := s.DB.WithContext(ctx).Where("id = ?", id).Delete(&catalogmodels.Category{})
+	return res.RowsAffected, res.Error
+}

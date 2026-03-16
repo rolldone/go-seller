@@ -1,0 +1,7 @@
+node_modules
+.ssh/openssh_nopassword
+.ssh/public_key
+.sync_temp
+bin
+.env
+.sync_ignore
