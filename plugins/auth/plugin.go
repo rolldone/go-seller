@@ -130,6 +130,7 @@ func (p *Plugin) Seed() error {
 func (p *Plugin) ConsoleCommands() []*cobra.Command {
 	// return admin console commands (creates admin via console)
 	cmds := pluginconsole.AdminCommands()
+	cmds = append(cmds, pluginconsole.S2SCommands()...)
 	// keep a small hello command for quick checks
 	hello := &cobra.Command{
 		Use:   "auth:hello",

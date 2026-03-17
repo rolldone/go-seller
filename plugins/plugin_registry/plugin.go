@@ -6,6 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ─── Permission provider ─────────────────────────────────────────────────────
+
 // PermissionProvider allows plugins to expose a permission-checking middleware.
 type PermissionProvider interface {
 	RequirePermission(permission string) gin.HandlerFunc
@@ -24,7 +26,6 @@ func RequirePermission(permission string) gin.HandlerFunc {
 	if permissionProvider == nil {
 		return func(c *gin.Context) {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "permission provider unavailable"})
-			return
 		}
 	}
 	return permissionProvider.RequirePermission(permission)

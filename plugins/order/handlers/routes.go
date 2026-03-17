@@ -55,4 +55,9 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.POST("/orders/:id/finalize", pluginregistry.RequirePermission("orders.manage"), orderHandler.Finalize)
 	adminOrder.POST("/orders/:id/coupon", pluginregistry.RequirePermission("orders.manage"), orderHandler.ApplyCoupon)
 	adminOrder.DELETE("/orders/:id/coupon/:code", pluginregistry.RequirePermission("orders.manage"), orderHandler.RemoveCoupon)
+
+	// Server-to-server callback endpoint — payload is AES-GCM encrypted with shared S2S_KEY.
+	callbackHandler := NewCallbackHandler(s.Order)
+	apiOrder := api.Group("/order")
+	apiOrder.POST("/callback", callbackHandler.HandleCallback)
 }
