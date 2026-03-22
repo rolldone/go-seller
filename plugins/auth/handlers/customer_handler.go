@@ -27,6 +27,7 @@ type createCustomerRequest struct {
 	Name     string  `json:"name"`
 	Email    string  `json:"email"`
 	Phone    string  `json:"phone"`
+	Locale   string  `json:"locale"`
 	Notes    *string `json:"notes"`
 	IsActive *bool   `json:"is_active"`
 }
@@ -35,6 +36,7 @@ type updateCustomerRequest struct {
 	Name     *string `json:"name"`
 	Email    *string `json:"email"`
 	Phone    *string `json:"phone"`
+	Locale   *string `json:"locale"`
 	Notes    *string `json:"notes"`
 	IsActive *bool   `json:"is_active"`
 }
@@ -80,6 +82,7 @@ func (h *CustomerHandler) Create(c *gin.Context) {
 		Name:     strings.TrimSpace(req.Name),
 		Email:    strings.ToLower(strings.TrimSpace(req.Email)),
 		Phone:    strings.TrimSpace(req.Phone),
+		Locale:   strings.TrimSpace(req.Locale),
 		Notes:    trimStringPtr(req.Notes),
 		IsActive: isActive,
 	}
@@ -160,6 +163,7 @@ func (h *CustomerHandler) Update(c *gin.Context) {
 		trimStringPtr(req.Email),
 		trimStringPtr(req.Phone),
 		trimStringPtr(req.Notes),
+		trimStringPtr(req.Locale),
 		req.IsActive,
 	); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

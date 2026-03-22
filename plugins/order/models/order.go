@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	authmodels "go_framework/plugins/auth/models"
+	"time"
+)
 
 // AppliedCoupon stores details of a single coupon applied to an order.
 type AppliedCoupon struct {
@@ -13,6 +16,7 @@ type Order struct {
 	ID               string        `gorm:"type:uuid;primaryKey" json:"id"`
 	OrderNumber      string        `gorm:"size:50;uniqueIndex" json:"order_number"`
 	UserID           *string       `gorm:"type:uuid;index" json:"user_id"`
+	CustomerID       *string       `gorm:"type:uuid;index" json:"customer_id"`
 	BusinessID       *string       `gorm:"type:uuid;index" json:"business_id"`
 	Channel          string        `gorm:"size:24;index" json:"channel"`
 	CreatedByAdminID *string       `gorm:"type:uuid;index" json:"created_by_admin_id"`
@@ -34,4 +38,6 @@ type Order struct {
 	UpdatedAt        time.Time     `json:"updated_at"`
 	OrderItems       []OrderItem   `gorm:"foreignKey:OrderID" json:"order_items"`
 	Payments         []Payment     `gorm:"foreignKey:OrderID" json:"payments"`
+	// Customer relation populated when requested by admin APIs
+	Customer *authmodels.Customer `gorm:"foreignKey:CustomerID" json:"customer,omitempty"`
 }

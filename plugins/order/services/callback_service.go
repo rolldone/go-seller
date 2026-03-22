@@ -69,6 +69,9 @@ func (s *OrderService) ProcessCallback(ctx context.Context, payload CallbackPayl
 	if err := s.DB.WithContext(ctx).Model(&order).Updates(updates).Error; err != nil {
 		return nil, err
 	}
+	if payload.Status == "paid" || payload.PaymentStatus == "paid" {
+		_ = RevokeGuestCheckoutTokenByOrderID(ctx, order.ID)
+	}
 
 	order.Status = payload.Status
 	return &order, nil

@@ -8,7 +8,8 @@ import (
 
 	"go_framework/plugins/setting/models"
 
-	"github.com/google/uuid"
+	"go_framework/internal/uuid"
+
 	"gorm.io/gorm"
 )
 

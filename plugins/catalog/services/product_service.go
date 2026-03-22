@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -95,6 +96,19 @@ func (s *CatalogService) GetPublishedProductByID(ctx context.Context, id string)
 func (s *CatalogService) SetProductPublishState(ctx context.Context, id string, isPublished bool) (int64, error) {
 	status := "draft"
 	if isPublished {
+		var translation catalogmodels.ProductTranslation
+		err := s.DB.WithContext(ctx).
+			Where("product_id = ? AND locale = ?", id, "id").
+			First(&translation).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return 0, errors.New("cannot publish product: Indonesian translation (locale=id) is required")
+			}
+			return 0, err
+		}
+		if strings.TrimSpace(translation.Name) == "" || strings.TrimSpace(translation.Slug) == "" {
+			return 0, errors.New("cannot publish product: Indonesian translation must have name and slug")
+		}
 		status = "published"
 	}
 	res := s.DB.WithContext(ctx).Model(&catalogmodels.Product{}).Where("id = ?", id).Update("status", status)

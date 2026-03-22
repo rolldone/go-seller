@@ -18,6 +18,6 @@ func NewServices(db *gorm.DB, store storage.Store) *Services {
 		Cart:     NewCartService(db),
 		Order:    NewOrderService(db),
 		Wishlist: NewWishlistService(db),
-		Payment:  NewPaymentService(db),
+		Payment:  NewPaymentService(db, store),
 	}
 }

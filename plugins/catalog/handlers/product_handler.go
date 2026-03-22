@@ -81,6 +81,16 @@ type updateProductRequest struct {
 	PriceOverride *bool    `json:"price_override_enabled"`
 }
 
+type upsertProductTranslationRequest struct {
+	Name              string          `json:"name"`
+	Slug              string          `json:"slug"`
+	Description       *string         `json:"description"`
+	DescriptionHTML   *string         `json:"description_html"`
+	DescriptionPlain  *string         `json:"description_plain"`
+	DescriptionBlocks json.RawMessage `json:"description_blocks"`
+	ShortDescription  *string         `json:"short_description"`
+}
+
 type productResponse struct {
 	catalogmodels.Product
 	CategoryIDs []string `json:"category_ids"`
@@ -104,6 +114,21 @@ func parseIntParam(v string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func applyTranslation(product *catalogmodels.Product, tr catalogmodels.ProductTranslation) {
+	if strings.TrimSpace(tr.Name) != "" {
+		product.Name = tr.Name
+	}
+	if strings.TrimSpace(tr.Slug) != "" {
+		product.Slug = tr.Slug
+	}
+	if tr.Description != nil {
+		product.Description = tr.Description
+	}
+	if tr.ShortDescription != nil {
+		product.ShortDescription = tr.ShortDescription
+	}
 }
 
 func (h *ProductHandler) Create(c *gin.Context) {
@@ -212,8 +237,14 @@ func (h *ProductHandler) List(c *gin.Context) {
 		return
 	}
 	ids := make([]string, 0, len(products))
+	locale := strings.TrimSpace(c.Query("locale"))
 	for _, p := range products {
 		ids = append(ids, p.ID)
+	}
+	translationMap, err := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), ids, locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	categoryMap, err := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
 	if err != nil {
@@ -227,6 +258,9 @@ func (h *ProductHandler) List(c *gin.Context) {
 	}
 	items := make([]productResponse, 0, len(products))
 	for _, p := range products {
+		if tr, ok := translationMap[p.ID]; ok {
+			applyTranslation(&p, tr)
+		}
 		items = append(items, productResponse{Product: p, CategoryIDs: categoryMap[p.ID], TagIDs: tagMap[p.ID]})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
@@ -245,6 +279,21 @@ func (h *ProductHandler) PublicList(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	locale := strings.TrimSpace(c.Query("locale"))
+	ids := make([]string, 0, len(products))
+	for _, p := range products {
+		ids = append(ids, p.ID)
+	}
+	translationMap, err := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), ids, locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	for i := range products {
+		if tr, ok := translationMap[products[i].ID]; ok {
+			applyTranslation(&products[i], tr)
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"data": products, "total": total})
 }
@@ -269,6 +318,15 @@ func (h *ProductHandler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	locale := strings.TrimSpace(c.Query("locale"))
+	translationMap, err := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), []string{product.ID}, locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if tr, ok := translationMap[product.ID]; ok {
+		applyTranslation(product, tr)
+	}
 	c.JSON(http.StatusOK, productResponse{Product: *product, CategoryIDs: categoryIDs, TagIDs: tagIDs})
 }
 
@@ -292,7 +350,58 @@ func (h *ProductHandler) PublicGetByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	locale := strings.TrimSpace(c.Query("locale"))
+	translationMap, err := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), []string{product.ID}, locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if tr, ok := translationMap[product.ID]; ok {
+		applyTranslation(product, tr)
+	}
 	c.JSON(http.StatusOK, productResponse{Product: *product, CategoryIDs: categoryIDs, TagIDs: tagIDs})
+}
+
+func (h *ProductHandler) UpsertTranslation(c *gin.Context) {
+	productID := c.Param("id")
+	locale := c.Param("locale")
+	var req upsertProductTranslationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	blocksJSON, err := normalizeRawJSON(req.DescriptionBlocks)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := h.svc.UpsertProductTranslation(
+		c.Request.Context(),
+		productID,
+		locale,
+		req.Name,
+		req.Slug,
+		req.Description,
+		req.DescriptionHTML,
+		req.DescriptionPlain,
+		blocksJSON,
+		req.ShortDescription,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *ProductHandler) ListTranslations(c *gin.Context) {
+	productID := c.Param("id")
+	items, err := h.svc.ListProductTranslations(c.Request.Context(), productID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
 }
 
 func (h *ProductHandler) Update(c *gin.Context) {

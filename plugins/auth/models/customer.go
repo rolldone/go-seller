@@ -11,6 +11,7 @@ type Customer struct {
 	ID           string         `gorm:"type:uuid;primaryKey" json:"id"`
 	Name         string         `gorm:"size:100" json:"name"`
 	Email        string         `gorm:"size:255;uniqueIndex" json:"email"`
+	Locale       string         `gorm:"size:8;default:'id'" json:"locale"`
 	PasswordHash *string        `gorm:"column:password;type:text" json:"-"`
 	GoogleID     *string        `gorm:"column:google_id;type:text" json:"-"`
 	FacebookID   *string        `gorm:"column:facebook_id;type:text" json:"-"`

@@ -69,6 +69,17 @@ services:
     networks:
       - default
 
+  wkhtmlpdf:
+    container_name: wkhtmlpdf_service
+    build:
+      context: ./img_wkhtml
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${DOCKER_HOST_IP:-0.0.0.0}:${WKHTML_HOST_PORT:-8086}:8085"
+    networks:
+      - default
+
 volumes:
   go_seller_keydb:
     external: true

@@ -1,0 +1,158 @@
+[
+  {
+    "key": "notifications.new_order_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "New Order",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, owner@goseller.local",
+      "subject": "[Order Baru] {{.order_number}} - {{.business_name}}",
+      "body": "Halo Admin, order baru {{.order_number}} dengan total {{.currency}} {{.grand_total}} baru saja dibuat."
+    },
+    "description": "Template notifikasi admin saat order baru masuk (Indonesia)"
+  },
+  {
+    "key": "notifications.cancelled_order_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Cancelled Order",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local",
+      "subject": "[Order Dibatalkan] {{.order_number}}",
+      "body": "Order {{.order_number}} dibatalkan. Status order saat ini: {{.order_status}}."
+    },
+    "description": "Template notifikasi admin saat order dibatalkan (Indonesia)"
+  },
+  {
+    "key": "notifications.failed_order_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Failed Order",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "finance@goseller.local",
+      "subject": "[Payment Gagal] {{.order_number}}",
+      "body": "Payment untuk order {{.order_number}} gagal atau ditolak. Status payment: {{.payment_status}}."
+    },
+    "description": "Template notifikasi admin saat payment gagal (Indonesia)"
+  },
+  {
+    "key": "notifications.processing_order_customer.id",
+    "scope": "global",
+    "value": {
+      "name": "Processing Order",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Order kamu sedang diproses - {{.order_number}}",
+      "body": "Hi {{.customer_name}}, order {{.order_number}} sudah kami terima dan pembayaran sudah terverifikasi."
+    },
+    "description": "Template notifikasi customer saat order mulai diproses (Indonesia)"
+  },
+  {
+    "key": "notifications.completed_order_customer.id",
+    "scope": "global",
+    "value": {
+      "name": "Completed Order",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Order selesai - {{.order_number}}",
+      "body": "Hi {{.customer_name}}, order {{.order_number}} sudah selesai. Terima kasih sudah belanja."
+    },
+    "description": "Template notifikasi customer saat order selesai (Indonesia)"
+  },
+  {
+    "key": "notifications.proof_uploaded_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Proof Uploaded",
+      "audience": "admin",
+      "enabled": false,
+      "recipients": "admin@goseller.local",
+      "subject": "[Bukti Transfer Baru] {{.order_number}}",
+      "body": "Bukti transfer baru sudah diupload untuk order {{.order_number}}. Silakan cek panel admin."
+    },
+    "description": "Template notifikasi admin saat bukti transfer diupload (Indonesia)"
+  },
+  {
+    "key": "notifications.new_order_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "New Order",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, owner@goseller.local",
+      "subject": "[New Order] {{.order_number}} - {{.business_name}}",
+      "body": "Hello Admin, new order {{.order_number}} with total {{.currency}} {{.grand_total}} has just been created."
+    },
+    "description": "Admin notification template when a new order is created (English)"
+  },
+  {
+    "key": "notifications.cancelled_order_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Cancelled Order",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local",
+      "subject": "[Order Cancelled] {{.order_number}}",
+      "body": "Order {{.order_number}} has been cancelled. Current order status: {{.order_status}}."
+    },
+    "description": "Admin notification template when an order is cancelled (English)"
+  },
+  {
+    "key": "notifications.failed_order_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Failed Order",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "finance@goseller.local",
+      "subject": "[Payment Failed] {{.order_number}}",
+      "body": "Payment for order {{.order_number}} failed or was rejected. Payment status: {{.payment_status}}."
+    },
+    "description": "Admin notification template when payment fails (English)"
+  },
+  {
+    "key": "notifications.processing_order_customer.en",
+    "scope": "global",
+    "value": {
+      "name": "Processing Order",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Your order is being processed - {{.order_number}}",
+      "body": "Hi {{.customer_name}}, your order {{.order_number}} has been received and your payment has been verified."
+    },
+    "description": "Customer notification template when order starts processing (English)"
+  },
+  {
+    "key": "notifications.completed_order_customer.en",
+    "scope": "global",
+    "value": {
+      "name": "Completed Order",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Order completed - {{.order_number}}",
+      "body": "Hi {{.customer_name}}, your order {{.order_number}} is completed. Thank you for shopping with us."
+    },
+    "description": "Customer notification template when order is completed (English)"
+  },
+  {
+    "key": "notifications.proof_uploaded_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Proof Uploaded",
+      "audience": "admin",
+      "enabled": false,
+      "recipients": "admin@goseller.local",
+      "subject": "[New Transfer Proof] {{.order_number}}",
+      "body": "A new transfer proof has been uploaded for order {{.order_number}}. Please check the admin panel."
+    },
+    "description": "Admin notification template when payment proof is uploaded (English)"
+  }
+]

@@ -10,9 +10,11 @@ import (
 
 	catalogmodels "go_framework/plugins/catalog/models"
 	"go_framework/plugins/order/models"
+	pluginregistry "go_framework/plugins/plugin_registry"
 	settingmodels "go_framework/plugins/setting/models"
 
-	"github.com/google/uuid"
+	"go_framework/internal/uuid"
+
 	"gorm.io/gorm"
 )
 
@@ -68,6 +70,7 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			ID:             uuid.NewString(),
 			OrderNumber:    "ORD-" + uuid.NewString(),
 			UserID:         &cart.UserID,
+			CustomerID:     &cart.UserID,
 			BusinessID:     cart.BusinessID,
 			Channel:        "web",
 			Status:         "pending",
@@ -112,10 +115,11 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 	if err != nil {
 		return nil, err
 	}
+	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "new_order_admin", order.ID)
 	return order, nil
 }
 
-func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, userID *string, businessID *string, items []models.OrderItem, currency string) (*models.Order, error) {
+func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, userID *string, customerID *string, businessID *string, items []models.OrderItem, currency string) (*models.Order, error) {
 	var order *models.Order
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
@@ -127,6 +131,7 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 			ID:               uuid.NewString(),
 			OrderNumber:      "POS-" + uuid.NewString(),
 			UserID:           userID,
+			CustomerID:       customerID,
 			BusinessID:       businessID,
 			Channel:          "pos",
 			CreatedByAdminID: &adminID,
@@ -159,16 +164,18 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 	if err != nil {
 		return nil, err
 	}
+	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "new_order_admin", order.ID)
 	return order, nil
 }
 
 // CreateDraftOrderAsAdmin creates a draft POS order with no items yet.
-func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID string, userID *string, businessID *string, currency string) (*models.Order, error) {
+func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID string, userID *string, customerID *string, businessID *string, currency string) (*models.Order, error) {
 	now := time.Now()
 	ord := &models.Order{
 		ID:               uuid.NewString(),
 		OrderNumber:      "POS-" + uuid.NewString(),
 		UserID:           userID,
+		CustomerID:       customerID,
 		BusinessID:       businessID,
 		Channel:          "pos",
 		CreatedByAdminID: &adminID,
@@ -415,6 +422,39 @@ func (s *OrderService) FinalizeOrder(ctx context.Context, orderID string) (*mode
 	return s.GetOrderByID(ctx, orderID)
 }
 
+// UpdateOrderStatus sets the order's status to the provided value.
+func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID string, status string) (*models.Order, error) {
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		var order models.Order
+		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
+			return err
+		}
+		// allow updating status regardless of payment state; caller should validate transitions
+		if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": now,
+		}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	updated, err := s.GetOrderByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "completed":
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "completed_order_customer", orderID)
+	case "cancelled", "canceled":
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "cancelled_order_admin", orderID)
+	}
+	return updated, nil
+}
+
 func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now time.Time) error {
 	var items []models.OrderItem
 	if err := tx.Where("order_id = ?", orderID).Find(&items).Error; err != nil {
@@ -550,7 +590,7 @@ func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now
 
 func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Order, error) {
 	var o models.Order
-	if err := s.DB.WithContext(ctx).Preload("OrderItems").Preload("Payments").Where("id = ?", id).First(&o).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Preload("OrderItems").Preload("Payments").Preload("OrderCoupons").Preload("Customer").Where("id = ?", id).First(&o).Error; err != nil {
 		return nil, err
 	}
 	// populate discount names for order items from order_discounts
@@ -569,6 +609,22 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Ord
 		}
 	}
 	return &o, nil
+}
+
+// UpdateOrderCustomer updates the customer_id of an existing order (used by POS to persist selection).
+func (s *OrderService) UpdateOrderCustomer(ctx context.Context, orderID string, customerID *string) (*models.Order, error) {
+	var ord models.Order
+	if err := s.DB.WithContext(ctx).Where("id = ?", orderID).First(&ord).Error; err != nil {
+		return nil, err
+	}
+	if ord.PaymentStatus == "paid" || ord.PaidAt != nil {
+		return nil, ErrOrderAlreadyPaid
+	}
+	now := time.Now()
+	if err := s.DB.WithContext(ctx).Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{"customer_id": customerID, "updated_at": now}).Error; err != nil {
+		return nil, err
+	}
+	return s.GetOrderByID(ctx, orderID)
 }
 
 // ApplyCouponToOrder validates and adds a coupon to the order using the order_coupons table.
@@ -806,7 +862,7 @@ func (s *OrderService) ListOrders(ctx context.Context, f OrderListFilter) ([]mod
 		}
 	}
 
-	if err := q.Preload("OrderItems").Preload("Payments").Order(orderClause).Limit(f.Limit).Offset((f.Page - 1) * f.Limit).Find(&orders).Error; err != nil {
+	if err := q.Preload("OrderItems").Preload("Payments").Preload("Customer").Order(orderClause).Limit(f.Limit).Offset((f.Page - 1) * f.Limit).Find(&orders).Error; err != nil {
 		return nil, 0, err
 	}
 	return orders, total, nil

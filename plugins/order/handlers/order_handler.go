@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	ordermodels "go_framework/plugins/order/models"
@@ -23,6 +25,7 @@ func NewOrderHandler(svc *ordersvc.OrderService) *OrderHandler {
 type adminCreateOrderReq struct {
 	AdminID    string  `json:"admin_id" binding:"required"`
 	UserID     *string `json:"user_id"`
+	CustomerID *string `json:"customer_id"`
 	BusinessID *string `json:"business_id"`
 	Currency   string  `json:"currency" binding:"required"`
 	IsDraft    bool    `json:"is_draft"`
@@ -53,7 +56,7 @@ func (h *OrderHandler) AdminCreate(c *gin.Context) {
 		})
 	}
 	if req.IsDraft || len(items) == 0 {
-		ord, err := h.svc.CreateDraftOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.BusinessID, req.Currency)
+		ord, err := h.svc.CreateDraftOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.CustomerID, req.BusinessID, req.Currency)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -62,7 +65,7 @@ func (h *OrderHandler) AdminCreate(c *gin.Context) {
 		return
 	}
 
-	ord, err := h.svc.CreateOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.BusinessID, items, req.Currency)
+	ord, err := h.svc.CreateOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.CustomerID, req.BusinessID, items, req.Currency)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -225,6 +228,49 @@ func (h *OrderHandler) RemoveCoupon(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": ord})
 }
 
+type updateOrderReq struct {
+	CustomerID *string `json:"customer_id"`
+}
+
+func (h *OrderHandler) Update(c *gin.Context) {
+	orderID := c.Param("id")
+	var req updateOrderReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	ord, err := h.svc.UpdateOrderCustomer(c.Request.Context(), orderID, req.CustomerID)
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrOrderAlreadyPaid) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": ord})
+}
+
+type updateOrderStatusReq struct {
+	Status string `json:"status" binding:"required"`
+}
+
+// SetStatus allows admins to set the order status directly.
+func (h *OrderHandler) SetStatus(c *gin.Context) {
+	orderID := c.Param("id")
+	var req updateOrderStatusReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	ord, err := h.svc.UpdateOrderStatus(c.Request.Context(), orderID, req.Status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": ord})
+}
+
 func (h *OrderHandler) GetByID(c *gin.Context) {
 	id := c.Param("id")
 	ord, err := h.svc.GetOrderByID(c.Request.Context(), id)
@@ -233,6 +279,26 @@ func (h *OrderHandler) GetByID(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": ord, "payments": ord.Payments}})
+}
+
+func (h *OrderHandler) DownloadInvoice(c *gin.Context) {
+	id := c.Param("id")
+	pdfBytes, filename, err := h.svc.GenerateInvoicePDF(c.Request.Context(), id)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "record not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		if errors.Is(err, ordersvc.ErrInvoiceRenderFailed) {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
 
 func (h *OrderHandler) AdminList(c *gin.Context) {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -19,8 +20,26 @@ type ListCustomersFilter struct {
 	Limit       int
 }
 
+func normalizeCustomerLocale(locale string) (string, error) {
+	value := strings.ToLower(strings.TrimSpace(locale))
+	if value == "" {
+		return "id", nil
+	}
+	switch value {
+	case "id", "en":
+		return value, nil
+	default:
+		return "", errors.New("locale must be one of: id, en")
+	}
+}
+
 // CreateCustomer inserts a new customer record.
 func (s *AuthService) CreateCustomer(ctx context.Context, c *authmodels.Customer) error {
+	locale, err := normalizeCustomerLocale(c.Locale)
+	if err != nil {
+		return err
+	}
+	c.Locale = locale
 	return s.DB.WithContext(ctx).Create(c).Error
 }
 
@@ -75,7 +94,7 @@ func (s *AuthService) ListCustomers(ctx context.Context, f ListCustomersFilter) 
 }
 
 // UpdateCustomerByID updates the modifiable customer fields.
-func (s *AuthService) UpdateCustomerByID(ctx context.Context, id string, name, email, phone, notes *string, isActive *bool) error {
+func (s *AuthService) UpdateCustomerByID(ctx context.Context, id string, name, email, phone, notes, locale *string, isActive *bool) error {
 	updates := map[string]interface{}{"updated_at": time.Now()}
 	if name != nil {
 		updates["name"] = strings.TrimSpace(*name)
@@ -88,6 +107,13 @@ func (s *AuthService) UpdateCustomerByID(ctx context.Context, id string, name, e
 	}
 	if notes != nil {
 		updates["notes"] = strings.TrimSpace(*notes)
+	}
+	if locale != nil {
+		normalized, err := normalizeCustomerLocale(*locale)
+		if err != nil {
+			return err
+		}
+		updates["locale"] = normalized
 	}
 	if isActive != nil {
 		updates["is_active"] = *isActive

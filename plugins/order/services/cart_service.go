@@ -7,7 +7,8 @@ import (
 
 	"go_framework/plugins/order/models"
 
-	"github.com/google/uuid"
+	"go_framework/internal/uuid"
+
 	"gorm.io/gorm"
 )
 

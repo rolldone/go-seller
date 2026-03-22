@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 	"go_framework/internal/plugins"
+	"go_framework/internal/storage"
 	pluginhandlers "go_framework/plugins/catalog/handlers"
 	pluginservices "go_framework/plugins/catalog/services"
 
@@ -32,6 +33,13 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 		return fmt.Errorf("catalog: service not registered; call RegisterServices first")
 	}
 
+	// Serve local storage assets from the catalog plugin so core bootstrap
+	// no longer needs to register these routes (keeps core safe from edits).
+	if localStore, ok := p.service.Store.(*storage.LocalStore); ok {
+		router.Static("/assets/businesses", localStore.GetRoot()+"/businesses")
+		router.Static("/assets/products", localStore.GetRoot()+"/products")
+	}
+
 	productHandler := pluginhandlers.NewProductHandler(p.service)
 	businessHandler := pluginhandlers.NewBusinessHandler(p.service)
 	categoryHandler := pluginhandlers.NewCategoryHandler(p.service)
@@ -48,6 +56,8 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminCatalog.POST("/products", productHandler.Create)
 	adminCatalog.GET("/products", productHandler.List)
 	adminCatalog.GET("/products/:id", productHandler.GetByID)
+	adminCatalog.GET("/products/:id/translations", productHandler.ListTranslations)
+	adminCatalog.PUT("/products/:id/translations/:locale", productHandler.UpsertTranslation)
 	adminCatalog.PUT("/products/:id", productHandler.Update)
 	adminCatalog.DELETE("/products/:id", productHandler.Delete)
 	adminCatalog.PATCH("/products/:id/publish", productHandler.Publish)

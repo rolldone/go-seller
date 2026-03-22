@@ -2,6 +2,8 @@
   { "key": "store.name", "scope": "global", "value": "\"\"", "description": "Nama toko" },
   { "key": "store.currency", "scope": "global", "value": "\"IDR\"", "description": "Mata uang default" },
   { "key": "store.timezone", "scope": "global", "value": "\"Asia/Jakarta\"", "description": "Timezone toko" },
+  { "key": "i18n.default_locale", "scope": "global", "value": "\"id\"", "description": "Bahasa default aplikasi (id/en)" },
+  { "key": "i18n.supported_locales", "scope": "global", "value": "[\"id\", \"en\"]", "description": "Daftar bahasa aktif" },
   { "key": "store.phone", "scope": "global", "value": "\"\"", "description": "Nomor telepon toko" },
   { "key": "store.address", "scope": "global", "value": "\"\"", "description": "Alamat toko" },
 

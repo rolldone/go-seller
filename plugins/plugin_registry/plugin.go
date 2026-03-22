@@ -3,7 +3,11 @@ package plugin_registry
 import (
 	"net/http"
 
+	"context"
+
 	"github.com/gin-gonic/gin"
+
+	"gorm.io/gorm"
 )
 
 // ─── Permission provider ─────────────────────────────────────────────────────
@@ -29,4 +33,37 @@ func RequirePermission(permission string) gin.HandlerFunc {
 		}
 	}
 	return permissionProvider.RequirePermission(permission)
+}
+
+// ─── Notification provider ──────────────────────────────────────────────────
+
+// NotificationProvider allows a plugin to handle notification dispatching so
+// core code can call into the registered plugin without depending on its
+// concrete implementation.
+type NotificationProvider interface {
+	SendOrderEvent(ctx context.Context, db *gorm.DB, eventKey string, orderID string) error
+	SendOrderEventAsync(ctx context.Context, db *gorm.DB, eventKey string, orderID string)
+}
+
+var notificationProvider NotificationProvider
+
+// RegisterNotificationProvider registers a notification provider implementation.
+func RegisterNotificationProvider(p NotificationProvider) {
+	notificationProvider = p
+}
+
+// SendOrderEvent delegates to the registered provider if available.
+func SendOrderEvent(ctx context.Context, db *gorm.DB, eventKey string, orderID string) error {
+	if notificationProvider == nil {
+		return nil
+	}
+	return notificationProvider.SendOrderEvent(ctx, db, eventKey, orderID)
+}
+
+// SendOrderEventAsync delegates to the registered provider if available.
+func SendOrderEventAsync(ctx context.Context, db *gorm.DB, eventKey string, orderID string) {
+	if notificationProvider == nil {
+		return
+	}
+	notificationProvider.SendOrderEventAsync(ctx, db, eventKey, orderID)
 }
