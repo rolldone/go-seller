@@ -20,4 +20,7 @@ type BusinessAssetDerivative struct {
 	CreatedAt time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Back-reference to parent asset (optional preload)
+	Asset *BusinessAsset `gorm:"foreignKey:AssetID" json:"asset,omitempty"`
 }

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	catalogmodels "go_framework/plugins/catalog/models"
+
+	"gorm.io/gorm"
 )
 
 func (s *CatalogService) CreateBusiness(ctx context.Context, b *catalogmodels.Business) error {
@@ -55,4 +57,20 @@ func (s *CatalogService) UpdateBusiness(ctx context.Context, b *catalogmodels.Bu
 func (s *CatalogService) DeleteBusinessByID(ctx context.Context, id string) (int64, error) {
 	res := s.DB.WithContext(ctx).Where("id = ?", id).Delete(&catalogmodels.Business{})
 	return res.RowsAffected, res.Error
+}
+
+// GetBusinessBySlug returns a Business by its slug.
+func (s *CatalogService) GetBusinessBySlug(ctx context.Context, slug string) (*catalogmodels.Business, error) {
+	var out catalogmodels.Business
+	// preload assets and their derivatives so callers can use item.Assets directly
+	q := s.DB.WithContext(ctx).Model(&catalogmodels.Business{}).
+		Preload("Assets", func(db *gorm.DB) *gorm.DB {
+			return db.Order("display_order asc")
+		}).
+		Preload("Assets.Derivatives")
+
+	if err := q.Where("slug = ?", slug).First(&out).Error; err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

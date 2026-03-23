@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"go_framework/internal/uuid"
 	catalogmodels "go_framework/plugins/catalog/models"
@@ -237,6 +239,36 @@ func (h *BusinessHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"deleted": affected})
+}
+
+// PublicGetBySlug returns business data by slug for public usage (used by /b/:slug)
+func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
+	slug := c.Param("slug")
+	item, err := h.svc.GetBusinessBySlug(c.Request.Context(), slug)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// assets are preloaded by service; ensure public_url is absolute
+	base := strings.TrimRight(os.Getenv("APP_URL"), "/")
+	for i := range item.Assets {
+		if item.Assets[i].PublicURL != "" && strings.HasPrefix(item.Assets[i].PublicURL, "/") {
+			item.Assets[i].PublicURL = base + item.Assets[i].PublicURL
+			continue
+		}
+		if item.Assets[i].FilePath != "" && item.Assets[i].PublicURL == "" {
+			if full, err := h.svc.Store.PublicURL(c.Request.Context(), item.Assets[i].FilePath); err == nil {
+				item.Assets[i].PublicURL = full
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": item, "assets": item.Assets})
 }
 
 func normalizeRawJSON(raw json.RawMessage) (datatypes.JSON, error) {

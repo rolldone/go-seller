@@ -40,6 +40,9 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 		router.Static("/assets/products", localStore.GetRoot()+"/products")
 	}
 
+	// Public friendly business route, e.g. /b/:slug
+	router.GET("/b/:slug", pluginhandlers.NewBusinessHandler(p.service).PublicGetBySlug)
+
 	productHandler := pluginhandlers.NewProductHandler(p.service)
 	businessHandler := pluginhandlers.NewBusinessHandler(p.service)
 	categoryHandler := pluginhandlers.NewCategoryHandler(p.service)
