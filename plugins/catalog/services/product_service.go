@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	catalogmodels "go_framework/plugins/catalog/models"
@@ -130,13 +131,25 @@ func (s *CatalogService) ListProducts(ctx context.Context, f ProductListFilter) 
 	}
 	if searchTerm := strings.TrimSpace(f.Query); searchTerm != "" {
 		like := "%" + searchTerm + "%"
-		q = q.Where(
-			"name ILIKE ? OR description ILIKE ? OR short_description ILIKE ? OR id = ?",
-			like,
-			like,
-			like,
-			searchTerm,
-		)
+		// Only compare id = ? when the search term looks like a UUID to avoid
+		// Postgres casting errors when comparing uuid column with arbitrary text.
+		uuidRegex := regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+		if uuidRegex.MatchString(searchTerm) {
+			q = q.Where(
+				"name ILIKE ? OR description ILIKE ? OR short_description ILIKE ? OR id = ?",
+				like,
+				like,
+				like,
+				searchTerm,
+			)
+		} else {
+			q = q.Where(
+				"name ILIKE ? OR description ILIKE ? OR short_description ILIKE ?",
+				like,
+				like,
+				like,
+			)
+		}
 	}
 	if strings.TrimSpace(f.SKU) != "" {
 		q = q.Where("sku = ?", strings.TrimSpace(f.SKU))

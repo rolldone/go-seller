@@ -65,6 +65,19 @@
     "description": "Template notifikasi customer saat order selesai (Indonesia)"
   },
   {
+    "key": "notifications.customer_forgot_password.id",
+    "scope": "global",
+    "value": {
+      "name": "Customer Forgot Password",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Reset password akun GoSeller",
+      "body": "Halo {{.customer_name}}, kami menerima permintaan reset password. Klik tautan berikut untuk melanjutkan: {{.reset_url}}. Tautan ini berlaku 15 menit."
+    },
+    "description": "Template reset password customer (Indonesia)"
+  },
+  {
     "key": "notifications.proof_uploaded_admin.id",
     "scope": "global",
     "value": {
@@ -141,6 +154,19 @@
       "body": "Hi {{.customer_name}}, your order {{.order_number}} is completed. Thank you for shopping with us."
     },
     "description": "Customer notification template when order is completed (English)"
+  },
+  {
+    "key": "notifications.customer_forgot_password.en",
+    "scope": "global",
+    "value": {
+      "name": "Customer Forgot Password",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Reset GoSeller account password",
+      "body": "Hi {{.customer_name}}, we received a password reset request for your account. Click this link to continue: {{.reset_url}}. This link is valid for 15 minutes."
+    },
+    "description": "Customer password reset template (English)"
   },
   {
     "key": "notifications.proof_uploaded_admin.en",

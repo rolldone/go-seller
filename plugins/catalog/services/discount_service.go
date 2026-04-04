@@ -153,6 +153,53 @@ func (s *CatalogService) buildDiscountProductMap(ctx context.Context, discountID
 	return result, nil
 }
 
+// GetActiveDiscountsForProductIDs returns active discounts grouped by product ID.
+func (s *CatalogService) GetActiveDiscountsForProductIDs(ctx context.Context, productIDs []string) (map[string][]catalogmodels.Discount, error) {
+	result := make(map[string][]catalogmodels.Discount)
+	if len(productIDs) == 0 {
+		return result, nil
+	}
+
+	now := time.Now().UTC()
+
+	// First get active discounts in time window
+	var activeDiscounts []catalogmodels.Discount
+	if err := s.DB.WithContext(ctx).
+		Where("is_active = ? AND start_at <= ? AND (end_at IS NULL OR end_at >= ?)", true, now, now).
+		Order("priority DESC, created_at DESC").
+		Find(&activeDiscounts).Error; err != nil {
+		return nil, err
+	}
+	if len(activeDiscounts) == 0 {
+		return result, nil
+	}
+
+	// build map of discountID -> Discount
+	discountMap := make(map[string]catalogmodels.Discount, len(activeDiscounts))
+	discountIDs := make([]string, 0, len(activeDiscounts))
+	for _, d := range activeDiscounts {
+		discountMap[d.ID] = d
+		discountIDs = append(discountIDs, d.ID)
+	}
+
+	// find relations for these discounts and requested products
+	var relations []catalogmodels.DiscountProduct
+	if err := s.DB.WithContext(ctx).
+		Where("discount_id IN ? AND product_id IN ?", discountIDs, productIDs).
+		Order("discount_id, product_id").
+		Find(&relations).Error; err != nil {
+		return nil, err
+	}
+
+	for _, rel := range relations {
+		if d, ok := discountMap[rel.DiscountID]; ok {
+			result[rel.ProductID] = append(result[rel.ProductID], d)
+		}
+	}
+
+	return result, nil
+}
+
 func NormalizeDiscountProductIDs(ids []string) []string {
 	seen := make(map[string]struct{}, len(ids))
 	cleaned := make([]string, 0, len(ids))

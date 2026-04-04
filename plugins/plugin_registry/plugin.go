@@ -43,6 +43,8 @@ func RequirePermission(permission string) gin.HandlerFunc {
 type NotificationProvider interface {
 	SendOrderEvent(ctx context.Context, db *gorm.DB, eventKey string, orderID string) error
 	SendOrderEventAsync(ctx context.Context, db *gorm.DB, eventKey string, orderID string)
+	SendTemplateEvent(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{}) error
+	SendTemplateEventAsync(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{})
 }
 
 var notificationProvider NotificationProvider
@@ -66,4 +68,20 @@ func SendOrderEventAsync(ctx context.Context, db *gorm.DB, eventKey string, orde
 		return
 	}
 	notificationProvider.SendOrderEventAsync(ctx, db, eventKey, orderID)
+}
+
+// SendTemplateEvent delegates template-based notification dispatching to the registered provider.
+func SendTemplateEvent(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{}) error {
+	if notificationProvider == nil {
+		return nil
+	}
+	return notificationProvider.SendTemplateEvent(ctx, db, eventKey, payload)
+}
+
+// SendTemplateEventAsync delegates template-based notification dispatching to the registered provider.
+func SendTemplateEventAsync(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{}) {
+	if notificationProvider == nil {
+		return
+	}
+	notificationProvider.SendTemplateEventAsync(ctx, db, eventKey, payload)
 }

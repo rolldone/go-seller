@@ -298,6 +298,69 @@ func (h *ProductHandler) PublicList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": products, "total": total})
 }
 
+// PublicListByBusinessSlug lists published products for a business identified by slug.
+func (h *ProductHandler) PublicListByBusinessSlug(c *gin.Context) {
+	slug := c.Param("slug")
+	// resolve business by slug to get its ID
+	biz, err := h.svc.GetBusinessBySlug(c.Request.Context(), slug)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// accept both q and search as query param
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		q = strings.TrimSpace(c.Query("search"))
+	}
+
+	products, total, err := h.svc.ListProducts(c.Request.Context(), catalogservices.ProductListFilter{
+		Query:         q,
+		OnlyPublished: true,
+		BusinessID:    biz.ID,
+		Page:          parseIntParam(c.Query("page"), 1),
+		Limit:         parseIntParam(c.Query("limit"), 20),
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	locale := strings.TrimSpace(c.Query("locale"))
+	ids := make([]string, 0, len(products))
+	for _, p := range products {
+		ids = append(ids, p.ID)
+	}
+	translationMap, err := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), ids, locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	categoryMap, err := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	tagMap, err := h.svc.GetTagIDsByProductIDs(c.Request.Context(), ids)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	items := make([]productResponse, 0, len(products))
+	for _, p := range products {
+		if tr, ok := translationMap[p.ID]; ok {
+			applyTranslation(&p, tr)
+		}
+		items = append(items, productResponse{Product: p, CategoryIDs: categoryMap[p.ID], TagIDs: tagMap[p.ID]})
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
+}
+
 func (h *ProductHandler) GetByID(c *gin.Context) {
 	product, err := h.svc.GetProductByID(c.Request.Context(), c.Param("id"))
 	if err != nil {

@@ -28,6 +28,15 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminCart.GET("/:id", cartHandler.Get)
 	adminCart.POST("/:id/checkout", cartHandler.Checkout)
 
+	apiOrder := api.Group("/order")
+	customerCart := apiOrder.Group("/carts")
+	customerCart.Use(authhandlers.RequireCustomerJWT())
+	customerCart.GET("/me", cartHandler.Me)
+	customerCart.POST("/me/items", cartHandler.MeAddItem)
+	customerCart.PATCH("/me/items/:item_id", cartHandler.MeUpdateItem)
+	customerCart.DELETE("/me/items/:item_id", cartHandler.MeDeleteItem)
+	customerCart.POST("/me/checkout", cartHandler.MeCheckout)
+
 	// wishlist handlers
 	wishlistHandler := NewWishlistHandler(s.Wishlist)
 	adminWishlist := adminOrder.Group("/wishlists")
@@ -83,7 +92,6 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 
 	// Server-to-server callback endpoint — payload is AES-GCM encrypted with shared S2S_KEY.
 	callbackHandler := NewCallbackHandler(s.Order)
-	apiOrder := api.Group("/order")
 	apiOrder.POST("/callback", callbackHandler.HandleCallback)
 	apiOrder.GET("/guest-checkout/:token", guestCheckoutHandler.GetDetail)
 	apiOrder.POST("/guest-checkout/:token/start-payment", guestCheckoutHandler.StartPayment)

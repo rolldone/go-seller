@@ -55,7 +55,7 @@ func (h *BusinessAssetHandler) Create(c *gin.Context) {
 }
 
 func (h *BusinessAssetHandler) List(c *gin.Context) {
-	businessID := c.Query("business_id")
+	businessID := c.Param("business_id")
 	page := parseIntParam(c.Query("page"), 1)
 	limit := parseIntParam(c.Query("limit"), 20)
 

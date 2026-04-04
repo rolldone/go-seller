@@ -52,6 +52,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	searchHandler := pluginhandlers.NewSearchHandler(p.service)
 	couponHandler := pluginhandlers.NewCouponHandler(p.service)
 	discountHandler := pluginhandlers.NewDiscountHandler(p.service)
+	variationHandler := pluginhandlers.NewVariationHandler(p.service)
 
 	admin.GET("/plugins/catalog/health", func(c *gin.Context) { c.String(200, "ok") })
 
@@ -97,6 +98,30 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminCatalog.PUT("/assets/:id", assetHandler.Update)
 	adminCatalog.DELETE("/assets/:id", assetHandler.Delete)
 
+	// Attribute Groups routes
+	adminCatalog.POST("/attribute-groups", variationHandler.CreateAttributeGroup)
+	adminCatalog.GET("/attribute-groups", variationHandler.ListAttributeGroups)
+	// Nested specific route BEFORE single param route!
+	adminCatalog.GET("/attribute-groups/:id/attributes", variationHandler.ListAttributesByGroup)
+	adminCatalog.GET("/attribute-groups/:id", variationHandler.GetAttributeGroup)
+	adminCatalog.PUT("/attribute-groups/:id", variationHandler.UpdateAttributeGroup)
+	adminCatalog.DELETE("/attribute-groups/:id", variationHandler.DeleteAttributeGroup)
+
+	// Attributes routes
+	adminCatalog.POST("/attributes", variationHandler.CreateAttribute)
+	adminCatalog.GET("/attributes/:id", variationHandler.GetAttribute)
+	adminCatalog.PUT("/attributes/:id", variationHandler.UpdateAttribute)
+	adminCatalog.DELETE("/attributes/:id", variationHandler.DeleteAttribute)
+
+	// Product Variations routes - specific before general
+	adminCatalog.GET("/variations/by-attributes", variationHandler.GetVariationByAttributes)
+	adminCatalog.POST("/variations", variationHandler.CreateProductVariation)
+	adminCatalog.GET("/variations", variationHandler.ListProductVariations)
+	adminCatalog.GET("/variations/:id", variationHandler.GetProductVariation)
+	adminCatalog.PUT("/variations/:id", variationHandler.UpdateProductVariation)
+	adminCatalog.PUT("/variations/:id/assets", variationHandler.UpdateVariationAssets)
+	adminCatalog.DELETE("/variations/:id", variationHandler.DeleteProductVariation)
+
 	// Business assets routes
 	adminCatalog.POST("/businesses/:business_id/assets", businessAssetHandler.Create)
 	adminCatalog.POST("/businesses/:business_id/assets/upload", businessAssetHandler.Upload)
@@ -114,12 +139,16 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	apiCatalog.GET("/products/:id", productHandler.PublicGetByID)
 	apiCatalog.GET("/businesses", businessHandler.List)
 	apiCatalog.GET("/businesses/:business_id", businessHandler.GetByID)
+	// (route for business products removed — products included in /b/:slug response)
 	apiCatalog.GET("/categories", categoryHandler.List)
 	apiCatalog.GET("/tags", tagHandler.List)
 	apiCatalog.GET("/assets", assetHandler.List)
 	apiCatalog.GET("/businesses/:business_id/assets/:asset_id/derivatives", businessAssetHandler.PublicListDerivatives)
 	apiCatalog.GET("/businesses/:business_id/assets/:asset_id/derivatives/:derivative_id", businessAssetHandler.PublicGetDerivative)
 	apiCatalog.GET("/search", searchHandler.PublicSearch)
+	apiCatalog.GET("/variations", variationHandler.ListProductVariations)
+	// Product Variations public lookup
+	apiCatalog.GET("/variations/by-attributes", variationHandler.GetVariationByAttributes)
 	return nil
 }
 

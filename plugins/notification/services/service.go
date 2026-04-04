@@ -102,6 +102,14 @@ var defaultTemplates = map[string]TemplateConfig{
 		Subject:    "Order selesai - {{.order_number}}",
 		Body:       "Hi {{.customer_name}}, order {{.order_number}} sudah selesai. Terima kasih sudah belanja.",
 	},
+	"customer_forgot_password": {
+		Name:       "Customer Forgot Password",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Reset password akun GoSeller",
+		Body:       "Halo {{.customer_name}}, kami menerima permintaan reset password. Klik tautan berikut untuk melanjutkan: {{.reset_url}}. Tautan ini berlaku 15 menit.",
+	},
 	"proof_uploaded_admin": {
 		Name:       "Proof Uploaded",
 		Audience:   "admin",
@@ -152,6 +160,14 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Recipients: "{{.customer_email}}",
 		Subject:    "Order completed - {{.order_number}}",
 		Body:       "Hi {{.customer_name}}, your order {{.order_number}} is completed. Thank you for shopping with us.",
+	},
+	"customer_forgot_password": {
+		Name:       "Customer Forgot Password",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Reset GoSeller account password",
+		Body:       "Hi {{.customer_name}}, we received a password reset request for your account. Click this link to continue: {{.reset_url}}. This link is valid for 15 minutes.",
 	},
 	"proof_uploaded_admin": {
 		Name:       "Proof Uploaded",
@@ -210,6 +226,21 @@ func (s *Service) SendOrderEventAsync(ctx context.Context, db *gorm.DB, eventKey
 	}()
 }
 
+// SendTemplateEvent dispatches a notification template using an arbitrary payload.
+func (s *Service) SendTemplateEvent(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{}) error {
+	if db == nil {
+		return nil
+	}
+	return s.dispatchTemplate(ctx, db, eventKey, payload)
+}
+
+// SendTemplateEventAsync dispatches a notification template asynchronously.
+func (s *Service) SendTemplateEventAsync(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{}) {
+	go func() {
+		_ = s.SendTemplateEvent(ctx, db, eventKey, payload)
+	}()
+}
+
 func (s *Service) SendTestEmail(toEmail string, subject string, body string) error {
 	toEmail = strings.TrimSpace(toEmail)
 	if toEmail == "" {
@@ -254,6 +285,9 @@ func (s *Service) BuildTestPayload(overrides map[string]string) map[string]inter
 		"customer_locale": "id",
 		"business_name":   "Go Seller",
 		"order_link":      "/admin/orders",
+		"reset_token":     "TEST-RESET-TOKEN",
+		"reset_url":       "https://example.com/customer/auth/reset-password?token=TEST-RESET-TOKEN",
+		"app_name":        "Go Seller",
 	}
 	for key, value := range overrides {
 		if strings.TrimSpace(key) == "" {
@@ -330,6 +364,13 @@ func (s *Service) SeedDefaults(path string) error {
 
 func (s *Service) dispatch(ctx context.Context, db *gorm.DB, eventKey string, order *ordermodels.Order) error {
 	payload := s.buildPayload(ctx, db, order)
+	return s.dispatchTemplate(ctx, db, eventKey, payload)
+}
+
+func (s *Service) dispatchTemplate(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{}) error {
+	if payload == nil {
+		payload = map[string]interface{}{}
+	}
 	customerLocale, _ := payload["customer_locale"].(string)
 	defaultLocale := s.getDefaultLocale(ctx, db)
 	config := s.defaultTemplateFor(eventKey, customerLocale)

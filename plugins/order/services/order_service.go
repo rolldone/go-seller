@@ -69,8 +69,8 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 		ord := models.Order{
 			ID:             uuid.NewString(),
 			OrderNumber:    "ORD-" + uuid.NewString(),
-			UserID:         &cart.UserID,
-			CustomerID:     &cart.UserID,
+			UserID:         &cart.CustomerID,
+			CustomerID:     &cart.CustomerID,
 			BusinessID:     cart.BusinessID,
 			Channel:        "web",
 			Status:         "pending",

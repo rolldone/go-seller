@@ -268,7 +268,140 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": item, "assets": item.Assets})
+	// Fetch published products for this business and include lightweight product info
+	products, _, pErr := h.svc.ListProducts(c.Request.Context(), catalogservices.ProductListFilter{
+		BusinessID:    item.ID,
+		OnlyPublished: true,
+		Limit:         100,
+	})
+	var productsOut []map[string]interface{}
+	if pErr == nil && len(products) > 0 {
+		ids := make([]string, 0, len(products))
+		for _, p := range products {
+			ids = append(ids, p.ID)
+		}
+
+		locale := strings.TrimSpace(c.Query("locale"))
+		translationMap, _ := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), ids, locale)
+		categoryMap, _ := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
+		tagMap, _ := h.svc.GetTagIDsByProductIDs(c.Request.Context(), ids)
+
+		// preload active discounts for these products
+		prodIDs := make([]string, 0, len(products))
+		for _, p := range products {
+			prodIDs = append(prodIDs, p.ID)
+		}
+		discountMap, _ := h.svc.GetActiveDiscountsForProductIDs(c.Request.Context(), prodIDs)
+
+		// preload gallery assets (usage_tag = 'gallery') for these products
+		assetMap, _ := h.svc.GetProductAssetsForProductIDs(c.Request.Context(), prodIDs, "gallery")
+
+		for _, p := range products {
+			if tr, ok := translationMap[p.ID]; ok {
+				if strings.TrimSpace(tr.Name) != "" {
+					p.Name = tr.Name
+				}
+				if strings.TrimSpace(tr.Slug) != "" {
+					p.Slug = tr.Slug
+				}
+				if tr.ShortDescription != nil {
+					p.ShortDescription = tr.ShortDescription
+				}
+			}
+
+			var categoryName string
+			if catIDs, ok := categoryMap[p.ID]; ok && len(catIDs) > 0 {
+				if catObj, err := h.svc.GetCategoryByID(c.Request.Context(), catIDs[0]); err == nil {
+					categoryName = catObj.Name
+				}
+			}
+
+			excerpt := ""
+			if p.ShortDescription != nil {
+				excerpt = *p.ShortDescription
+			} else if p.Description != nil {
+				excerpt = *p.Description
+			}
+
+			// compute best discount (choose single best discount for now)
+			originalPrice := p.Price
+			finalPrice := originalPrice
+			appliedIDs := []string{}
+			badge := ""
+			if ds, ok := discountMap[p.ID]; ok && len(ds) > 0 {
+				bestPrice := originalPrice
+				var bestDisc catalogmodels.Discount
+				for _, d := range ds {
+					var candidate float64
+					if strings.ToLower(d.DiscountType) == "percentage" {
+						pct := d.DiscountValue
+						if pct < 0 {
+							pct = 0
+						}
+						if pct > 100 {
+							pct = 100
+						}
+						candidate = originalPrice * (1 - pct/100)
+					} else {
+						candidate = originalPrice - d.DiscountValue
+					}
+					if candidate < bestPrice {
+						bestPrice = candidate
+						bestDisc = d
+					}
+				}
+				if bestPrice < originalPrice {
+					finalPrice = bestPrice
+					appliedIDs = append(appliedIDs, bestDisc.ID)
+					if strings.ToLower(bestDisc.DiscountType) == "percentage" {
+						badge = fmt.Sprintf("-%.0f%%", bestDisc.DiscountValue)
+					} else {
+						badge = fmt.Sprintf("-%g", bestDisc.DiscountValue)
+					}
+				}
+			}
+
+			productsOut = append(productsOut, map[string]interface{}{
+				"id":                   p.ID,
+				"title":                p.Name,
+				"slug":                 p.Slug,
+				"category":             categoryName,
+				"original_price":       originalPrice,
+				"discounted_price":     finalPrice,
+				"discount_badge":       badge,
+				"applied_discount_ids": appliedIDs,
+				"excerpt":              excerpt,
+				"tag_ids":              tagMap[p.ID],
+				// gallery: array of product asset objects with public URLs
+				"gallery": func() []map[string]interface{} {
+					out := []map[string]interface{}{}
+					if assets, ok := assetMap[p.ID]; ok && len(assets) > 0 {
+						for _, a := range assets {
+							pub := a.PublicURL
+							if pub != "" && strings.HasPrefix(pub, "/") {
+								pub = base + pub
+							} else if a.FilePath != "" && pub == "" {
+								if full, err := h.svc.Store.PublicURL(c.Request.Context(), a.FilePath); err == nil {
+									pub = full
+								}
+							}
+							out = append(out, map[string]interface{}{
+								"id":            a.ID,
+								"file_path":     a.FilePath,
+								"public_url":    pub,
+								"is_main":       a.IsMain,
+								"usage_tag":     a.UsageTag,
+								"display_order": a.DisplayOrder,
+							})
+						}
+					}
+					return out
+				}(),
+			})
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": item, "assets": item.Assets, "products": productsOut})
 }
 
 func normalizeRawJSON(raw json.RawMessage) (datatypes.JSON, error) {

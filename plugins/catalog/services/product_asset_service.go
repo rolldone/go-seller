@@ -17,10 +17,18 @@ func (s *CatalogService) CreateProductAsset(ctx context.Context, a *catalogmodel
 	// If the new asset is marked as main, unset other assets' is_main for the same product in the same transaction.
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if a.IsMain {
-			if err := tx.Model(&catalogmodels.ProductAsset{}).
-				Where("product_id = ? AND id <> ?", a.ProductID, a.ID).
-				Update("is_main", false).Error; err != nil {
-				return err
+			q := tx.Model(&catalogmodels.ProductAsset{})
+			// scope unset to same product and same usage_tag (or empty/null)
+			if a.UsageTag != "" {
+				if err := q.Where("product_id = ? AND usage_tag = ? AND id <> ?", a.ProductID, a.UsageTag, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := q.Where("product_id = ? AND (usage_tag = '' OR usage_tag IS NULL) AND id <> ?", a.ProductID, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
 			}
 		}
 		if err := tx.Create(a).Error; err != nil {
@@ -68,10 +76,18 @@ func (s *CatalogService) UpdateProductAsset(ctx context.Context, a *catalogmodel
 	// When updating an asset and it's being set as main, ensure other assets for the same product are unset atomically.
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if a.IsMain {
-			if err := tx.Model(&catalogmodels.ProductAsset{}).
-				Where("product_id = ? AND id <> ?", a.ProductID, a.ID).
-				Update("is_main", false).Error; err != nil {
-				return err
+			q := tx.Model(&catalogmodels.ProductAsset{})
+			// scope unset to same product and same usage_tag (or empty/null)
+			if a.UsageTag != "" {
+				if err := q.Where("product_id = ? AND usage_tag = ? AND id <> ?", a.ProductID, a.UsageTag, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := q.Where("product_id = ? AND (usage_tag = '' OR usage_tag IS NULL) AND id <> ?", a.ProductID, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
 			}
 		}
 		if err := tx.Save(a).Error; err != nil {
@@ -174,6 +190,31 @@ func (s *CatalogService) DeleteProductAssetWithFile(ctx context.Context, id stri
 	// Delete dari DB
 	_, err = s.DeleteProductAssetByID(ctx, id)
 	return err
+}
+
+// GetProductAssetsForProductIDs returns product assets grouped by product ID.
+// If usageTag is non-empty, it filters assets by that usage tag (e.g., 'gallery').
+func (s *CatalogService) GetProductAssetsForProductIDs(ctx context.Context, productIDs []string, usageTag string) (map[string][]catalogmodels.ProductAsset, error) {
+	result := make(map[string][]catalogmodels.ProductAsset)
+	if len(productIDs) == 0 {
+		return result, nil
+	}
+
+	q := s.DB.WithContext(ctx).Model(&catalogmodels.ProductAsset{}).Where("product_id IN ?", productIDs)
+	if strings.TrimSpace(usageTag) != "" {
+		q = q.Where("usage_tag = ?", usageTag)
+	}
+
+	// prefer main assets first, then explicit display_order, then older created_at
+	var rows []catalogmodels.ProductAsset
+	if err := q.Order("is_main DESC, display_order ASC, created_at ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	for _, r := range rows {
+		result[r.ProductID] = append(result[r.ProductID], r)
+	}
+	return result, nil
 }
 
 // detectMimeType mendeteksi mime type dari filename extension

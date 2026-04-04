@@ -57,6 +57,13 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminAuth.POST("/reset-password", authHandler.ResetPassword)
 	adminAuth.POST("/logout", pluginhandlers.RequireAdminJWT(), authHandler.Logout)
 
+	customerAuth := api.Group("/customer/auth")
+	customerAuth.POST("/register", customerHandler.Register)
+	customerAuth.POST("/login", loginLimiter, customerHandler.Login)
+	customerAuth.POST("/forgot-password", forgotLimiter, customerHandler.ForgotPassword)
+	customerAuth.POST("/reset-password", customerHandler.ResetPassword)
+	customerAuth.POST("/logout", customerHandler.Logout)
+
 	adminAdmins := admin.Group("/admins")
 	adminAdmins.Use(pluginhandlers.RequireAdminJWT())
 	adminAdmins.POST("", adminHandler.Create)

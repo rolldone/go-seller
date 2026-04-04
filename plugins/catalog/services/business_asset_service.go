@@ -15,10 +15,18 @@ import (
 func (s *CatalogService) CreateBusinessAsset(ctx context.Context, a *catalogmodels.BusinessAsset) error {
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if a.IsMain {
-			if err := tx.Model(&catalogmodels.BusinessAsset{}).
-				Where("business_id = ? AND id <> ?", a.BusinessID, a.ID).
-				Update("is_main", false).Error; err != nil {
-				return err
+			q := tx.Model(&catalogmodels.BusinessAsset{})
+			// scope unset to same business and same usage_tag (or empty/null)
+			if a.UsageTag != "" {
+				if err := q.Where("business_id = ? AND usage_tag = ? AND id <> ?", a.BusinessID, a.UsageTag, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := q.Where("business_id = ? AND (usage_tag = '' OR usage_tag IS NULL) AND id <> ?", a.BusinessID, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
 			}
 		}
 		if err := tx.Create(a).Error; err != nil {
@@ -65,10 +73,18 @@ func (s *CatalogService) GetBusinessAssetByID(ctx context.Context, id string) (*
 func (s *CatalogService) UpdateBusinessAsset(ctx context.Context, a *catalogmodels.BusinessAsset) error {
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if a.IsMain {
-			if err := tx.Model(&catalogmodels.BusinessAsset{}).
-				Where("business_id = ? AND id <> ?", a.BusinessID, a.ID).
-				Update("is_main", false).Error; err != nil {
-				return err
+			q := tx.Model(&catalogmodels.BusinessAsset{})
+			// scope unset to same business and same usage_tag (or empty/null)
+			if a.UsageTag != "" {
+				if err := q.Where("business_id = ? AND usage_tag = ? AND id <> ?", a.BusinessID, a.UsageTag, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
+			} else {
+				if err := q.Where("business_id = ? AND (usage_tag = '' OR usage_tag IS NULL) AND id <> ?", a.BusinessID, a.ID).
+					Update("is_main", false).Error; err != nil {
+					return err
+				}
 			}
 		}
 		if err := tx.Save(a).Error; err != nil {
