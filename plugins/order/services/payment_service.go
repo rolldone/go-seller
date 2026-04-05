@@ -294,6 +294,13 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 			return err
 		}
 		if status == "succeeded" {
+			var order models.Order
+			if err := tx.Where("id = ?", p.OrderID).First(&order).Error; err != nil {
+				return err
+			}
+			if isOrderExpiredOrCancelled(order) {
+				return errors.New("order expired")
+			}
 			orderUpdates := map[string]interface{}{"payment_status": "paid"}
 			if paidAt != nil {
 				orderUpdates["paid_at"] = paidAt
@@ -607,6 +614,13 @@ func (s *PaymentService) ReviewPaymentProof(ctx context.Context, paymentID, proo
 		}
 
 		if decision == "approve" {
+			var order models.Order
+			if err := tx.Where("id = ?", payment.OrderID).First(&order).Error; err != nil {
+				return err
+			}
+			if isOrderExpiredOrCancelled(order) {
+				return errors.New("order expired")
+			}
 			proof.Status = "approved"
 			if err := tx.Save(&proof).Error; err != nil {
 				return err
@@ -726,6 +740,13 @@ func (s *PaymentService) RecheckGatewayPayment(ctx context.Context, paymentID st
 		orderUpdates := map[string]any{"updated_at": now}
 		switch finalStatus {
 		case "succeeded":
+			var order models.Order
+			if err := tx.Where("id = ?", payment.OrderID).First(&order).Error; err != nil {
+				return err
+			}
+			if isOrderExpiredOrCancelled(order) {
+				return errors.New("order expired")
+			}
 			orderUpdates["payment_status"] = "paid"
 			orderUpdates["paid_at"] = now
 			revokeOrderID = payment.OrderID

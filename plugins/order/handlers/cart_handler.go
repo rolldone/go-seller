@@ -105,6 +105,44 @@ func (h *CartHandler) Me(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"cart": cart, "items": items}})
 }
 
+func (h *CartHandler) MePreview(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+	var businessID *string
+	if v := strings.TrimSpace(c.Query("business_id")); v != "" {
+		businessID = &v
+	}
+	var coupon *string
+	if v := strings.TrimSpace(c.Query("coupon_code")); v != "" {
+		coupon = &v
+	}
+	preview, err := h.svc.PreviewCartForCustomer(c.Request.Context(), customerID, businessID, coupon)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": preview})
+}
+
+func (h *CartHandler) MeBusinesses(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	rows, err := h.svc.ListCartBusinessesByCustomer(c.Request.Context(), customerID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": rows})
+}
+
 func (h *CartHandler) MeAddItem(c *gin.Context) {
 	customerID := customerIDFromContext(c)
 	if customerID == "" {
@@ -178,7 +216,8 @@ func (h *CartHandler) MeCheckout(c *gin.Context) {
 		businessID = &v
 	}
 	var req struct {
-		Currency string `json:"currency"`
+		Currency   string  `json:"currency"`
+		CouponCode *string `json:"coupon_code"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -189,7 +228,7 @@ func (h *CartHandler) MeCheckout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cart.ID, req.Currency)
+	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cart.ID, req.Currency, req.CouponCode)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -206,7 +245,7 @@ func (h *CartHandler) Checkout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cartID, req.Currency)
+	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cartID, req.Currency, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

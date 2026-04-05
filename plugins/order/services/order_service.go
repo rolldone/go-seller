@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,12 +23,15 @@ type OrderService struct {
 	DB *gorm.DB
 }
 
+const orderExpiryHoursSettingKey = "order.expiry_hours"
+const defaultOrderExpiryHours = 24
+
 func NewOrderService(db *gorm.DB) *OrderService {
 	return &OrderService{DB: db}
 }
 
 // Exported sentinel errors for handlers to map to appropriate HTTP responses.
-var ErrOrderAlreadyPaid = errors.New("order already paid; cannot modify")
+var ErrOrderAlreadyPaid = errors.New("order is locked; cannot modify")
 var ErrDuplicateCouponCategory = errors.New("cannot combine two coupons from the same category")
 
 func normalizeAppliedCouponCategory(value string) string {
@@ -46,7 +50,91 @@ func normalizeAppliedCouponCategory(value string) string {
 	}
 }
 
-func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency string) (*models.Order, error) {
+func isOrderLocked(order models.Order) bool {
+	status := strings.ToLower(strings.TrimSpace(order.Status))
+	paymentStatus := strings.ToLower(strings.TrimSpace(order.PaymentStatus))
+	if order.PaidAt != nil {
+		return true
+	}
+	switch status {
+	case "paid", "expired", "cancelled", "canceled":
+		return true
+	}
+	switch paymentStatus {
+	case "paid", "expired", "cancelled", "canceled":
+		return true
+	}
+	return false
+}
+
+func isOrderExpiredOrCancelled(order models.Order) bool {
+	status := strings.ToLower(strings.TrimSpace(order.Status))
+	switch status {
+	case "expired", "cancelled", "canceled":
+		return true
+	}
+	return false
+}
+
+func parseOrderExpiryHours(raw []byte) int {
+	if len(raw) == 0 || strings.EqualFold(strings.TrimSpace(string(raw)), "null") {
+		return defaultOrderExpiryHours
+	}
+	var numeric float64
+	if err := json.Unmarshal(raw, &numeric); err == nil {
+		if numeric <= 0 {
+			return 0
+		}
+		return int(numeric)
+	}
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		if v, convErr := strconv.Atoi(strings.TrimSpace(text)); convErr == nil {
+			if v <= 0 {
+				return 0
+			}
+			return v
+		}
+	}
+	return defaultOrderExpiryHours
+}
+
+func (s *OrderService) getOrderExpiryHours(ctx context.Context) (int, error) {
+	var setting settingmodels.Setting
+	err := s.DB.WithContext(ctx).Where("scope = ? AND key = ?", "global", orderExpiryHoursSettingKey).First(&setting).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return defaultOrderExpiryHours, nil
+		}
+		return 0, err
+	}
+	hours := parseOrderExpiryHours(setting.Value)
+	if hours < 0 {
+		hours = 0
+	}
+	return hours, nil
+}
+
+func (s *OrderService) expireStalePendingOrders(ctx context.Context) error {
+	hours, err := s.getOrderExpiryHours(ctx)
+	if err != nil {
+		return err
+	}
+	if hours <= 0 {
+		return nil
+	}
+	now := time.Now()
+	cutoff := now.Add(-time.Duration(hours) * time.Hour)
+	return s.DB.WithContext(ctx).Model(&models.Order{}).
+		Where("channel = ? AND status = ? AND payment_status = ? AND COALESCE(placed_at, created_at) <= ?", "web", "pending", "unpaid", cutoff).
+		Updates(map[string]interface{}{
+			"status":         "expired",
+			"payment_status": "expired",
+			"updated_at":     now,
+		}).Error
+}
+
+func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency string, couponCode *string) (*models.Order, error) {
 	var cart models.Cart
 	if err := s.DB.WithContext(ctx).Where("id = ?", cartID).First(&cart).Error; err != nil {
 		return nil, err
@@ -59,28 +147,39 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 		return nil, errors.New("cart is empty")
 	}
 
-	var order *models.Order
-	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		now := time.Now()
-		subtotal := 0.0
-		for _, it := range items {
-			subtotal += float64(it.Qty) * it.UnitPrice
+	preview, err := NewCartService(s.DB).PreviewCartForCustomer(ctx, cart.CustomerID, cart.BusinessID, couponCode)
+	if err != nil {
+		return nil, err
+	}
+	if preview == nil || len(preview.Items) == 0 {
+		return nil, errors.New("cart is empty")
+	}
+
+	previewByCartItemID := make(map[string]CartItemPreview, len(preview.Items))
+	for _, pit := range preview.Items {
+		if strings.TrimSpace(pit.ID) != "" {
+			previewByCartItemID[strings.TrimSpace(pit.ID)] = pit
 		}
+	}
+
+	var order *models.Order
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
 		ord := models.Order{
 			ID:             uuid.NewString(),
 			OrderNumber:    "ORD-" + uuid.NewString(),
-			UserID:         &cart.CustomerID,
 			CustomerID:     &cart.CustomerID,
 			BusinessID:     cart.BusinessID,
 			Channel:        "web",
 			Status:         "pending",
 			PaymentStatus:  "unpaid",
 			Currency:       currency,
-			Subtotal:       subtotal,
-			DiscountAmount: 0,
-			TaxAmount:      0,
-			ShippingAmount: 0,
-			GrandTotal:     subtotal,
+			Subtotal:       preview.Subtotal,
+			DiscountAmount: preview.DiscountAmount,
+			TaxAmount:      preview.TaxAmount,
+			ShippingAmount: preview.ShippingAmount,
+			GrandTotal:     preview.GrandTotal,
+			PlacedAt:       &now,
 			CreatedAt:      now,
 			UpdatedAt:      now,
 		}
@@ -88,21 +187,53 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			return err
 		}
 		for _, it := range items {
+			pit := previewByCartItemID[it.ID]
+			productID := it.ProductID
+			if pit.ProductID != nil && strings.TrimSpace(*pit.ProductID) != "" {
+				pid := strings.TrimSpace(*pit.ProductID)
+				productID = &pid
+			}
+			productName := strings.TrimSpace(it.ProductName)
+			if strings.TrimSpace(pit.ProductName) != "" {
+				productName = strings.TrimSpace(pit.ProductName)
+			}
+			lineTotal := pit.NetTotal
+			if lineTotal < 0 {
+				lineTotal = 0
+			}
 			oi := models.OrderItem{
 				ID:             uuid.NewString(),
 				OrderID:        ord.ID,
-				ProductID:      it.ProductID,
-				ProductName:    "",
-				SKU:            nil,
+				ProductID:      productID,
+				ProductName:    productName,
+				SKU:            it.SKU,
 				Qty:            it.Qty,
 				UnitPrice:      it.UnitPrice,
-				DiscountAmount: 0,
+				DiscountAmount: pit.DiscountAmount,
 				TaxAmount:      0,
-				LineTotal:      float64(it.Qty) * it.UnitPrice,
+				LineTotal:      lineTotal,
 				CreatedAt:      now,
 				UpdatedAt:      now,
 			}
 			if err := tx.Create(&oi).Error; err != nil {
+				return err
+			}
+		}
+		for _, ac := range preview.AppliedCoupons {
+			couponCode := strings.TrimSpace(ac.Code)
+			if couponCode == "" {
+				continue
+			}
+			oc := models.OrderCoupon{
+				ID:             uuid.NewString(),
+				OrderID:        ord.ID,
+				Code:           couponCode,
+				Category:       normalizeAppliedCouponCategory(ac.Category),
+				DiscountAmount: math.Max(0, ac.DiscountAmount),
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}
+			if err := tx.Create(&oc).Error; err != nil {
 				return err
 			}
 		}
@@ -204,8 +335,8 @@ func (s *OrderService) AddItemToOrder(ctx context.Context, orderID string, item 
 		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
 			return err
 		}
-		// prevent modifying an order that's already paid
-		if order.PaymentStatus == "paid" || order.PaidAt != nil {
+		// prevent modifying orders that are already paid or locked
+		if isOrderLocked(order) {
 			return ErrOrderAlreadyPaid
 		}
 		now := time.Now()
@@ -237,8 +368,8 @@ func (s *OrderService) RemoveOrderItem(ctx context.Context, orderID string, item
 		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
 			return err
 		}
-		// prevent modifying an order that's already paid
-		if order.PaymentStatus == "paid" || order.PaidAt != nil {
+		// prevent modifying orders that are already paid or locked
+		if isOrderLocked(order) {
 			return ErrOrderAlreadyPaid
 		}
 		now := time.Now()
@@ -256,7 +387,7 @@ func (s *OrderService) ApplyDiscountToOrderItem(ctx context.Context, orderID, it
 		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
 			return err
 		}
-		if order.PaymentStatus == "paid" || order.PaidAt != nil {
+		if isOrderLocked(order) {
 			return ErrOrderAlreadyPaid
 		}
 
@@ -374,7 +505,7 @@ func (s *OrderService) RemoveDiscountFromOrderItem(ctx context.Context, orderID,
 		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
 			return err
 		}
-		if order.PaymentStatus == "paid" || order.PaidAt != nil {
+		if isOrderLocked(order) {
 			return ErrOrderAlreadyPaid
 		}
 
@@ -589,6 +720,9 @@ func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now
 }
 
 func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Order, error) {
+	if err := s.expireStalePendingOrders(ctx); err != nil {
+		return nil, err
+	}
 	var o models.Order
 	if err := s.DB.WithContext(ctx).Preload("OrderItems").Preload("Payments").Preload("OrderCoupons").Preload("Customer").Where("id = ?", id).First(&o).Error; err != nil {
 		return nil, err
@@ -611,13 +745,33 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Ord
 	return &o, nil
 }
 
+func (s *OrderService) GetOrderByIDForCustomer(ctx context.Context, id string, customerID string) (*models.Order, error) {
+	trimmedOrderID := strings.TrimSpace(id)
+	trimmedCustomerID := strings.TrimSpace(customerID)
+	if trimmedOrderID == "" || trimmedCustomerID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	order, err := s.GetOrderByID(ctx, trimmedOrderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.CustomerID == nil || strings.TrimSpace(*order.CustomerID) == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if strings.TrimSpace(*order.CustomerID) != trimmedCustomerID {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return order, nil
+}
+
 // UpdateOrderCustomer updates the customer_id of an existing order (used by POS to persist selection).
 func (s *OrderService) UpdateOrderCustomer(ctx context.Context, orderID string, customerID *string) (*models.Order, error) {
 	var ord models.Order
 	if err := s.DB.WithContext(ctx).Where("id = ?", orderID).First(&ord).Error; err != nil {
 		return nil, err
 	}
-	if ord.PaymentStatus == "paid" || ord.PaidAt != nil {
+	if isOrderLocked(ord) {
 		return nil, ErrOrderAlreadyPaid
 	}
 	now := time.Now()
@@ -633,7 +787,7 @@ func (s *OrderService) ApplyCouponToOrder(ctx context.Context, orderID, couponCo
 	if err := s.DB.WithContext(ctx).Where("id = ?", orderID).First(&ord).Error; err != nil {
 		return nil, err
 	}
-	if ord.PaymentStatus == "paid" || ord.PaidAt != nil {
+	if isOrderLocked(ord) {
 		return nil, ErrOrderAlreadyPaid
 	}
 
@@ -768,7 +922,10 @@ func (s *OrderService) RemoveCouponFromOrder(ctx context.Context, orderID, coupo
 	if err := s.DB.WithContext(ctx).Where("id = ?", orderID).First(&ord).Error; err != nil {
 		return nil, err
 	}
-	if ord.PaymentStatus == "paid" || ord.PaidAt != nil {
+	if err := s.expireStalePendingOrders(ctx); err != nil {
+		return nil, err
+	}
+	if isOrderLocked(ord) {
 		return nil, ErrOrderAlreadyPaid
 	}
 
@@ -791,6 +948,7 @@ type OrderListFilter struct {
 	Query         string
 	BusinessID    string
 	UserID        string
+	CustomerID    string
 	Status        string
 	PaymentStatus string
 	Channel       string
@@ -806,6 +964,9 @@ func (s *OrderService) ListOrders(ctx context.Context, f OrderListFilter) ([]mod
 	if f.Page <= 0 {
 		f.Page = 1
 	}
+	if err := s.expireStalePendingOrders(ctx); err != nil {
+		return nil, 0, err
+	}
 	if f.Limit <= 0 || f.Limit > 100 {
 		f.Limit = 20
 	}
@@ -820,6 +981,9 @@ func (s *OrderService) ListOrders(ctx context.Context, f OrderListFilter) ([]mod
 	}
 	if f.UserID != "" {
 		q = q.Where("user_id = ?", f.UserID)
+	}
+	if f.CustomerID != "" {
+		q = q.Where("customer_id = ?", f.CustomerID)
 	}
 	if f.Status != "" {
 		q = q.Where("status = ?", f.Status)

@@ -183,6 +183,36 @@ func (h *CustomerHandler) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *CustomerHandler) Me(c *gin.Context) {
+	customerID := strings.TrimSpace(c.GetString("customer_id"))
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	customer, err := h.svc.GetCustomerByID(c.Request.Context(), customerID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !customer.IsActive || customer.IsBanned {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer account is inactive"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"authenticated": true,
+			"customer":      customer,
+		},
+	})
+}
+
 func appendResetTokenQuery(resetURL string, token string) string {
 	parsed, err := url.Parse(resetURL)
 	if err != nil {

@@ -1,25 +1,62 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	catalogservices "go_framework/plugins/catalog/services"
 	ordermodels "go_framework/plugins/order/models"
 	ordersvc "go_framework/plugins/order/services"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type OrderHandler struct {
-	svc *ordersvc.OrderService
+	svc        *ordersvc.OrderService
+	paymentSvc *ordersvc.PaymentService
+	catalogSvc *catalogservices.CatalogService
 }
 
-func NewOrderHandler(svc *ordersvc.OrderService) *OrderHandler {
-	return &OrderHandler{svc: svc}
+func NewOrderHandler(svc *ordersvc.OrderService, paymentSvc *ordersvc.PaymentService, catalogSvc *catalogservices.CatalogService) *OrderHandler {
+	return &OrderHandler{svc: svc, paymentSvc: paymentSvc, catalogSvc: catalogSvc}
+}
+
+type publicBusinessSummary struct {
+	ID               string  `json:"id"`
+	Name             string  `json:"name"`
+	Slug             string  `json:"slug"`
+	ShortDescription *string `json:"short_description,omitempty"`
+}
+
+func (h *OrderHandler) loadBusinessSummary(ctx context.Context, businessID *string) (*publicBusinessSummary, error) {
+	if h == nil || h.catalogSvc == nil || businessID == nil {
+		return nil, nil
+	}
+	trimmed := strings.TrimSpace(*businessID)
+	if trimmed == "" {
+		return nil, nil
+	}
+	business, err := h.catalogSvc.GetBusinessByID(ctx, trimmed)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &publicBusinessSummary{
+		ID:               business.ID,
+		Name:             business.Name,
+		Slug:             business.Slug,
+		ShortDescription: business.ShortDescription,
+	}, nil
 }
 
 type adminCreateOrderReq struct {
@@ -278,7 +315,450 @@ func (h *OrderHandler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": ord, "payments": ord.Payments}})
+	business, err := h.loadBusinessSummary(c.Request.Context(), ord.BusinessID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": ord, "payments": ord.Payments, "business": business}})
+}
+
+func (h *OrderHandler) MeGetByID(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	ord, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), c.Param("id"), customerID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	business, err := h.loadBusinessSummary(c.Request.Context(), ord.BusinessID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var businessIDPtr *string
+	if ord.BusinessID != nil && strings.TrimSpace(*ord.BusinessID) != "" {
+		businessID := strings.TrimSpace(*ord.BusinessID)
+		businessIDPtr = &businessID
+	}
+	providers, err := h.paymentSvc.ListProviders(c.Request.Context(), ordersvc.PaymentProviderFilter{BusinessID: businessIDPtr, IncludeInactive: false})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	providerResp := make([]gin.H, 0, len(providers))
+	for _, p := range providers {
+		config := map[string]any{}
+		if strings.EqualFold(strings.TrimSpace(p.ProviderKey), "bank_transfer") {
+			config = parseProviderPublicConfig(p.Config)
+		}
+		providerResp = append(providerResp, gin.H{
+			"id":           p.ID,
+			"name":         p.Name,
+			"provider_key": p.ProviderKey,
+			"is_active":    p.IsActive,
+			"is_used":      p.IsUsed,
+			"config":       config,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": ord, "payments": ord.Payments, "providers": providerResp, "business": business}})
+}
+
+func (h *OrderHandler) MeList(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	page := 1
+	limit := 20
+	if p := strings.TrimSpace(c.Query("page")); p != "" {
+		if v, err := strconv.Atoi(p); err == nil && v > 0 {
+			page = v
+		}
+	}
+	if l := strings.TrimSpace(c.Query("limit")); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+
+	filter := ordersvc.OrderListFilter{
+		Query:         c.Query("q"),
+		BusinessID:    c.Query("business_id"),
+		CustomerID:    customerID,
+		Status:        c.Query("status"),
+		PaymentStatus: c.Query("payment_status"),
+		Channel:       c.Query("channel"),
+		Page:          page,
+		Limit:         limit,
+		Sort:          c.Query("sort"),
+	}
+	orders, total, err := h.svc.ListOrders(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": orders, "total": total})
+}
+
+func (h *OrderHandler) MeStartPayment(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	req, isMultipart, err := parseGuestStartPaymentReq(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ord, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), c.Param("id"), customerID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.EqualFold(ord.Status, "expired") || strings.EqualFold(ord.PaymentStatus, "expired") {
+		c.JSON(http.StatusConflict, gin.H{"error": "order expired"})
+		return
+	}
+	if strings.EqualFold(ord.PaymentStatus, "paid") || ord.PaidAt != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "order already paid"})
+		return
+	}
+
+	var selectedProvider *ordermodels.PaymentProvider
+	if req.ProviderID != nil && strings.TrimSpace(*req.ProviderID) != "" {
+		item, getErr := h.paymentSvc.GetProviderByID(c.Request.Context(), strings.TrimSpace(*req.ProviderID))
+		if getErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "payment provider not found"})
+			return
+		}
+		selectedProvider = item
+	} else if req.ProviderKey != nil && strings.TrimSpace(*req.ProviderKey) != "" {
+		var businessIDPtr *string
+		if ord.BusinessID != nil && strings.TrimSpace(*ord.BusinessID) != "" {
+			bid := strings.TrimSpace(*ord.BusinessID)
+			businessIDPtr = &bid
+		}
+		items, listErr := h.paymentSvc.ListProviders(c.Request.Context(), ordersvc.PaymentProviderFilter{BusinessID: businessIDPtr, IncludeInactive: false})
+		if listErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": listErr.Error()})
+			return
+		}
+		providerKey := strings.ToLower(strings.TrimSpace(*req.ProviderKey))
+		for i := range items {
+			if strings.ToLower(strings.TrimSpace(items[i].ProviderKey)) == providerKey {
+				selectedProvider = &items[i]
+				break
+			}
+		}
+	}
+
+	if selectedProvider == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "provider_id or provider_key is required"})
+		return
+	}
+	if !selectedProvider.IsActive {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment provider is inactive"})
+		return
+	}
+	if selectedProvider.BusinessID != nil && ord.BusinessID != nil && strings.TrimSpace(*selectedProvider.BusinessID) != strings.TrimSpace(*ord.BusinessID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "provider business mismatch"})
+		return
+	}
+
+	providerID := selectedProvider.ID
+	providerKey := selectedProvider.ProviderKey
+	providerKeyLower := strings.ToLower(strings.TrimSpace(providerKey))
+	paymentMethod := providerKey
+	gatewayName := providerKey
+	if req.PaymentMethod != nil && strings.TrimSpace(*req.PaymentMethod) != "" {
+		paymentMethod = strings.TrimSpace(*req.PaymentMethod)
+	}
+	if req.GatewayName != nil && strings.TrimSpace(*req.GatewayName) != "" {
+		gatewayName = strings.TrimSpace(*req.GatewayName)
+	}
+
+	metadata := map[string]any{
+		"source":      "customer_order",
+		"customer_id": customerID,
+	}
+	for k, v := range req.Metadata {
+		metadata[k] = v
+	}
+	if providerKeyLower == "bank_transfer" {
+		if !isMultipart {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bank transfer requires multipart form-data with proof upload"})
+			return
+		}
+		if req.SenderBank == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "sender bank information is required for bank transfer"})
+			return
+		}
+		if strings.TrimSpace(req.SenderBank.BankName) == "" || strings.TrimSpace(req.SenderBank.AccountNumber) == "" || strings.TrimSpace(req.SenderBank.AccountHolder) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "sender bank fields are required"})
+			return
+		}
+
+		transferAmount := ord.GrandTotal
+		transferredAt := time.Now().UTC().Format(time.RFC3339)
+		reference := ""
+		if req.Transfer != nil {
+			if req.Transfer.Amount > 0 {
+				transferAmount = req.Transfer.Amount
+			}
+			if strings.TrimSpace(req.Transfer.TransferredAt) != "" {
+				transferredAt = strings.TrimSpace(req.Transfer.TransferredAt)
+			}
+			reference = strings.TrimSpace(req.Transfer.Reference)
+		}
+
+		metadata["bank_transfer"] = map[string]any{
+			"sender_bank": map[string]any{
+				"bank_name":      strings.TrimSpace(req.SenderBank.BankName),
+				"account_number": strings.TrimSpace(req.SenderBank.AccountNumber),
+				"account_holder": strings.TrimSpace(req.SenderBank.AccountHolder),
+			},
+			"destination_bank": parseProviderPublicConfig(selectedProvider.Config),
+			"transfer": map[string]any{
+				"amount":         transferAmount,
+				"transferred_at": transferredAt,
+				"reference":      reference,
+			},
+		}
+	}
+	metadataJSON, _ := json.Marshal(metadata)
+
+	cancelReason := "replaced by new customer order payment"
+	if err := h.paymentSvc.CancelPendingPaymentsByOrder(c.Request.Context(), ord.ID, "customer", &customerID, &cancelReason); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	payment := &ordermodels.Payment{
+		OrderID:       ord.ID,
+		Amount:        ord.GrandTotal,
+		Currency:      ord.Currency,
+		ProviderID:    &providerID,
+		ProviderKey:   &providerKey,
+		PaymentMethod: &paymentMethod,
+		GatewayName:   &gatewayName,
+		Status:        string(ordersvc.StatusPending),
+		ProofStatus:   "none",
+		Metadata:      metadataJSON,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+	if err := h.paymentSvc.CreatePayment(c.Request.Context(), payment); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if providerKeyLower == "bank_transfer" {
+		mform, mErr := c.MultipartForm()
+		if mErr != nil {
+			_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
+			c.JSON(http.StatusBadRequest, gin.H{"error": "proof file is required for bank transfer"})
+			return
+		}
+		files := mform.File["proof"]
+		if len(files) == 0 {
+			_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
+			c.JSON(http.StatusBadRequest, gin.H{"error": "proof file is required for bank transfer"})
+			return
+		}
+		for _, fh := range files {
+			if _, uploadErr := h.paymentSvc.UploadPaymentProofAsGuest(c.Request.Context(), payment.ID, customerID, fh, req.ProofNotes); uploadErr != nil {
+				_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
+				c.JSON(http.StatusBadRequest, gin.H{"error": uploadErr.Error()})
+				return
+			}
+		}
+		_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Where("id = ?", payment.ID).First(payment).Error
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": payment})
+}
+
+func (h *OrderHandler) MeDownloadInvoice(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	orderID := c.Param("id")
+	if _, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), orderID, customerID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	pdfBytes, filename, err := h.svc.GenerateInvoicePDF(c.Request.Context(), orderID)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "record not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		if errors.Is(err, ordersvc.ErrInvoiceRenderFailed) {
+			c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Data(http.StatusOK, "application/pdf", pdfBytes)
+}
+
+func (h *OrderHandler) MeListPaymentProofs(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	orderID := strings.TrimSpace(c.Param("id"))
+	paymentID := strings.TrimSpace(c.Param("payment_id"))
+	if orderID == "" || paymentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order_id and payment_id are required"})
+		return
+	}
+
+	order, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), orderID, customerID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	paymentOwned := false
+	for _, payment := range order.Payments {
+		if strings.TrimSpace(payment.ID) == paymentID {
+			paymentOwned = true
+			break
+		}
+	}
+	if !paymentOwned {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		return
+	}
+
+	proofs, err := h.paymentSvc.ListPaymentProofs(c.Request.Context(), paymentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": proofs})
+}
+
+func (h *OrderHandler) MePaymentProofAccess(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+
+	orderID := strings.TrimSpace(c.Param("id"))
+	paymentID := strings.TrimSpace(c.Param("payment_id"))
+	proofID := strings.TrimSpace(c.Param("proof_id"))
+	if orderID == "" || paymentID == "" || proofID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order_id, payment_id, and proof_id are required"})
+		return
+	}
+
+	order, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), orderID, customerID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	paymentOwned := false
+	for _, payment := range order.Payments {
+		if strings.TrimSpace(payment.ID) == paymentID {
+			paymentOwned = true
+			break
+		}
+	}
+	if !paymentOwned {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		return
+	}
+
+	var proof ordermodels.PaymentProof
+	if err := h.paymentSvc.DB.WithContext(c.Request.Context()).Where("id = ? AND payment_id = ? AND deleted_at IS NULL", proofID, paymentID).First(&proof).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "proof not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.paymentSvc.Store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
+		return
+	}
+	if strings.TrimSpace(proof.StorageKey) == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no storage key for proof"})
+		return
+	}
+
+	rc, err := h.paymentSvc.Store.Get(c.Request.Context(), proof.StorageKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "failed to retrieve proof from storage"})
+		return
+	}
+	defer rc.Close()
+
+	if proof.MimeType != "" {
+		c.Header("Content-Type", proof.MimeType)
+	} else {
+		c.Header("Content-Type", "application/octet-stream")
+	}
+	if proof.FileSize > 0 {
+		c.Header("Content-Length", fmt.Sprintf("%d", proof.FileSize))
+	}
+	filename := proof.StorageKey
+	if idx := strings.LastIndex(proof.StorageKey, "/"); idx >= 0 && idx+1 < len(proof.StorageKey) {
+		filename = proof.StorageKey[idx+1:]
+	}
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
+
+	if _, err := io.Copy(c.Writer, rc); err != nil {
+		c.Error(err)
+		return
+	}
 }
 
 func (h *OrderHandler) DownloadInvoice(c *gin.Context) {

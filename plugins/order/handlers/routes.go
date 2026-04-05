@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	authhandlers "go_framework/plugins/auth/handlers"
 	authservices "go_framework/plugins/auth/services"
 	"go_framework/plugins/order/services"
 	pluginregistry "go_framework/plugins/plugin_registry"
@@ -17,7 +16,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	// admin subgroup for order
 	adminOrder := admin.Group("/order")
 	// require admin JWT for all order admin routes
-	adminOrder.Use(authhandlers.RequireAdminJWT())
+	adminOrder.Use(RequireOrderAdminJWT())
 	adminOrder.GET("/health", HealthHandler)
 
 	// cart handlers
@@ -30,8 +29,10 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 
 	apiOrder := api.Group("/order")
 	customerCart := apiOrder.Group("/carts")
-	customerCart.Use(authhandlers.RequireCustomerJWT())
+	customerCart.Use(RequireOrderCustomerJWT())
 	customerCart.GET("/me", cartHandler.Me)
+	customerCart.GET("/me/preview", cartHandler.MePreview)
+	customerCart.GET("/me/businesses", cartHandler.MeBusinesses)
 	customerCart.POST("/me/items", cartHandler.MeAddItem)
 	customerCart.PATCH("/me/items/:item_id", cartHandler.MeUpdateItem)
 	customerCart.DELETE("/me/items/:item_id", cartHandler.MeDeleteItem)
@@ -71,7 +72,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminPaymentProviders.POST("/:id/activate", paymentHandler.ActivateProvider)
 
 	// order handlers (admin)
-	orderHandler := NewOrderHandler(s.Order)
+	orderHandler := NewOrderHandler(s.Order, s.Payment, s.Catalog)
 	guestCheckoutHandler := NewGuestCheckoutHandler(s.Order, s.Payment)
 	// require permission: view orders
 	adminOrder.GET("/orders", pluginregistry.RequirePermission("orders.view"), orderHandler.AdminList)
@@ -89,6 +90,15 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.POST("/orders/:id/coupon", pluginregistry.RequirePermission("orders.manage"), orderHandler.ApplyCoupon)
 	adminOrder.DELETE("/orders/:id/coupon/:code", pluginregistry.RequirePermission("orders.manage"), orderHandler.RemoveCoupon)
 	adminOrder.POST("/orders/:id/guest-token", pluginregistry.RequirePermission("orders.manage"), guestCheckoutHandler.GenerateToken)
+
+	customerOrder := apiOrder.Group("/orders")
+	customerOrder.Use(RequireOrderCustomerJWT())
+	customerOrder.GET("/me", orderHandler.MeList)
+	customerOrder.GET("/me/:id", orderHandler.MeGetByID)
+	customerOrder.GET("/me/:id/invoice", orderHandler.MeDownloadInvoice)
+	customerOrder.POST("/me/:id/start-payment", orderHandler.MeStartPayment)
+	customerOrder.GET("/me/:id/payments/:payment_id/proofs", orderHandler.MeListPaymentProofs)
+	customerOrder.GET("/me/:id/payments/:payment_id/proofs/:proof_id/access", orderHandler.MePaymentProofAccess)
 
 	// Server-to-server callback endpoint — payload is AES-GCM encrypted with shared S2S_KEY.
 	callbackHandler := NewCallbackHandler(s.Order)
