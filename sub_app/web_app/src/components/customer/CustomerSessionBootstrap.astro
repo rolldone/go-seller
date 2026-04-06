@@ -1,0 +1,24 @@
+---
+import type { CustomerSession } from "../../lib/customerSession";
+import AlertContainer from "../ui/AlertContainer";
+
+interface Props {
+  session?: CustomerSession | null;
+}
+
+const { session = null } = Astro.props as Props;
+const authenticated = Boolean(session?.authenticated);
+const customerName = session?.profile?.name ?? "";
+const customerEmail = session?.profile?.email ?? "";
+---
+
+<meta name="customer-authenticated" content={authenticated ? "true" : "false"} />
+{customerName ? <meta name="customer-name" content={customerName} /> : null}
+{customerEmail ? <meta name="customer-email" content={customerEmail} /> : null}
+<script is:inline define:vars={{ session }}>
+	window.__CUSTOMER_SESSION__ = session;
+	document.documentElement.dataset.customerAuthenticated = session?.authenticated ? "true" : "false";
+	document.documentElement.dataset.customerName = session?.profile?.name ?? "";
+	document.documentElement.dataset.customerEmail = session?.profile?.email ?? "";
+</script>
+<AlertContainer client:load />

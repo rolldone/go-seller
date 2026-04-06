@@ -1,0 +1,19 @@
+---
+import "../../../styles/front.css";
+import RegisterPage from "../../../components/customer/auth/RegisterPage";
+import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
+
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Daftar | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body>
+    <RegisterPage client:only="react" />
+  </body>
+</html>

@@ -1,0 +1,10 @@
+@import "./base.css";
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  font-family: "Inter", "Segoe UI", sans-serif;
+}

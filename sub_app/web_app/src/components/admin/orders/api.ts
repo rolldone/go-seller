@@ -1,0 +1,54 @@
+import { adminGet, adminGetBlob, adminPost, adminPut } from "../entities/adminApi";
+import type { GenerateCheckoutLinkResponse, ListOrdersParams, Order, OrderDetailResponse, OrderListResponse, PaymentProofListResponse } from "./types";
+
+const toQuery = (params: ListOrdersParams): string => {
+  const q = new URLSearchParams();
+  if (params.q?.trim()) q.set("q", params.q.trim());
+  if (params.business_id) q.set("business_id", params.business_id);
+  if (params.user_id) q.set("user_id", params.user_id);
+  if (params.status) q.set("status", params.status);
+  if (params.payment_status) q.set("payment_status", params.payment_status);
+  if (params.channel) q.set("channel", params.channel);
+  if (params.from) q.set("from", params.from);
+  if (params.to) q.set("to", params.to);
+  if (params.sort) q.set("sort", params.sort);
+  q.set("page", String(params.page ?? 1));
+  q.set("limit", String(params.limit ?? 20));
+  return q.toString();
+};
+
+export async function listOrders(params: ListOrdersParams): Promise<OrderListResponse> {
+  const query = toQuery(params);
+  return adminGet<OrderListResponse>(`/admin/order/orders?${query}`);
+}
+
+export async function getOrderByID(orderID: string): Promise<OrderDetailResponse> {
+  return adminGet<OrderDetailResponse>(`/admin/order/orders/${orderID}`);
+}
+
+export async function generateCheckoutLink(orderID: string, ttlSeconds = 3600): Promise<GenerateCheckoutLinkResponse> {
+  return adminPost<GenerateCheckoutLinkResponse>(`/admin/order/orders/${orderID}/guest-token`, { ttl_seconds: ttlSeconds });
+}
+
+export async function updateShippingQuote(
+  orderID: string,
+  input: {
+    shipping_amount: number;
+    carrier_name?: string;
+    service_name?: string;
+    tracking_number?: string;
+    estimated_delivery?: string;
+    description?: string;
+    notes?: string;
+  },
+): Promise<{ data: Order }> {
+  return adminPut<{ data: Order }>(`/admin/order/orders/${orderID}/shipping`, input);
+}
+
+export async function listPaymentProofs(paymentID: string): Promise<PaymentProofListResponse> {
+  return adminGet<PaymentProofListResponse>(`/admin/order/payments/${paymentID}/proofs`);
+}
+
+export async function downloadOrderInvoice(orderID: string): Promise<Blob> {
+  return adminGetBlob(`/admin/order/orders/${orderID}/invoice`);
+}

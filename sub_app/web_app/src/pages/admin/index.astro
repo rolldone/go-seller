@@ -1,0 +1,29 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+
+<AdminLayout title="Dashboard Overview">
+  <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <article class="rounded-xl border border-slate-200 bg-white p-4">
+      <p class="text-xs uppercase tracking-wide text-slate-500">Total Node</p>
+      <p class="mt-2 text-2xl font-semibold text-slate-900">12</p>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4">
+      <p class="text-xs uppercase tracking-wide text-slate-500">Running Services</p>
+      <p class="mt-2 text-2xl font-semibold text-slate-900">9</p>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4">
+      <p class="text-xs uppercase tracking-wide text-slate-500">Pending Deploy</p>
+      <p class="mt-2 text-2xl font-semibold text-slate-900">3</p>
+    </article>
+    <article class="rounded-xl border border-slate-200 bg-white p-4">
+      <p class="text-xs uppercase tracking-wide text-slate-500">Alerts</p>
+      <p class="mt-2 text-2xl font-semibold text-slate-900">1</p>
+    </article>
+  </section>
+
+  <section class="mt-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+    <h3 class="text-base font-semibold text-slate-900">Activity Summary</h3>
+    <p class="mt-2 text-sm text-slate-600">Layout dashboard admin sudah siap dengan side menu dan topbar. Selanjutnya tinggal sambungkan data real API.</p>
+  </section>
+</AdminLayout>

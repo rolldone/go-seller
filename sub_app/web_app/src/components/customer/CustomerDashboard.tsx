@@ -1,0 +1,810 @@
+/** @jsxRuntime classic */
+import React, { useEffect, useState } from "react";
+import { Package, Heart, MapPin, Settings, Bell, ChevronRight } from "lucide-react";
+import CustomerPageNav from "./CustomerPageNav";
+import ProfileSettings from "./ProfileSettings";
+import {
+  createMyCustomerAddress,
+  clearCustomerSession,
+  CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR,
+  deleteMyCustomerAddress,
+  getCustomerAuthToken,
+  getCustomerMe,
+  getCustomerProfile,
+  listMyCustomerAddresses,
+  setPrimaryMyCustomerAddress,
+  updateMyCustomerAddress,
+  type CustomerAddress,
+} from "./auth/authApi";
+import { rememberCustomerAuthNextPath } from "../../lib/customerAuthRedirect";
+import { notifyError, notifySuccess } from "../../lib/notification";
+import type { CustomerSession } from "../../lib/customerSession";
+import { getMyCartBusinesses, type CartBusinessSummary } from "../../lib/cartApi";
+import {
+  customerUser,
+  customerStats,
+  customerWishlist,
+  customerNotifications,
+} from "./mockData";
+import { listMyOrders, type Order } from "../../lib/orderApi";
+
+function formatOrderDate(value?: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(date);
+}
+
+function mapOrderStatusLabel(value?: string): string {
+  const key = String(value || "").toLowerCase();
+  if (key === "paid" || key === "completed" || key === "confirmed") return "Selesai";
+  if (key === "expired") return "Kedaluwarsa";
+  if (key === "cancelled" || key === "canceled") return "Dibatalkan";
+  return "Diproses";
+}
+
+function mapOrderStatusClass(value?: string): string {
+  const key = String(value || "").toLowerCase();
+  if (key === "paid" || key === "completed" || key === "confirmed") return "bg-emerald-50 text-emerald-700";
+  if (key === "expired") return "bg-slate-100 text-slate-700";
+  if (key === "cancelled" || key === "canceled") return "bg-red-50 text-red-700";
+  return "bg-amber-50 text-amber-700";
+}
+
+export type MenuKey = "orders" | "carts" | "wishlist" | "addresses" | "notifications" | "settings";
+
+interface CustomerDashboardProps {
+  initialTab?: MenuKey;
+  customerSession?: CustomerSession | null;
+}
+
+const sidebarItems = [
+  { key: "orders" as MenuKey, icon: Package, label: "Pesanan Saya" },
+  { key: "carts" as MenuKey, icon: Package, label: "Cart" },
+  { key: "wishlist" as MenuKey, icon: Heart, label: "Wishlist" },
+  { key: "addresses" as MenuKey, icon: MapPin, label: "Alamat" },
+  { key: "notifications" as MenuKey, icon: Bell, label: "Notifikasi" },
+  { key: "settings" as MenuKey, icon: Settings, label: "Pengaturan Akun" },
+];
+
+function formatIDR(amount: number): string {
+  if (!Number.isFinite(amount)) return "Rp 0";
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+export default function CustomerDashboard({ initialTab = "orders", customerSession = null }: CustomerDashboardProps) {
+  const [activeMenu, setActiveMenu] = useState<MenuKey>(() => {
+    if (typeof window !== "undefined") {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      const validTabs: MenuKey[] = ["orders", "carts", "wishlist", "addresses", "notifications", "settings"];
+      if (tab && validTabs.includes(tab as MenuKey)) return tab as MenuKey;
+    }
+    return initialTab;
+  });
+  const [cartBusinesses, setCartBusinesses] = useState<CartBusinessSummary[]>([]);
+  const [loadingCartBusinesses, setLoadingCartBusinesses] = useState(false);
+  const [cartBusinessesError, setCartBusinessesError] = useState("");
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState("");
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [addressesError, setAddressesError] = useState("");
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [submittingAddress, setSubmittingAddress] = useState(false);
+  const [addressActionID, setAddressActionID] = useState("");
+  const [editingAddressID, setEditingAddressID] = useState("");
+  const [addressForm, setAddressForm] = useState({
+    label: "",
+    receiver_name: "",
+    phone_number: "",
+    address_line_1: "",
+    address_line_2: "",
+    subdistrict: "",
+    district: "",
+    city: "",
+    province: "",
+    postal_code: "",
+    country: "ID",
+    notes: "",
+    is_primary: false,
+  });
+  const [customerName, setCustomerName] = useState(customerSession?.profile?.name || customerUser.name);
+  const [customerEmail, setCustomerEmail] = useState(customerSession?.profile?.email || customerUser.email);
+  const [customerInitials, setCustomerInitials] = useState(
+    customerSession?.profile?.name
+      ? customerSession.profile.name
+          .split(/\s+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase() || "")
+          .join("") || customerUser.initials
+      : customerUser.initials,
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const token = getCustomerAuthToken();
+    if (!token) {
+      clearCustomerSession();
+      window.location.href = rememberCustomerAuthNextPath(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+      return;
+    }
+
+    const hydrateSession = async () => {
+      try {
+        const me = await getCustomerMe();
+        if (cancelled) return;
+        const customer = me?.data?.customer || null;
+        if (customer?.name) {
+          setCustomerName(customer.name);
+          setCustomerEmail(customer.email || customerUser.email);
+          setCustomerInitials(
+            customer.name
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase() || "")
+              .join("") || customerUser.initials,
+          );
+          return;
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
+      }
+
+      const profile = getCustomerProfile();
+      if (profile?.name) {
+        setCustomerName(profile.name);
+        setCustomerEmail(profile.email || customerUser.email);
+        setCustomerInitials(
+          profile.name
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((part) => part[0]?.toUpperCase() || "")
+            .join("") || customerUser.initials,
+        );
+      }
+    };
+
+    hydrateSession();
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get("tab") as MenuKey | null;
+    if (requestedTab && sidebarItems.some((item) => item.key === requestedTab)) {
+      setActiveMenu(requestedTab);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (activeMenu !== "orders") return;
+      setOrdersLoading(true);
+      setOrdersError("");
+      try {
+        const result = await listMyOrders({ page: 1, limit: 20 });
+        if (!cancelled) {
+          setOrders(result.data || []);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
+        const message = err instanceof Error ? err.message : "Gagal memuat daftar order";
+        if (!cancelled) {
+          setOrders([]);
+          setOrdersError(message);
+        }
+      } finally {
+        if (!cancelled) setOrdersLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMenu]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (activeMenu !== "addresses") return;
+      setAddressesLoading(true);
+      setAddressesError("");
+      try {
+        const rows = await listMyCustomerAddresses();
+        if (!cancelled) setAddresses(rows);
+      } catch (err) {
+        if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
+        const message = err instanceof Error ? err.message : "Gagal memuat alamat";
+        if (!cancelled) {
+          setAddresses([]);
+          setAddressesError(message);
+        }
+      } finally {
+        if (!cancelled) setAddressesLoading(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMenu]);
+
+  const loadAddresses = async () => {
+    setAddressesLoading(true);
+    setAddressesError("");
+    try {
+      const rows = await listMyCustomerAddresses();
+      setAddresses(rows);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Gagal memuat alamat";
+      setAddressesError(message);
+    } finally {
+      setAddressesLoading(false);
+    }
+  };
+
+  const resetAddressForm = () => {
+    setAddressForm({
+      label: "",
+      receiver_name: "",
+      phone_number: "",
+      address_line_1: "",
+      address_line_2: "",
+      subdistrict: "",
+      district: "",
+      city: "",
+      province: "",
+      postal_code: "",
+      country: "ID",
+      notes: "",
+      is_primary: false,
+    });
+    setEditingAddressID("");
+  };
+
+  const startEditAddress = (address: CustomerAddress) => {
+    setEditingAddressID(address.id);
+    setAddressForm({
+      label: address.label || "",
+      receiver_name: address.receiver_name || "",
+      phone_number: address.phone_number || "",
+      address_line_1: address.address_line_1 || "",
+      address_line_2: address.address_line_2 || "",
+      subdistrict: address.subdistrict || "",
+      district: address.district || "",
+      city: address.city || "",
+      province: address.province || "",
+      postal_code: address.postal_code || "",
+      country: address.country || "ID",
+      notes: address.notes || "",
+      is_primary: address.is_primary,
+    });
+    setShowAddressForm(true);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      setLoadingCartBusinesses(true);
+      setCartBusinessesError("");
+      try {
+        const rows = await getMyCartBusinesses();
+        if (!cancelled) setCartBusinesses(rows);
+      } catch (err) {
+        if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
+        const message = err instanceof Error ? err.message : "Gagal memuat daftar cart";
+        if (!cancelled) {
+          setCartBusinesses([]);
+          setCartBusinessesError(message);
+        }
+      } finally {
+        if (!cancelled) setLoadingCartBusinesses(false);
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeMenu !== "carts") return;
+    let cancelled = false;
+
+    const run = async () => {
+      setLoadingCartBusinesses(true);
+      setCartBusinessesError("");
+      try {
+        const rows = await getMyCartBusinesses();
+        if (!cancelled) setCartBusinesses(rows);
+      } catch (err) {
+        if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
+        const message = err instanceof Error ? err.message : "Gagal memuat daftar cart";
+        if (!cancelled) {
+          setCartBusinesses([]);
+          setCartBusinessesError(message);
+        }
+      } finally {
+        if (!cancelled) setLoadingCartBusinesses(false);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeMenu]);
+
+  const handleChangeMenu = (key: MenuKey) => {
+    setActiveMenu(key);
+    const params = new URLSearchParams(window.location.search);
+    params.set("tab", key);
+    const search = params.toString();
+    const newUrl = `${window.location.pathname}${search ? `?${search}` : ""}`;
+    window.history.replaceState({}, "", newUrl);
+  };
+
+  const activeTitle = {
+    orders: "Pesanan Saya",
+    carts: "Cart per Bisnis",
+    wishlist: "Wishlist",
+    addresses: "Alamat",
+    notifications: "Notifikasi",
+    settings: "Pengaturan Akun",
+  }[activeMenu];
+
+  const activeDescription = {
+    orders: "Daftar transaksi terbaru dan status pengiriman Anda.",
+    carts: "Daftar cart Anda yang dikelompokkan per bisnis.",
+    wishlist: "Produk yang Anda simpan untuk dibeli nanti.",
+    addresses: "Kelola alamat pengiriman untuk checkout lebih cepat.",
+    notifications: "Ringkasan update order, promo, dan aktivitas akun.",
+    settings: "Preferensi akun personal dan pengaturan notifikasi.",
+  }[activeMenu];
+
+  return (
+    <div className="min-h-screen bg-[#f7f7f5]">
+      <div className="mx-auto max-w-6xl px-4 pb-8 pt-6 sm:px-6">
+        <CustomerPageNav customerSession={customerSession} />
+
+        {/* Main Content */}
+        <div className="mt-6 flex flex-col gap-6 md:flex-row">
+          {/* Sidebar */}
+          <aside className="w-full shrink-0 md:w-56">
+            {/* User Card */}
+            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                  {customerInitials}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-slate-900">{customerName}</p>
+                  <p className="truncate text-xs text-slate-500">{customerEmail}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-slate-400">{customerUser.joinDate}</p>
+            </div>
+
+            {/* Nav */}
+            <nav className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              {sidebarItems.map(({ key, icon: Icon, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => handleChangeMenu(key)}
+                  className={`flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition last:border-0 ${
+                    activeMenu === key
+                      ? "bg-emerald-50 font-semibold text-emerald-700"
+                      : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  {label}
+                  <div className="ml-auto flex items-center gap-2">
+                    {key === "carts" ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                        {loadingCartBusinesses ? "..." : cartBusinesses.length}
+                      </span>
+                    ) : null}
+                    {activeMenu === key ? <ChevronRight className="h-3.5 w-3.5 text-emerald-400" /> : null}
+                  </div>
+                </button>
+              ))}
+            </nav>
+          </aside>
+
+          {/* Content */}
+          <main className="flex-1 space-y-6">
+            <section className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+              <h1 className="text-lg font-bold text-slate-900">{activeTitle}</h1>
+              <p className="mt-1 text-sm text-slate-500">{activeDescription}</p>
+            </section>
+
+            <div className="grid grid-cols-3 gap-4">
+              {customerStats.map(({ label, value }) => (
+                <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm text-center">
+                  <p className="text-2xl font-bold text-slate-900">{value}</p>
+                  <p className="mt-1 text-xs text-slate-500">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            {activeMenu === "orders" && (
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">Pesanan Terbaru</h2>
+                  <span className="text-xs text-slate-500">{orders.length} order</span>
+                </div>
+                {ordersLoading ? (
+                  <div className="px-5 py-5 text-sm text-slate-500">Memuat order...</div>
+                ) : ordersError ? (
+                  <div className="px-5 py-5 text-sm text-red-600">{ordersError}</div>
+                ) : orders.length === 0 ? (
+                  <div className="px-5 py-5 text-sm text-slate-500">Belum ada order.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {orders.map((order) => {
+                      const firstItem = order.order_items?.[0];
+                      const title = firstItem?.product_name || order.order_number;
+                      const paymentLabel = mapOrderStatusLabel(order.payment_status || order.status);
+                      return (
+                        <a key={order.id} href={`/order/${encodeURIComponent(order.id)}`} className="flex items-center justify-between px-5 py-4 transition hover:bg-slate-50">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-900">{title}</p>
+                            <p className="text-xs text-slate-500">{order.order_number} · {formatOrderDate(order.created_at)}</p>
+                          </div>
+                          <div className="ml-4 flex shrink-0 flex-col items-end gap-1.5">
+                            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${mapOrderStatusClass(order.payment_status || order.status)}`}>
+                              {paymentLabel}
+                            </span>
+                            <span className="text-xs font-semibold text-slate-700">{formatIDR(order.grand_total)}</span>
+                          </div>
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {activeMenu === "carts" && (
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">Cart per Bisnis</h2>
+                  <span className="text-xs text-slate-500">{cartBusinesses.length} bisnis</span>
+                </div>
+                {loadingCartBusinesses ? (
+                  <div className="px-5 py-5 text-sm text-slate-500">Memuat cart...</div>
+                ) : cartBusinessesError ? (
+                  <div className="px-5 py-5 text-sm text-red-600">{cartBusinessesError}</div>
+                ) : cartBusinesses.length === 0 ? (
+                  <div className="px-5 py-5 text-sm text-slate-500">Belum ada cart aktif.</div>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {cartBusinesses.map((entry) => {
+                      const target = entry.business_slug?.trim() ? `/b/${entry.business_slug}/cart` : "/cart";
+                      return (
+                        <a
+                          key={entry.cart_id}
+                          href={target}
+                          className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">{entry.business_name || "Tanpa Nama Bisnis"}</p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {entry.item_count} item · {entry.total_qty} qty
+                            </p>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-sm font-bold text-slate-900">{formatIDR(entry.total_amount)}</p>
+                            <p className="mt-1 text-xs font-medium text-emerald-600">Buka cart</p>
+                          </div>
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {activeMenu === "wishlist" && (
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">Wishlist</h2>
+                </div>
+                <div className="grid gap-4 p-5 sm:grid-cols-2">
+                  {customerWishlist.map((item) => (
+                    <div key={item.id} className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                      <p className="text-sm font-semibold text-slate-900">{item.product}</p>
+                      <p className="mt-1 text-xs text-slate-500">{item.store}</p>
+                      <p className="mt-3 text-sm font-bold text-slate-800">{item.price}</p>
+                      <div className="mt-4 flex gap-2">
+                        <button type="button" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">Beli Sekarang</button>
+                        <button type="button" className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white">Hapus</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {activeMenu === "addresses" && (
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">Alamat Pengiriman</h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (showAddressForm) {
+                        setShowAddressForm(false);
+                        resetAddressForm();
+                        return;
+                      }
+                      resetAddressForm();
+                      setShowAddressForm(true);
+                    }}
+                    className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    {showAddressForm ? "Tutup" : "Tambah Alamat"}
+                  </button>
+                </div>
+                <div className="space-y-3 p-5">
+                  {showAddressForm ? (
+                    <form
+                      className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4"
+                      onSubmit={async (event) => {
+                        event.preventDefault();
+                        setSubmittingAddress(true);
+                        setAddressesError("");
+                        try {
+                          const payload = {
+                            ...addressForm,
+                            address_line_2: addressForm.address_line_2 || null,
+                            subdistrict: addressForm.subdistrict || null,
+                            district: addressForm.district || null,
+                            notes: addressForm.notes || null,
+                          };
+                          if (editingAddressID) {
+                            await updateMyCustomerAddress(editingAddressID, payload);
+                            notifySuccess("Alamat berhasil diperbarui.");
+                          } else {
+                            await createMyCustomerAddress(payload);
+                            notifySuccess("Alamat berhasil ditambahkan.");
+                          }
+                          resetAddressForm();
+                          setShowAddressForm(false);
+                          await loadAddresses();
+                        } catch (err) {
+                          const message = err instanceof Error ? err.message : "Gagal menambah alamat";
+                          setAddressesError(message);
+                          notifyError(message);
+                        } finally {
+                          setSubmittingAddress(false);
+                        }
+                      }}
+                    >
+                      <div className="space-y-4 text-slate-900">
+                        <div className="rounded-lg border border-slate-200 bg-white p-3">
+                          <p className="text-sm font-semibold text-slate-900">Form Alamat Pengiriman</p>
+                          <p className="mt-1 text-xs text-slate-700">Isi data inti dulu. Detail tambahan hanya kalau memang diperlukan.</p>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <label className="space-y-1 text-sm text-slate-900">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Label alamat</span>
+                            <input
+                              value={addressForm.label}
+                              onChange={(e) => setAddressForm((current) => ({ ...current, label: e.target.value }))}
+                              placeholder="Rumah, Kantor, Gudang"
+                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                            />
+                          </label>
+                          <label className="space-y-1 text-sm text-slate-900">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Nama penerima</span>
+                            <input
+                              value={addressForm.receiver_name}
+                              onChange={(e) => setAddressForm((current) => ({ ...current, receiver_name: e.target.value }))}
+                              placeholder="Nama lengkap penerima"
+                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                              required
+                            />
+                          </label>
+                          <label className="space-y-1 text-sm text-slate-900">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Nomor HP</span>
+                            <input
+                              value={addressForm.phone_number}
+                              onChange={(e) => setAddressForm((current) => ({ ...current, phone_number: e.target.value }))}
+                              placeholder="08xxxxxxxxxx"
+                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                              required
+                            />
+                          </label>
+                          <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+                            <input type="checkbox" checked={addressForm.is_primary} onChange={(e) => setAddressForm((current) => ({ ...current, is_primary: e.target.checked }))} />
+                            Jadikan alamat utama
+                          </label>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="space-y-1 text-sm text-slate-900">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Alamat lengkap</span>
+                            <textarea
+                              value={addressForm.address_line_1}
+                              onChange={(e) => setAddressForm((current) => ({ ...current, address_line_1: e.target.value }))}
+                              placeholder="Jalan, nomor rumah, RT/RW, patokan, gedung, dll"
+                              className="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                              required
+                            />
+                          </label>
+                          <p className="text-xs text-slate-700">Tulis alamat utama secara lengkap supaya kurir tidak bingung.</p>
+                        </div>
+
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          <label className="space-y-1 text-sm text-slate-900">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kota / Kabupaten</span>
+                            <input value={addressForm.city} onChange={(e) => setAddressForm((current) => ({ ...current, city: e.target.value }))} placeholder="Contoh: Bandung" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                          </label>
+                          <label className="space-y-1 text-sm text-slate-900">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Provinsi</span>
+                            <input value={addressForm.province} onChange={(e) => setAddressForm((current) => ({ ...current, province: e.target.value }))} placeholder="Contoh: Jawa Barat" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                          </label>
+                          <label className="space-y-1 text-sm text-slate-900">
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kode pos</span>
+                            <input value={addressForm.postal_code} onChange={(e) => setAddressForm((current) => ({ ...current, postal_code: e.target.value }))} placeholder="40123" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                          </label>
+                        </div>
+
+                        <details className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-slate-900">
+                          <summary className="cursor-pointer text-sm font-medium text-slate-900">Detail tambahan opsional</summary>
+                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                            <label className="space-y-1 text-sm text-slate-900">
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Alamat tambahan</span>
+                              <input value={addressForm.address_line_2 || ""} onChange={(e) => setAddressForm((current) => ({ ...current, address_line_2: e.target.value }))} placeholder="Blok, nomor unit, patokan tambahan" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                            </label>
+                            <label className="space-y-1 text-sm text-slate-900">
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kelurahan / Desa</span>
+                              <input value={addressForm.subdistrict || ""} onChange={(e) => setAddressForm((current) => ({ ...current, subdistrict: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                            </label>
+                            <label className="space-y-1 text-sm text-slate-900">
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kecamatan</span>
+                              <input value={addressForm.district || ""} onChange={(e) => setAddressForm((current) => ({ ...current, district: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                            </label>
+                            <label className="space-y-1 text-sm text-slate-900">
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Catatan kurir</span>
+                              <input value={addressForm.notes || ""} onChange={(e) => setAddressForm((current) => ({ ...current, notes: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                            </label>
+                          </div>
+                        </details>
+
+                        <button type="submit" disabled={submittingAddress} className="inline-flex w-fit rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60">
+                          {submittingAddress ? "Menyimpan..." : editingAddressID ? "Perbarui Alamat" : "Simpan Alamat"}
+                        </button>
+                      </div>
+                    </form>
+                  ) : null}
+                  {addressesError ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{addressesError}</div> : null}
+                  {addressesLoading ? <div className="text-sm text-slate-500">Memuat alamat...</div> : null}
+                  {!addressesLoading && addresses.length === 0 ? <div className="text-sm text-slate-500">Belum ada alamat tersimpan.</div> : null}
+                  {addresses.map((address) => (
+                    <div key={address.id} className="rounded-lg border border-slate-200 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{address.label || "Alamat"}</p>
+                          {address.is_primary ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Utama</span> : null}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={addressActionID === address.id}
+                            onClick={() => startEditAddress(address)}
+                            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                          >
+                            Edit
+                          </button>
+                          {!address.is_primary ? (
+                            <button
+                              type="button"
+                              disabled={addressActionID === address.id}
+                              onClick={async () => {
+                                setAddressActionID(address.id);
+                                try {
+                                  await setPrimaryMyCustomerAddress(address.id);
+                                  notifySuccess("Alamat utama diperbarui.");
+                                  await loadAddresses();
+                                } catch (err) {
+                                  const message = err instanceof Error ? err.message : "Gagal mengubah alamat utama";
+                                  notifyError(message);
+                                } finally {
+                                  setAddressActionID("");
+                                }
+                              }}
+                              className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                            >
+                              Jadikan Utama
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            disabled={addressActionID === address.id}
+                            onClick={async () => {
+                              setAddressActionID(address.id);
+                              try {
+                                await deleteMyCustomerAddress(address.id);
+                                notifySuccess("Alamat dihapus.");
+                                await loadAddresses();
+                              } catch (err) {
+                                const message = err instanceof Error ? err.message : "Gagal menghapus alamat";
+                                notifyError(message);
+                              } finally {
+                                setAddressActionID("");
+                              }
+                            }}
+                            className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs font-medium text-slate-700">{address.receiver_name} · {address.phone_number}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {[address.address_line_1, address.address_line_2, address.subdistrict, address.district, address.city, address.province, address.postal_code].filter(Boolean).join(", ")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {activeMenu === "notifications" && (
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">Notifikasi</h2>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {customerNotifications.map((notification) => (
+                    <div key={notification.id} className="flex items-start justify-between gap-3 px-5 py-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900">{notification.title}</p>
+                        <p className="mt-1 text-xs text-slate-500">{notification.time}</p>
+                      </div>
+                      {notification.unread && <span className="mt-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500" />}
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {activeMenu === "settings" && (
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <h2 className="font-semibold text-slate-900">Pengaturan Akun</h2>
+                </div>
+                <div className="p-5">
+                  <ProfileSettings className="space-y-6" />
+                </div>
+              </section>
+            )}
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}

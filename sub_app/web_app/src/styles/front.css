@@ -1,0 +1,10 @@
+@import "./base.css";
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  font-family: "Manrope", "Segoe UI", sans-serif;
+}

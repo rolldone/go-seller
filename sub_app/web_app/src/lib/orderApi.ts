@@ -1,0 +1,212 @@
+import {
+  customerApiRequest,
+  CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR,
+  getCustomerAuthToken,
+} from "../components/customer/auth/authApi";
+import type { PublicBusiness } from "../components/front/business/types";
+
+export type AppliedCoupon = {
+  code: string;
+  category: string;
+  discount_amount: number;
+};
+
+export type OrderItem = {
+  id: string;
+  order_id: string;
+  product_id?: string | null;
+  product_name?: string;
+  sku?: string | null;
+  discount_name?: string | null;
+  qty: number;
+  unit_price: number;
+  discount_amount: number;
+  tax_amount: number;
+  tax_type?: string;
+  tax_rate?: number;
+  line_total: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Payment = {
+  id: string;
+  order_id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  provider_id?: string | null;
+  provider_key?: string | null;
+  provider_transaction_id?: string | null;
+  external_reference?: string | null;
+  proof_status?: string;
+  payment_method?: string | null;
+  gateway_name?: string | null;
+  gateway_transaction_id?: string | null;
+  metadata?: unknown;
+  paid_at?: string | null;
+  failed_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Order = {
+  id: string;
+  order_number: string;
+  customer_id?: string | null;
+  business_id?: string | null;
+  channel: string;
+  status: string;
+  payment_status: string;
+  currency: string;
+  subtotal: number;
+  discount_amount: number;
+  tax_amount: number;
+  shipping_amount: number;
+  grand_total: number;
+  notes?: string | null;
+  metadata?: unknown;
+  applied_coupons?: AppliedCoupon[] | null;
+  placed_at?: string | null;
+  paid_at?: string | null;
+  cancelled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  order_items?: OrderItem[];
+  payments?: Payment[];
+  customer?: {
+    id: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+  } | null;
+};
+
+export type OrderPaymentProvider = {
+  id: string;
+  name: string;
+  provider_key: string;
+  is_active: boolean;
+  is_used?: boolean;
+  config?: {
+    bank_name?: string;
+    account_number?: string;
+    account_holder?: string;
+    account_name?: string;
+    reference?: string;
+    instructions?: string;
+  };
+};
+
+export type MyOrderDetailResponse = {
+  data: {
+    order: Order;
+    payments: Payment[];
+    providers: OrderPaymentProvider[];
+    business?: Pick<PublicBusiness, "id" | "name" | "slug" | "short_description"> | null;
+  };
+};
+
+export type MyOrderListResponse = {
+  data: Order[];
+  total: number;
+};
+
+export type PaymentProof = {
+  id: string;
+  payment_id: string;
+  order_id: string;
+  mime_type: string;
+  file_size: number;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+};
+
+function getApiUrl() {
+  return import.meta.env.PUBLIC_API_URL?.replace(/\/$/, "") || "";
+}
+
+async function customerBlobRequest(path: string): Promise<Blob> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
+    throw new Error("PUBLIC_API_URL belum dikonfigurasi");
+  }
+
+  const token = getCustomerAuthToken();
+  if (!token) {
+    throw new Error(CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR);
+  }
+
+  const response = await fetch(`${apiUrl}${path}`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const message = payload?.error || payload?.message || `HTTP ${response.status}`;
+    if (response.status === 401 || response.status === 403) {
+      throw new Error(CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR);
+    }
+    throw new Error(message);
+  }
+
+  return response.blob();
+}
+
+export async function listMyOrders(params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  payment_status?: string;
+  q?: string;
+}): Promise<MyOrderListResponse> {
+  const query = new URLSearchParams();
+  if (params?.page && params.page > 0) query.set("page", String(params.page));
+  if (params?.limit && params.limit > 0) query.set("limit", String(params.limit));
+  if (params?.status?.trim()) query.set("status", params.status.trim());
+  if (params?.payment_status?.trim()) query.set("payment_status", params.payment_status.trim());
+  if (params?.q?.trim()) query.set("q", params.q.trim());
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return customerApiRequest<MyOrderListResponse>(`/api/order/orders/me${suffix}`, { method: "GET" });
+}
+
+export async function getMyOrderByID(orderID: string): Promise<MyOrderDetailResponse> {
+  return customerApiRequest<MyOrderDetailResponse>(`/api/order/orders/me/${encodeURIComponent(orderID)}`, { method: "GET" });
+}
+
+export async function updateMyOrderShippingAddress(orderID: string, addressID: string): Promise<{ data: Order }> {
+  return customerApiRequest<{ data: Order }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/shipping-address`, {
+    method: "POST",
+    body: JSON.stringify({ address_id: addressID }),
+  });
+}
+
+export async function startMyOrderPayment(orderID: string, payload: FormData | Record<string, unknown>): Promise<{ data: Payment }> {
+  const init: RequestInit = {
+    method: "POST",
+    body: payload instanceof FormData ? payload : JSON.stringify(payload),
+  };
+  return customerApiRequest<{ data: Payment }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/start-payment`, init);
+}
+
+export async function listMyOrderPaymentProofs(orderID: string, paymentID: string): Promise<{ data: PaymentProof[] }> {
+  return customerApiRequest<{ data: PaymentProof[] }>(
+    `/api/order/orders/me/${encodeURIComponent(orderID)}/payments/${encodeURIComponent(paymentID)}/proofs`,
+    { method: "GET" },
+  );
+}
+
+export async function downloadMyOrderInvoice(orderID: string): Promise<Blob> {
+  return customerBlobRequest(`/api/order/orders/me/${encodeURIComponent(orderID)}/invoice`);
+}
+
+export async function getMyOrderPaymentProofBlob(orderID: string, paymentID: string, proofID: string): Promise<Blob> {
+  return customerBlobRequest(
+    `/api/order/orders/me/${encodeURIComponent(orderID)}/payments/${encodeURIComponent(paymentID)}/proofs/${encodeURIComponent(proofID)}/access`,
+  );
+}

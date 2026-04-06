@@ -1,0 +1,19 @@
+---
+import "../../styles/front.css";
+import CustomerDashboard from "../../components/customer/CustomerDashboard";
+import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
+
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Customer Dashboard | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body>
+    <CustomerDashboard client:only="react" customerSession={customerSession} />
+  </body>
+</html>

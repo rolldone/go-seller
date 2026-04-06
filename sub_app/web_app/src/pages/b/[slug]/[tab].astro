@@ -1,0 +1,53 @@
+---
+export const prerender = false;
+
+import "../../../styles/front.css";
+import BusinessStoreFrontPage from "../../../components/front/business/BusinessStoreFrontPage";
+import { buildBusinessStore } from "../store";
+import { getFallbackBusinessStore } from "../../../components/front/business/mockData";
+import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
+
+const TAB_KEYS = ["beranda", "produk", "ulasan", "tentang"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+const isTabKey = (value: string | undefined): value is TabKey => TAB_KEYS.some((tabKey) => tabKey === value);
+
+const { slug = "", tab } = Astro.params;
+const requestedTab = typeof tab === "string" ? tab : undefined;
+const initialTab: TabKey = isTabKey(requestedTab) ? requestedTab : "beranda";
+const { store } = await buildBusinessStore(slug);
+
+if ((initialTab === "produk" || initialTab === "beranda") && !store.products?.length) {
+  const mockStore = getFallbackBusinessStore(store.business.slug || slug);
+  if (mockStore) {
+    store.products = mockStore.products;
+  }
+}
+
+if (initialTab === "ulasan" && !store.reviewSummary) {
+  const mockStore = getFallbackBusinessStore(store.business.slug || slug);
+  if (mockStore) {
+    store.reviewSummary = mockStore.reviewSummary;
+    store.reviews = mockStore.reviews;
+    if (!store.products?.length) {
+      store.products = mockStore.products;
+    }
+  }
+}
+
+const title = `${store.business.name || ""} | Go Seller`;
+const description = store.business.description || store.business.short_description || "";
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <BusinessStoreFrontPage client:only="react" store={store} initialTab={initialTab} customerSession={customerSession} />
+  </body>
+</html>

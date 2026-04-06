@@ -1,0 +1,19 @@
+---
+import AdminLoginForm from "../../components/admin/AdminLoginForm";
+import "../../styles/admin.css";
+import AlertContainer from "../../components/ui/AlertContainer";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Admin Login</title>
+  </head>
+  <body class="min-h-screen bg-slate-50">
+    <main class="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-4 py-8">
+      <AdminLoginForm client:load />
+      <AlertContainer client:load />
+    </main>
+  </body>
+</html>

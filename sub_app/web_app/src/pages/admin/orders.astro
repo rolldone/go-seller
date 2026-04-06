@@ -1,0 +1,8 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import OrdersPage from "../../components/admin/orders/OrdersPage";
+---
+
+<AdminLayout title="Orders">
+  <OrdersPage client:load />
+</AdminLayout>

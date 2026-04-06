@@ -1,0 +1,32 @@
+---
+export const prerender = false;
+
+import "../../../../styles/front.css";
+import ProductDetailPage from "../../../../components/front/business/ProductDetailPage";
+import { buildBusinessStore } from "../../store";
+import CustomerSessionBootstrap from "../../../../components/customer/CustomerSessionBootstrap.astro";
+
+const { merchant = "", slug = "" } = Astro.params;
+const { store } = await buildBusinessStore(merchant);
+const product = (store.products || []).find((item) => item.slug === slug);
+
+if (!product) return Astro.redirect(`/b/${merchant}`, 302);
+
+const relatedProducts = (store.products || []).filter((item) => item.slug !== product.slug).slice(0, 4);
+const title = `${product.title} | ${store.business.name} | Go Seller`;
+const description = product.excerpt;
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <ProductDetailPage client:only="react" store={store} product={product} relatedProducts={relatedProducts} customerSession={customerSession} />
+  </body>
+</html>

@@ -1,0 +1,25 @@
+---
+export const prerender = false;
+
+import "../../../styles/front.css";
+import CartPage from "../../../components/front/CartPage";
+import { buildBusinessStore } from "../store";
+import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
+
+const { merchant = "" } = Astro.params;
+const customerSession = Astro.locals.customerSession ?? null;
+const { store } = await buildBusinessStore(merchant);
+const business = store.business;
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Keranjang Belanja | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <CartPage client:only="react" customerSession={customerSession} business={business} />
+  </body>
+</html>
