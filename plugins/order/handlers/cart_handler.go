@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	authservices "go_framework/plugins/auth/services"
 	ordersvc "go_framework/plugins/order/services"
 
 	"github.com/gin-gonic/gin"
@@ -12,10 +13,11 @@ import (
 type CartHandler struct {
 	svc      *ordersvc.CartService
 	orderSvc *ordersvc.OrderService
+	authSvc  *authservices.AuthService
 }
 
-func NewCartHandler(svc *ordersvc.CartService, orderSvc *ordersvc.OrderService) *CartHandler {
-	return &CartHandler{svc: svc, orderSvc: orderSvc}
+func NewCartHandler(svc *ordersvc.CartService, orderSvc *ordersvc.OrderService, authSvc *authservices.AuthService) *CartHandler {
+	return &CartHandler{svc: svc, orderSvc: orderSvc, authSvc: authSvc}
 }
 
 type createCartReq struct {
@@ -218,6 +220,7 @@ func (h *CartHandler) MeCheckout(c *gin.Context) {
 	var req struct {
 		Currency   string  `json:"currency"`
 		CouponCode *string `json:"coupon_code"`
+		AddressID  *string `json:"address_id"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -228,7 +231,82 @@ func (h *CartHandler) MeCheckout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cart.ID, req.Currency, req.CouponCode)
+	var shippingAddress *ordersvc.ShippingAddressSnapshot
+	if h.authSvc != nil {
+		var addrID string
+		if req.AddressID != nil {
+			addrID = strings.TrimSpace(*req.AddressID)
+		}
+		var addrErr error
+		if addrID != "" {
+			if addr, err := h.authSvc.GetCustomerAddressByID(c.Request.Context(), customerID, addrID); err == nil {
+				shippingAddress = &ordersvc.ShippingAddressSnapshot{
+					AddressID:    addr.ID,
+					Label:        addr.Label,
+					ReceiverName: addr.ReceiverName,
+					PhoneNumber:  addr.PhoneNumber,
+					AddressLine1: addr.AddressLine1,
+					AddressLine2: addr.AddressLine2,
+					Subdistrict:  addr.Subdistrict,
+					District:     addr.District,
+					City:         addr.City,
+					Province:     addr.Province,
+					PostalCode:   addr.PostalCode,
+					Country:      addr.Country,
+					Notes:        addr.Notes,
+					IsPrimary:    addr.IsPrimary,
+					AddressString: strings.TrimSpace(strings.Join([]string{
+						addr.AddressLine1,
+						valueOrEmpty(addr.AddressLine2),
+						valueOrEmpty(addr.Subdistrict),
+						valueOrEmpty(addr.District),
+						addr.City,
+						addr.Province,
+						addr.PostalCode,
+					}, ", ")),
+				}
+			} else {
+				addrErr = err
+			}
+		} else if addr, err := h.authSvc.GetPrimaryCustomerAddress(c.Request.Context(), customerID); err == nil {
+			shippingAddress = &ordersvc.ShippingAddressSnapshot{
+				AddressID:    addr.ID,
+				Label:        addr.Label,
+				ReceiverName: addr.ReceiverName,
+				PhoneNumber:  addr.PhoneNumber,
+				AddressLine1: addr.AddressLine1,
+				AddressLine2: addr.AddressLine2,
+				Subdistrict:  addr.Subdistrict,
+				District:     addr.District,
+				City:         addr.City,
+				Province:     addr.Province,
+				PostalCode:   addr.PostalCode,
+				Country:      addr.Country,
+				Notes:        addr.Notes,
+				IsPrimary:    addr.IsPrimary,
+				AddressString: strings.TrimSpace(strings.Join([]string{
+					addr.AddressLine1,
+					valueOrEmpty(addr.AddressLine2),
+					valueOrEmpty(addr.Subdistrict),
+					valueOrEmpty(addr.District),
+					addr.City,
+					addr.Province,
+					addr.PostalCode,
+				}, ", ")),
+			}
+		} else {
+			addrErr = err
+		}
+		if addrErr != nil && req.AddressID != nil && strings.TrimSpace(*req.AddressID) != "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "shipping address not found"})
+			return
+		}
+	}
+	if shippingAddress == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "shipping address is required"})
+		return
+	}
+	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cart.ID, req.Currency, req.CouponCode, shippingAddress)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -245,10 +323,17 @@ func (h *CartHandler) Checkout(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cartID, req.Currency, nil)
+	ord, err := h.orderSvc.CheckoutCart(c.Request.Context(), cartID, req.Currency, nil, nil)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"data": ord})
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
 }

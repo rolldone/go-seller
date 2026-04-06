@@ -38,7 +38,12 @@ type Product struct {
 	SEOContent    json.RawMessage `gorm:"type:jsonb" json:"seo_content,omitempty"`
 	Attributes    json.RawMessage `gorm:"type:jsonb" json:"attributes,omitempty"`
 	ProductType   string          `gorm:"type:product_type_enum;default:'product'" json:"product_type"`
-	CreatedAt     time.Time       `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt     time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
-	DeletedAt     gorm.DeletedAt  `gorm:"index" json:"-"`
+	// Optional default shipping data used when a product has no variation-level dimensions.
+	Weight           *float64       `gorm:"type:numeric(10,3)" json:"weight,omitempty"`
+	DimensionsLength *float64       `gorm:"type:numeric(10,2)" json:"dimensions_length,omitempty"`
+	DimensionsWidth  *float64       `gorm:"type:numeric(10,2)" json:"dimensions_width,omitempty"`
+	DimensionsHeight *float64       `gorm:"type:numeric(10,2)" json:"dimensions_height,omitempty"`
+	CreatedAt        time.Time      `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt        time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
+	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 }

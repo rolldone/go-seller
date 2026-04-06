@@ -47,10 +47,14 @@ type createProductRequest struct {
 	TagIDs            []string        `json:"tag_ids"`
 	ProductType       string          `json:"product_type"`
 	// Tax & price override
-	TaxType       string  `json:"tax_type"`
-	TaxRate       float64 `json:"tax_rate"`
-	CustomTax     bool    `json:"custom_tax"`
-	PriceOverride bool    `json:"price_override_enabled"`
+	TaxType          string   `json:"tax_type"`
+	TaxRate          float64  `json:"tax_rate"`
+	CustomTax        bool     `json:"custom_tax"`
+	PriceOverride    bool     `json:"price_override_enabled"`
+	Weight           *float64 `json:"weight"`
+	DimensionsLength *float64 `json:"dimensions_length"`
+	DimensionsWidth  *float64 `json:"dimensions_width"`
+	DimensionsHeight *float64 `json:"dimensions_height"`
 }
 
 type updateProductRequest struct {
@@ -75,10 +79,14 @@ type updateProductRequest struct {
 	TagIDs            *[]string       `json:"tag_ids"`
 	ProductType       *string         `json:"product_type"`
 	// Tax & price override
-	TaxType       *string  `json:"tax_type"`
-	TaxRate       *float64 `json:"tax_rate"`
-	CustomTax     *bool    `json:"custom_tax"`
-	PriceOverride *bool    `json:"price_override_enabled"`
+	TaxType          *string  `json:"tax_type"`
+	TaxRate          *float64 `json:"tax_rate"`
+	CustomTax        *bool    `json:"custom_tax"`
+	PriceOverride    *bool    `json:"price_override_enabled"`
+	Weight           *float64 `json:"weight"`
+	DimensionsLength *float64 `json:"dimensions_length"`
+	DimensionsWidth  *float64 `json:"dimensions_width"`
+	DimensionsHeight *float64 `json:"dimensions_height"`
 }
 
 type upsertProductTranslationRequest struct {
@@ -116,6 +124,13 @@ func parseIntParam(v string, fallback int) int {
 	return n
 }
 
+func validateOptionalNonNegativeFloat(field string, value *float64) error {
+	if value != nil && *value < 0 {
+		return errors.New(field + " must be >= 0")
+	}
+	return nil
+}
+
 func applyTranslation(product *catalogmodels.Product, tr catalogmodels.ProductTranslation) {
 	if strings.TrimSpace(tr.Name) != "" {
 		product.Name = tr.Name
@@ -139,6 +154,22 @@ func (h *ProductHandler) Create(c *gin.Context) {
 	}
 	if req.SKU == "" || req.Name == "" || req.Price < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "sku, name are required and price must be >= 0"})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("weight", req.Weight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_length", req.DimensionsLength); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_width", req.DimensionsWidth); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_height", req.DimensionsHeight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -176,6 +207,10 @@ func (h *ProductHandler) Create(c *gin.Context) {
 		TaxRate:           req.TaxRate,
 		CustomTax:         req.CustomTax,
 		PriceOverride:     req.PriceOverride,
+		Weight:            req.Weight,
+		DimensionsLength:  req.DimensionsLength,
+		DimensionsWidth:   req.DimensionsWidth,
+		DimensionsHeight:  req.DimensionsHeight,
 	}
 	if req.IsVisible != nil {
 		p.IsVisible = *req.IsVisible
@@ -569,6 +604,34 @@ func (h *ProductHandler) Update(c *gin.Context) {
 	}
 	if req.PriceOverride != nil {
 		product.PriceOverride = *req.PriceOverride
+	}
+	if err := validateOptionalNonNegativeFloat("weight", req.Weight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_length", req.DimensionsLength); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_width", req.DimensionsWidth); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_height", req.DimensionsHeight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Weight != nil {
+		product.Weight = req.Weight
+	}
+	if req.DimensionsLength != nil {
+		product.DimensionsLength = req.DimensionsLength
+	}
+	if req.DimensionsWidth != nil {
+		product.DimensionsWidth = req.DimensionsWidth
+	}
+	if req.DimensionsHeight != nil {
+		product.DimensionsHeight = req.DimensionsHeight
 	}
 	if len(req.SEOContent) > 0 {
 		product.SEOContent = req.SEOContent

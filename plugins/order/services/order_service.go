@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -23,6 +24,38 @@ type OrderService struct {
 	DB *gorm.DB
 }
 
+func orderItemHasTaxColumns(tx *gorm.DB) bool {
+	return tx.Migrator().HasColumn(&models.OrderItem{}, "tax_type") && tx.Migrator().HasColumn(&models.OrderItem{}, "tax_rate")
+}
+
+type ShippingQuoteDetails struct {
+	ShippingAmount    float64
+	CarrierName       string
+	ServiceName       string
+	TrackingNumber    string
+	EstimatedDelivery string
+	Description       string
+	Notes             string
+}
+
+type ShippingAddressSnapshot struct {
+	AddressID     string
+	Label         string
+	ReceiverName  string
+	PhoneNumber   string
+	AddressLine1  string
+	AddressLine2  *string
+	Subdistrict   *string
+	District      *string
+	City          string
+	Province      string
+	PostalCode    string
+	Country       string
+	Notes         *string
+	IsPrimary     bool
+	AddressString string
+}
+
 const orderExpiryHoursSettingKey = "order.expiry_hours"
 const defaultOrderExpiryHours = 24
 
@@ -33,6 +66,7 @@ func NewOrderService(db *gorm.DB) *OrderService {
 // Exported sentinel errors for handlers to map to appropriate HTTP responses.
 var ErrOrderAlreadyPaid = errors.New("order is locked; cannot modify")
 var ErrDuplicateCouponCategory = errors.New("cannot combine two coupons from the same category")
+var ErrShippingAddressLocked = errors.New("shipping address cannot be changed after shipping quote is created")
 
 func normalizeAppliedCouponCategory(value string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(value))
@@ -48,6 +82,69 @@ func normalizeAppliedCouponCategory(value string) string {
 	default:
 		return "product_discount"
 	}
+}
+
+func HasReadyShippingQuote(order *models.Order) bool {
+	if order == nil || len(order.Metadata) == 0 || strings.EqualFold(strings.TrimSpace(string(order.Metadata)), "null") {
+		return false
+	}
+	var root map[string]any
+	if err := json.Unmarshal(order.Metadata, &root); err != nil {
+		return false
+	}
+	var raw any
+	if value, ok := root["shipping_quote"]; ok {
+		raw = value
+	} else if value, ok := root["shippingQuote"]; ok {
+		raw = value
+	} else {
+		return false
+	}
+	quoteMap, ok := raw.(map[string]any)
+	if !ok {
+		return false
+	}
+	readyValue, ok := quoteMap["ready"]
+	if !ok {
+		return false
+	}
+	switch value := readyValue.(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
+}
+
+func HasShippingAddress(order *models.Order) bool {
+	if order == nil || len(order.Metadata) == 0 || strings.EqualFold(strings.TrimSpace(string(order.Metadata)), "null") {
+		return false
+	}
+	var root map[string]any
+	if err := json.Unmarshal(order.Metadata, &root); err != nil {
+		return false
+	}
+	raw, ok := root["shipping_address"]
+	if !ok {
+		return false
+	}
+	addressMap, ok := raw.(map[string]any)
+	if !ok {
+		return false
+	}
+	for _, key := range []string{"address_id", "receiver_name", "address_line_1", "address_summary"} {
+		if value, exists := addressMap[key]; exists && hasNonEmptyMetadataValue(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasNonEmptyMetadataValue(value any) bool {
+	text := strings.TrimSpace(fmt.Sprintf("%v", value))
+	return text != "" && text != "<nil>"
 }
 
 func isOrderLocked(order models.Order) bool {
@@ -134,7 +231,7 @@ func (s *OrderService) expireStalePendingOrders(ctx context.Context) error {
 		}).Error
 }
 
-func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency string, couponCode *string) (*models.Order, error) {
+func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency string, couponCode *string, shippingAddress *ShippingAddressSnapshot) (*models.Order, error) {
 	var cart models.Cart
 	if err := s.DB.WithContext(ctx).Where("id = ?", cartID).First(&cart).Error; err != nil {
 		return nil, err
@@ -165,6 +262,34 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 	var order *models.Order
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
+		hasOrderItemTaxColumns := orderItemHasTaxColumns(tx)
+		var metadataJSON []byte
+		if shippingAddress != nil {
+			metadata := map[string]any{
+				"shipping_address": map[string]any{
+					"address_id":      strings.TrimSpace(shippingAddress.AddressID),
+					"label":           strings.TrimSpace(shippingAddress.Label),
+					"receiver_name":   strings.TrimSpace(shippingAddress.ReceiverName),
+					"phone_number":    strings.TrimSpace(shippingAddress.PhoneNumber),
+					"address_line_1":  strings.TrimSpace(shippingAddress.AddressLine1),
+					"address_line_2":  shippingAddress.AddressLine2,
+					"subdistrict":     shippingAddress.Subdistrict,
+					"district":        shippingAddress.District,
+					"city":            strings.TrimSpace(shippingAddress.City),
+					"province":        strings.TrimSpace(shippingAddress.Province),
+					"postal_code":     strings.TrimSpace(shippingAddress.PostalCode),
+					"country":         strings.TrimSpace(shippingAddress.Country),
+					"notes":           shippingAddress.Notes,
+					"is_primary":      shippingAddress.IsPrimary,
+					"address_summary": strings.TrimSpace(shippingAddress.AddressString),
+				},
+			}
+			buf, err := json.Marshal(metadata)
+			if err != nil {
+				return err
+			}
+			metadataJSON = buf
+		}
 		ord := models.Order{
 			ID:             uuid.NewString(),
 			OrderNumber:    "ORD-" + uuid.NewString(),
@@ -179,6 +304,7 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			TaxAmount:      preview.TaxAmount,
 			ShippingAmount: preview.ShippingAmount,
 			GrandTotal:     preview.GrandTotal,
+			Metadata:       metadataJSON,
 			PlacedAt:       &now,
 			CreatedAt:      now,
 			UpdatedAt:      now,
@@ -197,10 +323,6 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			if strings.TrimSpace(pit.ProductName) != "" {
 				productName = strings.TrimSpace(pit.ProductName)
 			}
-			lineTotal := pit.NetTotal
-			if lineTotal < 0 {
-				lineTotal = 0
-			}
 			oi := models.OrderItem{
 				ID:             uuid.NewString(),
 				OrderID:        ord.ID,
@@ -210,12 +332,18 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 				Qty:            it.Qty,
 				UnitPrice:      it.UnitPrice,
 				DiscountAmount: pit.DiscountAmount,
-				TaxAmount:      0,
-				LineTotal:      lineTotal,
+				TaxAmount:      pit.TaxAmount,
+				TaxType:        pit.TaxType,
+				TaxRate:        pit.TaxRate,
+				LineTotal:      pit.PayableTotal,
 				CreatedAt:      now,
 				UpdatedAt:      now,
 			}
-			if err := tx.Create(&oi).Error; err != nil {
+			createTx := tx.Session(&gorm.Session{})
+			if !hasOrderItemTaxColumns {
+				createTx = createTx.Omit("TaxType", "TaxRate")
+			}
+			if err := createTx.Create(&oi).Error; err != nil {
 				return err
 			}
 		}
@@ -288,6 +416,12 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 			if err := tx.Create(&it).Error; err != nil {
 				return err
 			}
+		}
+		if err := s.recalculateOrderTotalsTx(tx, ord.ID, now); err != nil {
+			return err
+		}
+		if err := tx.Where("id = ?", ord.ID).First(&ord).Error; err != nil {
+			return err
 		}
 		order = &ord
 		return nil
@@ -586,11 +720,154 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID string, st
 	return updated, nil
 }
 
+func (s *OrderService) UpdateShippingQuote(ctx context.Context, orderID string, details ShippingQuoteDetails) (*models.Order, error) {
+	if details.ShippingAmount < 0 {
+		return nil, errors.New("shipping_amount must be >= 0")
+	}
+
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		var order models.Order
+		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
+			return err
+		}
+
+		status := strings.ToLower(strings.TrimSpace(order.Status))
+		paymentStatus := strings.ToLower(strings.TrimSpace(order.PaymentStatus))
+		if isOrderExpiredOrCancelled(order) || paymentStatus == "expired" || paymentStatus == "cancelled" || paymentStatus == "canceled" {
+			return ErrOrderAlreadyPaid
+		}
+		isPaidOrder := order.PaidAt != nil || paymentStatus == "paid" || status == "paid" || status == "confirmed" || status == "completed"
+		if isPaidOrder {
+			if math.Abs(details.ShippingAmount-order.ShippingAmount) > 0.000001 {
+				return errors.New("shipping_amount cannot be changed after payment")
+			}
+		}
+
+		metadata := map[string]any{}
+		if len(order.Metadata) > 0 && !strings.EqualFold(strings.TrimSpace(string(order.Metadata)), "null") {
+			if err := json.Unmarshal(order.Metadata, &metadata); err != nil {
+				metadata = map[string]any{}
+			}
+		}
+		metadata["shipping_quote"] = map[string]any{
+			"ready":              true,
+			"shipping_amount":    details.ShippingAmount,
+			"carrier_name":       strings.TrimSpace(details.CarrierName),
+			"service_name":       strings.TrimSpace(details.ServiceName),
+			"tracking_number":    strings.TrimSpace(details.TrackingNumber),
+			"estimated_delivery": strings.TrimSpace(details.EstimatedDelivery),
+			"description":        strings.TrimSpace(details.Description),
+			"notes":              strings.TrimSpace(details.Notes),
+			"updated_at":         now.Format(time.RFC3339),
+		}
+		metadataJSON, err := json.Marshal(metadata)
+		if err != nil {
+			return err
+		}
+
+		updates := map[string]interface{}{
+			"metadata":   metadataJSON,
+			"updated_at": now,
+		}
+		if !isPaidOrder {
+			grand := order.Subtotal - order.DiscountAmount + order.TaxAmount + details.ShippingAmount
+			if grand < 0 {
+				grand = 0
+			}
+			updates["shipping_amount"] = details.ShippingAmount
+			updates["grand_total"] = grand
+			updates["status"] = "quote_ready"
+			updates["payment_status"] = "unpaid"
+		}
+		if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(updates).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetOrderByID(ctx, orderID)
+}
+
+func (s *OrderService) UpdateShippingAddress(ctx context.Context, orderID string, shippingAddress ShippingAddressSnapshot) (*models.Order, error) {
+	if strings.TrimSpace(shippingAddress.AddressID) == "" {
+		return nil, errors.New("address_id is required")
+	}
+
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		var order models.Order
+		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
+			return err
+		}
+
+		if isOrderLocked(order) {
+			return ErrOrderAlreadyPaid
+		}
+		if HasReadyShippingQuote(&order) {
+			return ErrShippingAddressLocked
+		}
+
+		metadata := map[string]any{}
+		if len(order.Metadata) > 0 && !strings.EqualFold(strings.TrimSpace(string(order.Metadata)), "null") {
+			if err := json.Unmarshal(order.Metadata, &metadata); err != nil {
+				metadata = map[string]any{}
+			}
+		}
+		metadata["shipping_address"] = map[string]any{
+			"address_id":      strings.TrimSpace(shippingAddress.AddressID),
+			"label":           strings.TrimSpace(shippingAddress.Label),
+			"receiver_name":   strings.TrimSpace(shippingAddress.ReceiverName),
+			"phone_number":    strings.TrimSpace(shippingAddress.PhoneNumber),
+			"address_line_1":  strings.TrimSpace(shippingAddress.AddressLine1),
+			"address_line_2":  shippingAddress.AddressLine2,
+			"subdistrict":     shippingAddress.Subdistrict,
+			"district":        shippingAddress.District,
+			"city":            strings.TrimSpace(shippingAddress.City),
+			"province":        strings.TrimSpace(shippingAddress.Province),
+			"postal_code":     strings.TrimSpace(shippingAddress.PostalCode),
+			"country":         strings.TrimSpace(shippingAddress.Country),
+			"notes":           shippingAddress.Notes,
+			"is_primary":      shippingAddress.IsPrimary,
+			"address_summary": strings.TrimSpace(shippingAddress.AddressString),
+		}
+		delete(metadata, "shipping_quote")
+		delete(metadata, "shippingQuote")
+
+		metadataJSON, err := json.Marshal(metadata)
+		if err != nil {
+			return err
+		}
+
+		grand := order.Subtotal - order.DiscountAmount + order.TaxAmount
+		if grand < 0 {
+			grand = 0
+		}
+
+		updates := map[string]any{
+			"metadata":        metadataJSON,
+			"shipping_amount": 0,
+			"grand_total":     grand,
+			"status":          "awaiting_quote",
+			"payment_status":  "awaiting_quote",
+			"updated_at":      now,
+		}
+		return tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(updates).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetOrderByID(ctx, orderID)
+}
+
 func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now time.Time) error {
 	var items []models.OrderItem
 	if err := tx.Where("order_id = ?", orderID).Find(&items).Error; err != nil {
 		return err
 	}
+	hasOrderItemTaxColumns := orderItemHasTaxColumns(tx)
 	subtotal := 0.0
 	// collect product ids
 	prodIDs := make([]string, 0, len(items))
@@ -667,7 +944,12 @@ func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now
 				// lineTotal remains the gross amount (already includes tax)
 				lineTotal := lineNet
 				// persist item tax and line total
-				if err := tx.Model(&models.OrderItem{}).Where("id = ?", it.ID).Updates(map[string]interface{}{"tax_amount": lineTax, "line_total": lineTotal, "updated_at": now}).Error; err != nil {
+				updates := map[string]interface{}{"tax_amount": lineTax, "line_total": lineTotal, "updated_at": now}
+				if hasOrderItemTaxColumns {
+					updates["tax_type"] = taxType
+					updates["tax_rate"] = taxRate
+				}
+				if err := tx.Model(&models.OrderItem{}).Where("id = ?", it.ID).Updates(updates).Error; err != nil {
 					return err
 				}
 				totalLineTotals += lineTotal
@@ -685,7 +967,12 @@ func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now
 		lineTotal := lineNet + lineTax
 
 		// persist item tax and line total
-		if err := tx.Model(&models.OrderItem{}).Where("id = ?", it.ID).Updates(map[string]interface{}{"tax_amount": lineTax, "line_total": lineTotal, "updated_at": now}).Error; err != nil {
+		updates := map[string]interface{}{"tax_amount": lineTax, "line_total": lineTotal, "updated_at": now}
+		if hasOrderItemTaxColumns {
+			updates["tax_type"] = taxType
+			updates["tax_rate"] = taxRate
+		}
+		if err := tx.Model(&models.OrderItem{}).Where("id = ?", it.ID).Updates(updates).Error; err != nil {
 			return err
 		}
 

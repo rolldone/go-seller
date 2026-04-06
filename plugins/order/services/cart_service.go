@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
 
 	catalogmodels "go_framework/plugins/catalog/models"
 	"go_framework/plugins/order/models"
+	settingmodels "go_framework/plugins/setting/models"
 
 	"go_framework/internal/uuid"
 
@@ -43,6 +45,10 @@ type CartItemPreview struct {
 	LineTotal      float64 `json:"line_total"`
 	DiscountAmount float64 `json:"discount_amount"`
 	NetTotal       float64 `json:"net_total"`
+	TaxAmount      float64 `json:"tax_amount"`
+	TaxType        string  `json:"tax_type,omitempty"`
+	TaxRate        float64 `json:"tax_rate,omitempty"`
+	PayableTotal   float64 `json:"payable_total"`
 }
 
 type AppliedCoupon struct {
@@ -92,6 +98,37 @@ func normalizeCouponCategory(value string) string {
 
 func NewCartService(db *gorm.DB) *CartService {
 	return &CartService{DB: db}
+}
+
+func normalizeTaxRule(taxType string, taxRate float64) (string, float64) {
+	normalizedType := strings.ToLower(strings.TrimSpace(taxType))
+	if normalizedType != "include" {
+		normalizedType = "exclude"
+	}
+	normalizedRate := taxRate
+	if normalizedRate > 1 {
+		normalizedRate = normalizedRate / 100
+	}
+	if normalizedRate < 0 {
+		normalizedRate = 0
+	}
+	return normalizedType, normalizedRate
+}
+
+func calculateTaxedLineTotal(lineNet float64, taxType string, taxRate float64) (float64, float64) {
+	if lineNet <= 0 {
+		return 0, 0
+	}
+	normalizedType, normalizedRate := normalizeTaxRule(taxType, taxRate)
+	if normalizedRate <= 0 {
+		return 0, lineNet
+	}
+	if normalizedType == "include" {
+		lineTax := lineNet - (lineNet / (1 + normalizedRate))
+		return lineTax, lineNet
+	}
+	lineTax := lineNet * normalizedRate
+	return lineTax, lineNet + lineTax
 }
 
 func (s *CartService) getOrCreateActiveCartWithDB(db *gorm.DB, ctx context.Context, customerID string, businessID *string) (*models.Cart, error) {
@@ -564,7 +601,63 @@ func (s *CartService) PreviewCartForCustomer(ctx context.Context, customerID str
 	}
 
 	totalDiscount := totalProductDiscount + couponTotal
-	grand := subtotal - totalDiscount
+
+	globalTaxType := "exclude"
+	globalTaxRate := 0.0
+	var globalSetting settingmodels.Setting
+	if err := s.DB.WithContext(ctx).Where("scope = ? AND key = ?", "global", "tax.default").First(&globalSetting).Error; err == nil {
+		var payload struct {
+			TaxType string  `json:"tax_type"`
+			TaxRate float64 `json:"tax_rate"`
+		}
+		if err := json.Unmarshal(globalSetting.Value, &payload); err == nil {
+			globalTaxType = payload.TaxType
+			globalTaxRate = payload.TaxRate
+		}
+	}
+	globalTaxType, globalTaxRate = normalizeTaxRule(globalTaxType, globalTaxRate)
+
+	productMap := make(map[string]catalogmodels.Product)
+	if len(productIDs) > 0 {
+		var products []catalogmodels.Product
+		if err := s.DB.WithContext(ctx).Where("id IN ?", productIDs).Find(&products).Error; err != nil {
+			return nil, err
+		}
+		for _, product := range products {
+			productMap[product.ID] = product
+		}
+	}
+
+	totalTax := 0.0
+	totalLineWithTax := 0.0
+	for i := range previews {
+		p := &previews[i]
+		lineNet := p.LineTotal - p.DiscountAmount
+		if lineNet < 0 {
+			lineNet = 0
+		}
+
+		taxType := globalTaxType
+		taxRate := globalTaxRate
+		if p.ProductID != nil {
+			if product, ok := productMap[strings.TrimSpace(*p.ProductID)]; ok && product.CustomTax {
+				taxType = product.TaxType
+				taxRate = product.TaxRate
+			}
+		}
+		taxType, taxRate = normalizeTaxRule(taxType, taxRate)
+
+		lineTax, lineTotalWithTax := calculateTaxedLineTotal(lineNet, taxType, taxRate)
+		p.TaxType = taxType
+		p.TaxRate = taxRate
+		p.TaxAmount = lineTax
+		p.PayableTotal = lineTotalWithTax
+
+		totalTax += lineTax
+		totalLineWithTax += lineTotalWithTax
+	}
+
+	grand := totalLineWithTax - couponTotal
 	if grand < 0 {
 		grand = 0
 	}
@@ -574,7 +667,7 @@ func (s *CartService) PreviewCartForCustomer(ctx context.Context, customerID str
 		Items:          previews,
 		Subtotal:       subtotal,
 		DiscountAmount: totalDiscount,
-		TaxAmount:      0,
+		TaxAmount:      totalTax,
 		ShippingAmount: 0,
 		GrandTotal:     grand,
 		AppliedCoupons: applied,

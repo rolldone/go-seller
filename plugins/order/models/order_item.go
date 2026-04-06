@@ -14,6 +14,8 @@ type OrderItem struct {
 	// DiscountName is populated from order_discounts when returning order details.
 	DiscountName string    `gorm:"-" json:"discount_name"`
 	TaxAmount    float64   `gorm:"type:numeric(15,2)" json:"tax_amount"`
+	TaxType      string    `gorm:"size:16;default:'exclude'" json:"tax_type"`
+	TaxRate      float64   `gorm:"type:numeric(7,4);default:0" json:"tax_rate"`
 	LineTotal    float64   `gorm:"type:numeric(15,2)" json:"line_total"`
 	Metadata     []byte    `gorm:"type:jsonb" json:"metadata"`
 	CreatedAt    time.Time `json:"created_at"`

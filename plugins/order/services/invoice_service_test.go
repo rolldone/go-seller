@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -29,12 +30,26 @@ func TestBuildInvoiceHTML(t *testing.T) {
 			Email: "budi@example.com",
 			Phone: "08123",
 		},
+		Metadata: func() []byte {
+			payload, _ := json.Marshal(map[string]any{
+				"shipping_address": map[string]any{
+					"label":           "Rumah",
+					"receiver_name":   "Budi",
+					"phone_number":    "08123",
+					"address_summary": "Jl. Mawar No. 1, Bandung, Jawa Barat 40123",
+				},
+			})
+			return payload
+		}(),
 		OrderItems: []ordermodels.OrderItem{{
 			ID:             "item-1",
 			ProductName:    "Produk A",
 			Qty:            2,
 			UnitPrice:      125000,
 			DiscountAmount: 10000,
+			TaxType:        "include",
+			TaxRate:        0.1,
+			TaxAmount:      22000,
 			LineTotal:      240000,
 		}},
 	}
@@ -44,7 +59,7 @@ func TestBuildInvoiceHTML(t *testing.T) {
 		t.Fatalf("buildInvoiceHTML returned error: %v", err)
 	}
 
-	checks := []string{"INV-1001", "Toko Demo", "Produk A", "budi@example.com", "IDR 277000.00"}
+	checks := []string{"INV-1001", "Toko Demo", "Produk A", "budi@example.com", "IDR 277000.00", "Include 10%", "Rincian Pajak", "Alamat Pengiriman", "Jl. Mawar No. 1"}
 	for _, want := range checks {
 		if !strings.Contains(htmlDoc, want) {
 			t.Fatalf("expected HTML to contain %q", want)

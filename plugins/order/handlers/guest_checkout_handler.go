@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	authservices "go_framework/plugins/auth/services"
 	ordermodels "go_framework/plugins/order/models"
 	ordersvc "go_framework/plugins/order/services"
 
@@ -17,14 +19,31 @@ import (
 type GuestCheckoutHandler struct {
 	orderSvc   *ordersvc.OrderService
 	paymentSvc *ordersvc.PaymentService
+	authSvc    *authservices.AuthService
 }
 
-func NewGuestCheckoutHandler(orderSvc *ordersvc.OrderService, paymentSvc *ordersvc.PaymentService) *GuestCheckoutHandler {
-	return &GuestCheckoutHandler{orderSvc: orderSvc, paymentSvc: paymentSvc}
+func NewGuestCheckoutHandler(orderSvc *ordersvc.OrderService, paymentSvc *ordersvc.PaymentService, authSvc *authservices.AuthService) *GuestCheckoutHandler {
+	return &GuestCheckoutHandler{orderSvc: orderSvc, paymentSvc: paymentSvc, authSvc: authSvc}
 }
 
 type generateGuestTokenReq struct {
 	TTLSeconds int `json:"ttl_seconds"`
+}
+
+type guestCustomerAddressRequest struct {
+	Label        string  `json:"label"`
+	ReceiverName string  `json:"receiver_name" binding:"required"`
+	PhoneNumber  string  `json:"phone_number" binding:"required"`
+	AddressLine1 string  `json:"address_line_1" binding:"required"`
+	AddressLine2 *string `json:"address_line_2"`
+	Subdistrict  *string `json:"subdistrict"`
+	District     *string `json:"district"`
+	City         string  `json:"city" binding:"required"`
+	Province     string  `json:"province" binding:"required"`
+	PostalCode   string  `json:"postal_code" binding:"required"`
+	Country      string  `json:"country"`
+	Notes        *string `json:"notes"`
+	IsPrimary    bool    `json:"is_primary"`
 }
 
 func (h *GuestCheckoutHandler) GenerateToken(c *gin.Context) {
@@ -129,11 +148,103 @@ func (h *GuestCheckoutHandler) GetDetail(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
 		"token":      payload.Token,
-		"order":      order,
+		"order":      orderToPublic(order),
 		"customer":   customerResp,
 		"providers":  providerResp,
 		"expires_at": payload.ExpiresAt,
 	}})
+}
+
+func (h *GuestCheckoutHandler) ListAddresses(c *gin.Context) {
+	if h.authSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth service not configured"})
+		return
+	}
+	token := strings.TrimSpace(c.Param("token"))
+	payload, err := h.orderSvc.ResolveGuestCheckoutToken(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	items, err := h.authSvc.ListCustomerAddresses(c.Request.Context(), payload.CustomerID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+func (h *GuestCheckoutHandler) CreateAddress(c *gin.Context) {
+	if h.authSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth service not configured"})
+		return
+	}
+	token := strings.TrimSpace(c.Param("token"))
+	payload, err := h.orderSvc.ResolveGuestCheckoutToken(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	var req guestCustomerAddressRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := h.authSvc.CreateCustomerAddress(c.Request.Context(), payload.CustomerID, authservices.CustomerAddressInput{
+		Label:        req.Label,
+		ReceiverName: req.ReceiverName,
+		PhoneNumber:  req.PhoneNumber,
+		AddressLine1: req.AddressLine1,
+		AddressLine2: req.AddressLine2,
+		Subdistrict:  req.Subdistrict,
+		District:     req.District,
+		City:         req.City,
+		Province:     req.Province,
+		PostalCode:   req.PostalCode,
+		Country:      req.Country,
+		Notes:        req.Notes,
+		IsPrimary:    req.IsPrimary,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": item})
+}
+
+func (h *GuestCheckoutHandler) UpdateShippingAddress(c *gin.Context) {
+	if h.authSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth service not configured"})
+		return
+	}
+	token := strings.TrimSpace(c.Param("token"))
+	payload, err := h.orderSvc.ResolveGuestCheckoutToken(c.Request.Context(), token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	var req struct {
+		AddressID string `json:"address_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	addr, err := h.authSvc.GetCustomerAddressByID(c.Request.Context(), payload.CustomerID, req.AddressID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "address not found"})
+		return
+	}
+	updated, err := h.orderSvc.UpdateShippingAddress(c.Request.Context(), payload.OrderID, *shippingAddressSnapshotFromCustomerAddress(addr))
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrOrderAlreadyPaid) || errors.Is(err, ordersvc.ErrShippingAddressLocked) || strings.Contains(strings.ToLower(err.Error()), "locked") {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
 }
 
 type guestStartPaymentReq struct {
@@ -262,6 +373,19 @@ func (h *GuestCheckoutHandler) StartPayment(c *gin.Context) {
 	}
 	if order.CustomerID == nil || strings.TrimSpace(*order.CustomerID) == "" || strings.TrimSpace(*order.CustomerID) != strings.TrimSpace(payload.CustomerID) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "customer mismatch"})
+		return
+	}
+	if strings.EqualFold(order.Status, "awaiting_shipping") || strings.EqualFold(order.Status, "pending_shipping") || strings.EqualFold(order.Status, "awaiting_quote") ||
+		strings.EqualFold(order.PaymentStatus, "awaiting_shipping") || strings.EqualFold(order.PaymentStatus, "pending_shipping") || strings.EqualFold(order.PaymentStatus, "awaiting_quote") {
+		c.JSON(http.StatusConflict, gin.H{"error": "shipping quote is pending; we will contact you via WhatsApp"})
+		return
+	}
+	if !ordersvc.HasShippingAddress(order) {
+		c.JSON(http.StatusConflict, gin.H{"error": "shipping address is required"})
+		return
+	}
+	if strings.EqualFold(order.Channel, "web") && (strings.EqualFold(order.Status, "pending") || strings.EqualFold(order.PaymentStatus, "unpaid")) && !ordersvc.HasReadyShippingQuote(order) {
+		c.JSON(http.StatusConflict, gin.H{"error": "shipping quote is pending; we will contact you via WhatsApp"})
 		return
 	}
 	if strings.EqualFold(order.PaymentStatus, "paid") || order.PaidAt != nil {

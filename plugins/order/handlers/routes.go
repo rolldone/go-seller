@@ -20,7 +20,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.GET("/health", HealthHandler)
 
 	// cart handlers
-	cartHandler := NewCartHandler(s.Cart, s.Order)
+	cartHandler := NewCartHandler(s.Cart, s.Order, authSvc)
 	adminCart := adminOrder.Group("/carts")
 	adminCart.POST("", cartHandler.Create)
 	adminCart.POST("/:id/items", cartHandler.AddItem)
@@ -72,8 +72,8 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminPaymentProviders.POST("/:id/activate", paymentHandler.ActivateProvider)
 
 	// order handlers (admin)
-	orderHandler := NewOrderHandler(s.Order, s.Payment, s.Catalog)
-	guestCheckoutHandler := NewGuestCheckoutHandler(s.Order, s.Payment)
+	orderHandler := NewOrderHandler(s.Order, s.Payment, s.Catalog, authSvc)
+	guestCheckoutHandler := NewGuestCheckoutHandler(s.Order, s.Payment, authSvc)
 	// require permission: view orders
 	adminOrder.GET("/orders", pluginregistry.RequirePermission("orders.view"), orderHandler.AdminList)
 	adminOrder.GET("/orders/:id", pluginregistry.RequirePermission("orders.view"), orderHandler.GetByID)
@@ -82,6 +82,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.POST("/orders", pluginregistry.RequirePermission("orders.manage"), orderHandler.AdminCreate)
 	adminOrder.PATCH("/orders/:id", pluginregistry.RequirePermission("orders.manage"), orderHandler.Update)
 	adminOrder.POST("/orders/:id/status", pluginregistry.RequirePermission("orders.manage"), orderHandler.SetStatus)
+	adminOrder.PUT("/orders/:id/shipping", pluginregistry.RequirePermission("orders.manage"), orderHandler.UpdateShippingQuote)
 	adminOrder.POST("/orders/:id/items", pluginregistry.RequirePermission("orders.manage"), orderHandler.AddItem)
 	adminOrder.DELETE("/orders/:id/items/:item_id", pluginregistry.RequirePermission("orders.manage"), orderHandler.DeleteItem)
 	adminOrder.POST("/orders/:id/items/:item_id/discount", pluginregistry.RequirePermission("orders.manage"), orderHandler.ApplyItemDiscount)
@@ -96,6 +97,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	customerOrder.GET("/me", orderHandler.MeList)
 	customerOrder.GET("/me/:id", orderHandler.MeGetByID)
 	customerOrder.GET("/me/:id/invoice", orderHandler.MeDownloadInvoice)
+	customerOrder.POST("/me/:id/shipping-address", orderHandler.MeUpdateShippingAddress)
 	customerOrder.POST("/me/:id/start-payment", orderHandler.MeStartPayment)
 	customerOrder.GET("/me/:id/payments/:payment_id/proofs", orderHandler.MeListPaymentProofs)
 	customerOrder.GET("/me/:id/payments/:payment_id/proofs/:proof_id/access", orderHandler.MePaymentProofAccess)
@@ -104,5 +106,8 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	callbackHandler := NewCallbackHandler(s.Order)
 	apiOrder.POST("/callback", callbackHandler.HandleCallback)
 	apiOrder.GET("/guest-checkout/:token", guestCheckoutHandler.GetDetail)
+	apiOrder.GET("/guest-checkout/:token/addresses", guestCheckoutHandler.ListAddresses)
+	apiOrder.POST("/guest-checkout/:token/addresses", guestCheckoutHandler.CreateAddress)
+	apiOrder.POST("/guest-checkout/:token/shipping-address", guestCheckoutHandler.UpdateShippingAddress)
 	apiOrder.POST("/guest-checkout/:token/start-payment", guestCheckoutHandler.StartPayment)
 }

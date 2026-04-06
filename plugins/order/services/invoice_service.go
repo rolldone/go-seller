@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"math"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -32,31 +34,53 @@ type invoiceItemView struct {
 	UnitPrice  float64
 	BaseAmount float64
 	Discount   float64
+	TaxType    string
+	TaxRate    float64
+	TaxAmount  float64
+	TaxLabel   string
 	LineTotal  float64
 }
 
+type invoiceTaxBreakdownView struct {
+	TaxType   string
+	TaxRate   float64
+	TaxAmount float64
+	Label     string
+}
+
+type invoiceShippingAddressView struct {
+	Label        string
+	ReceiverName string
+	PhoneNumber  string
+	Summary      string
+}
+
 type invoiceViewData struct {
-	Store          invoiceStoreInfo
-	OrderNumber    string
-	Channel        string
-	Status         string
-	PaymentStatus  string
-	Currency       string
-	CreatedAt      time.Time
-	PaidAt         *time.Time
-	CustomerName   string
-	CustomerEmail  string
-	CustomerPhone  string
-	CustomerLabel  string
-	BusinessID     string
-	Notes          string
-	Items          []invoiceItemView
-	AppliedCoupons []models.OrderCoupon
-	Subtotal       float64
-	DiscountAmount float64
-	TaxAmount      float64
-	ShippingAmount float64
-	GrandTotal     float64
+	Store              invoiceStoreInfo
+	OrderNumber        string
+	Channel            string
+	Status             string
+	PaymentStatus      string
+	Currency           string
+	CreatedAt          time.Time
+	PaidAt             *time.Time
+	CustomerName       string
+	CustomerEmail      string
+	CustomerPhone      string
+	CustomerLabel      string
+	BusinessID         string
+	Notes              string
+	Items              []invoiceItemView
+	AppliedCoupons     []models.OrderCoupon
+	Subtotal           float64
+	DiscountAmount     float64
+	TaxAmount          float64
+	ShippingAmount     float64
+	GrandTotal         float64
+	IsProvisional      bool
+	ProvisionalReasons []string
+	TaxBreakdown       []invoiceTaxBreakdownView
+	ShippingAddress    *invoiceShippingAddressView
 }
 
 type wkhtmlRenderRequest struct {
@@ -114,6 +138,14 @@ const invoiceHTMLTemplate = `<!doctype html>
       font-weight: 700;
       letter-spacing: 0.08em;
     }
+		.provisional {
+			background: #fff7ed;
+			border: 1px solid #ffd8a8;
+			color: #92400e;
+			padding: 10px 12px;
+			border-radius: 8px;
+			margin-top: 10px;
+		}
     .muted { color: #475569; }
     .meta {
       display: table;
@@ -218,6 +250,11 @@ const invoiceHTMLTemplate = `<!doctype html>
       <p class="muted">Dibuat: {{ formatTime .CreatedAt }}</p>
       <p class="muted">Status: {{ .Status }} / {{ .PaymentStatus }}</p>
       {{ if .PaidAt }}<p class="muted">Dibayar: {{ formatTimePtr .PaidAt }}</p>{{ end }}
+			{{ if .IsProvisional }}
+			<div class="provisional">
+				<strong>INVOICE SEMENTARA</strong> — Dokumen ini belum sah; {{ range $i, $r := .ProvisionalReasons }}{{ if $i }}, {{ end }}{{ $r }}{{ end }}. Invoice resmi akan diterbitkan setelah konfirmasi.
+			</div>
+			{{ end }}
     </div>
   </div>
 
@@ -241,6 +278,15 @@ const invoiceHTMLTemplate = `<!doctype html>
     </div>
   </div>
 
+	{{ if .ShippingAddress }}
+	<div class="notes">
+		<div class="section-label">Alamat Pengiriman</div>
+		<p><strong>{{ .ShippingAddress.ReceiverName }}</strong>{{ if .ShippingAddress.Label }} ({{ .ShippingAddress.Label }}){{ end }}</p>
+		<p class="muted">{{ .ShippingAddress.PhoneNumber }}</p>
+		<p>{{ .ShippingAddress.Summary }}</p>
+	</div>
+	{{ end }}
+
   <table>
     <thead>
       <tr>
@@ -249,6 +295,7 @@ const invoiceHTMLTemplate = `<!doctype html>
         <th class="text-right">Unit Price</th>
         <th class="text-right">Subtotal</th>
         <th class="text-right">Diskon</th>
+			<th class="text-right">Pajak</th>
         <th class="text-right">Line Total</th>
       </tr>
     </thead>
@@ -263,6 +310,10 @@ const invoiceHTMLTemplate = `<!doctype html>
         <td class="text-right">{{ money $.Currency .UnitPrice }}</td>
         <td class="text-right">{{ money $.Currency .BaseAmount }}</td>
         <td class="text-right">{{ money $.Currency .Discount }}</td>
+		<td class="text-right">
+		  <div><strong>{{ .TaxLabel }}</strong></div>
+		  <div class="muted">{{ money $.Currency .TaxAmount }}</div>
+		</td>
         <td class="text-right">{{ money $.Currency .LineTotal }}</td>
       </tr>
       {{ end }}
@@ -282,6 +333,14 @@ const invoiceHTMLTemplate = `<!doctype html>
       <div class="summary-label">Pajak</div>
       <div class="summary-value">{{ money .Currency .TaxAmount }}</div>
     </div>
+	{{ if .TaxBreakdown }}
+	<div class="notes">
+	  <div class="section-label">Rincian Pajak</div>
+	  {{ range .TaxBreakdown }}
+	    <p>{{ .Label }} - {{ money $.Currency .TaxAmount }}</p>
+	  {{ end }}
+	</div>
+	{{ end }}
     <div class="summary-row">
       <div class="summary-label">Ongkir</div>
       <div class="summary-value">{{ money .Currency .ShippingAmount }}</div>
@@ -371,6 +430,7 @@ func buildInvoiceHTML(order *models.Order, store invoiceStoreInfo) (string, erro
 	}
 
 	items := make([]invoiceItemView, 0, len(order.OrderItems))
+	taxGroups := make(map[string]*invoiceTaxBreakdownView)
 	for _, item := range order.OrderItems {
 		name := strings.TrimSpace(item.ProductName)
 		if name == "" && item.ProductID != nil {
@@ -383,6 +443,16 @@ func buildInvoiceHTML(order *models.Order, store invoiceStoreInfo) (string, erro
 		if item.SKU != nil {
 			sku = strings.TrimSpace(*item.SKU)
 		}
+		taxType := normalizeInvoiceTaxType(item.TaxType)
+		taxRate := normalizeInvoiceTaxRate(item.TaxRate)
+		taxLabel := formatInvoiceTaxLabel(taxType, taxRate)
+		key := fmt.Sprintf("%s:%.4f", taxType, taxRate)
+		group := taxGroups[key]
+		if group == nil {
+			group = &invoiceTaxBreakdownView{TaxType: taxType, TaxRate: taxRate, Label: taxLabel}
+			taxGroups[key] = group
+		}
+		group.TaxAmount += item.TaxAmount
 		items = append(items, invoiceItemView{
 			Name:       name,
 			SKU:        sku,
@@ -390,9 +460,35 @@ func buildInvoiceHTML(order *models.Order, store invoiceStoreInfo) (string, erro
 			UnitPrice:  item.UnitPrice,
 			BaseAmount: float64(item.Qty) * item.UnitPrice,
 			Discount:   item.DiscountAmount,
+			TaxType:    taxType,
+			TaxRate:    taxRate,
+			TaxAmount:  item.TaxAmount,
+			TaxLabel:   taxLabel,
 			LineTotal:  item.LineTotal,
 		})
 	}
+
+	taxBreakdown := make([]invoiceTaxBreakdownView, 0, len(taxGroups))
+	for _, group := range taxGroups {
+		taxBreakdown = append(taxBreakdown, *group)
+	}
+	sort.Slice(taxBreakdown, func(i, j int) bool {
+		if taxBreakdown[i].TaxRate == taxBreakdown[j].TaxRate {
+			return taxBreakdown[i].TaxType < taxBreakdown[j].TaxType
+		}
+		return taxBreakdown[i].TaxRate > taxBreakdown[j].TaxRate
+	})
+
+	// Determine provisional status: missing shipping quote or unconfirmed payment
+	reasons := make([]string, 0)
+	if !HasReadyShippingQuote(order) {
+		reasons = append(reasons, "Ongkos kirim belum final")
+	}
+	paymentConfirmed := order.PaidAt != nil || strings.EqualFold(strings.TrimSpace(order.PaymentStatus), "paid")
+	if !paymentConfirmed {
+		reasons = append(reasons, "Pembayaran belum dikonfirmasi")
+	}
+	isProvisional := len(reasons) > 0
 
 	customerName := "Guest"
 	customerEmail := "-"
@@ -424,27 +520,31 @@ func buildInvoiceHTML(order *models.Order, store invoiceStoreInfo) (string, erro
 	}
 
 	data := invoiceViewData{
-		Store:          store,
-		OrderNumber:    order.OrderNumber,
-		Channel:        strings.TrimSpace(order.Channel),
-		Status:         strings.TrimSpace(order.Status),
-		PaymentStatus:  strings.TrimSpace(order.PaymentStatus),
-		Currency:       strings.TrimSpace(order.Currency),
-		CreatedAt:      order.CreatedAt,
-		PaidAt:         order.PaidAt,
-		CustomerName:   customerName,
-		CustomerEmail:  customerEmail,
-		CustomerPhone:  customerPhone,
-		CustomerLabel:  customerLabel,
-		BusinessID:     businessID,
-		Notes:          notes,
-		Items:          items,
-		AppliedCoupons: order.OrderCoupons,
-		Subtotal:       order.Subtotal,
-		DiscountAmount: order.DiscountAmount,
-		TaxAmount:      order.TaxAmount,
-		ShippingAmount: order.ShippingAmount,
-		GrandTotal:     order.GrandTotal,
+		Store:              store,
+		OrderNumber:        order.OrderNumber,
+		Channel:            strings.TrimSpace(order.Channel),
+		Status:             strings.TrimSpace(order.Status),
+		PaymentStatus:      strings.TrimSpace(order.PaymentStatus),
+		Currency:           strings.TrimSpace(order.Currency),
+		CreatedAt:          order.CreatedAt,
+		PaidAt:             order.PaidAt,
+		CustomerName:       customerName,
+		CustomerEmail:      customerEmail,
+		CustomerPhone:      customerPhone,
+		CustomerLabel:      customerLabel,
+		BusinessID:         businessID,
+		Notes:              notes,
+		Items:              items,
+		AppliedCoupons:     order.OrderCoupons,
+		Subtotal:           order.Subtotal,
+		DiscountAmount:     order.DiscountAmount,
+		TaxAmount:          order.TaxAmount,
+		ShippingAmount:     order.ShippingAmount,
+		GrandTotal:         order.GrandTotal,
+		IsProvisional:      isProvisional,
+		ProvisionalReasons: reasons,
+		TaxBreakdown:       taxBreakdown,
+		ShippingAddress:    extractInvoiceShippingAddress(order),
 	}
 
 	tpl, err := template.New("invoice").Funcs(template.FuncMap{
@@ -555,6 +655,83 @@ func parseJSONStringSetting(value []byte) string {
 		return strings.TrimSpace(text)
 	}
 	return strings.TrimSpace(string(value))
+}
+
+func normalizeInvoiceTaxType(value string) string {
+	if strings.EqualFold(strings.TrimSpace(value), "include") {
+		return "include"
+	}
+	return "exclude"
+}
+
+func normalizeInvoiceTaxRate(value float64) float64 {
+	if value <= 0 {
+		return 0
+	}
+	if value > 1 {
+		value = value / 100
+	}
+	return value
+}
+
+func formatInvoiceTaxPercent(rate float64) string {
+	if rate <= 0 {
+		return "0%"
+	}
+	rounded := math.Round(rate*10000) / 100
+	if rounded == math.Trunc(rounded) {
+		return fmt.Sprintf("%.0f%%", rounded)
+	}
+	return fmt.Sprintf("%.2f%%", rounded)
+}
+
+func formatInvoiceTaxLabel(taxType string, taxRate float64) string {
+	mode := "Exclude"
+	if normalizeInvoiceTaxType(taxType) == "include" {
+		mode = "Include"
+	}
+	return fmt.Sprintf("%s %s", mode, formatInvoiceTaxPercent(taxRate))
+}
+
+func extractInvoiceShippingAddress(order *models.Order) *invoiceShippingAddressView {
+	if order == nil || len(order.Metadata) == 0 || strings.EqualFold(strings.TrimSpace(string(order.Metadata)), "null") {
+		return nil
+	}
+	var root map[string]any
+	if err := json.Unmarshal(order.Metadata, &root); err != nil {
+		return nil
+	}
+	raw, ok := root["shipping_address"]
+	if !ok {
+		return nil
+	}
+	addressMap, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	label := strings.TrimSpace(fmt.Sprintf("%v", addressMap["label"]))
+	receiverName := strings.TrimSpace(fmt.Sprintf("%v", addressMap["receiver_name"]))
+	phoneNumber := strings.TrimSpace(fmt.Sprintf("%v", addressMap["phone_number"]))
+	summary := strings.TrimSpace(fmt.Sprintf("%v", addressMap["address_summary"]))
+	if summary == "" {
+		parts := make([]string, 0, 7)
+		for _, key := range []string{"address_line_1", "address_line_2", "subdistrict", "district", "city", "province", "postal_code"} {
+			value := strings.TrimSpace(fmt.Sprintf("%v", addressMap[key]))
+			if value != "" && value != "<nil>" {
+				parts = append(parts, value)
+			}
+		}
+		summary = strings.Join(parts, ", ")
+	}
+	if receiverName == "" && phoneNumber == "" && summary == "" {
+		return nil
+	}
+	return &invoiceShippingAddressView{
+		Label:        label,
+		ReceiverName: receiverName,
+		PhoneNumber:  phoneNumber,
+		Summary:      summary,
+	}
 }
 
 func buildInvoiceFilename(orderNumber string) string {

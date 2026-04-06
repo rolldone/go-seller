@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	authservices "go_framework/plugins/auth/services"
 	catalogservices "go_framework/plugins/catalog/services"
 	ordermodels "go_framework/plugins/order/models"
 	ordersvc "go_framework/plugins/order/services"
@@ -23,10 +24,11 @@ type OrderHandler struct {
 	svc        *ordersvc.OrderService
 	paymentSvc *ordersvc.PaymentService
 	catalogSvc *catalogservices.CatalogService
+	authSvc    *authservices.AuthService
 }
 
-func NewOrderHandler(svc *ordersvc.OrderService, paymentSvc *ordersvc.PaymentService, catalogSvc *catalogservices.CatalogService) *OrderHandler {
-	return &OrderHandler{svc: svc, paymentSvc: paymentSvc, catalogSvc: catalogSvc}
+func NewOrderHandler(svc *ordersvc.OrderService, paymentSvc *ordersvc.PaymentService, catalogSvc *catalogservices.CatalogService, authSvc *authservices.AuthService) *OrderHandler {
+	return &OrderHandler{svc: svc, paymentSvc: paymentSvc, catalogSvc: catalogSvc, authSvc: authSvc}
 }
 
 type publicBusinessSummary struct {
@@ -57,6 +59,47 @@ func (h *OrderHandler) loadBusinessSummary(ctx context.Context, businessID *stri
 		Slug:             business.Slug,
 		ShortDescription: business.ShortDescription,
 	}, nil
+}
+
+// orderToPublic converts internal Order model to a map suitable for public JSON responses,
+// decoding the JSONB `Metadata` field into a native object when possible.
+func orderToPublic(ord *ordermodels.Order) gin.H {
+	// safe nil handling
+	if ord == nil {
+		return gin.H{}
+	}
+	var metadata any = nil
+	if len(ord.Metadata) > 0 && !strings.EqualFold(strings.TrimSpace(string(ord.Metadata)), "null") {
+		var md any
+		if err := json.Unmarshal(ord.Metadata, &md); err == nil {
+			metadata = md
+		}
+	}
+	return gin.H{
+		"id":              ord.ID,
+		"order_number":    ord.OrderNumber,
+		"user_id":         ord.UserID,
+		"customer_id":     ord.CustomerID,
+		"business_id":     ord.BusinessID,
+		"channel":         ord.Channel,
+		"status":          ord.Status,
+		"payment_status":  ord.PaymentStatus,
+		"currency":        ord.Currency,
+		"subtotal":        ord.Subtotal,
+		"discount_amount": ord.DiscountAmount,
+		"tax_amount":      ord.TaxAmount,
+		"shipping_amount": ord.ShippingAmount,
+		"grand_total":     ord.GrandTotal,
+		"applied_coupons": ord.OrderCoupons,
+		"notes":           ord.Notes,
+		"metadata":        metadata,
+		"placed_at":       ord.PlacedAt,
+		"paid_at":         ord.PaidAt,
+		"cancelled_at":    ord.CancelledAt,
+		"created_at":      ord.CreatedAt,
+		"updated_at":      ord.UpdatedAt,
+		"order_items":     ord.OrderItems,
+	}
 }
 
 type adminCreateOrderReq struct {
@@ -121,6 +164,10 @@ type addOrderItemReq struct {
 
 type applyOrderItemDiscountReq struct {
 	DiscountID string `json:"discount_id" binding:"required"`
+}
+
+type updateShippingAddressReq struct {
+	AddressID string `json:"address_id" binding:"required"`
 }
 
 func (h *OrderHandler) AddItem(c *gin.Context) {
@@ -292,6 +339,16 @@ type updateOrderStatusReq struct {
 	Status string `json:"status" binding:"required"`
 }
 
+type updateShippingQuoteReq struct {
+	ShippingAmount    float64 `json:"shipping_amount" binding:"required"`
+	CarrierName       string  `json:"carrier_name"`
+	ServiceName       string  `json:"service_name"`
+	TrackingNumber    string  `json:"tracking_number"`
+	EstimatedDelivery string  `json:"estimated_delivery"`
+	Description       string  `json:"description"`
+	Notes             string  `json:"notes"`
+}
+
 // SetStatus allows admins to set the order status directly.
 func (h *OrderHandler) SetStatus(c *gin.Context) {
 	orderID := c.Param("id")
@@ -302,6 +359,34 @@ func (h *OrderHandler) SetStatus(c *gin.Context) {
 	}
 	ord, err := h.svc.UpdateOrderStatus(c.Request.Context(), orderID, req.Status)
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": ord})
+}
+
+// UpdateShippingQuote stores/updates ongkir details; tracking number can be updated later using the same endpoint.
+func (h *OrderHandler) UpdateShippingQuote(c *gin.Context) {
+	orderID := c.Param("id")
+	var req updateShippingQuoteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	ord, err := h.svc.UpdateShippingQuote(c.Request.Context(), orderID, ordersvc.ShippingQuoteDetails{
+		ShippingAmount:    req.ShippingAmount,
+		CarrierName:       req.CarrierName,
+		ServiceName:       req.ServiceName,
+		TrackingNumber:    req.TrackingNumber,
+		EstimatedDelivery: req.EstimatedDelivery,
+		Description:       req.Description,
+		Notes:             req.Notes,
+	})
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrOrderAlreadyPaid) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -320,7 +405,7 @@ func (h *OrderHandler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": ord, "payments": ord.Payments, "business": business}})
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": orderToPublic(ord), "payments": ord.Payments, "business": business}})
 }
 
 func (h *OrderHandler) MeGetByID(c *gin.Context) {
@@ -372,7 +457,7 @@ func (h *OrderHandler) MeGetByID(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": ord, "payments": ord.Payments, "providers": providerResp, "business": business}})
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": orderToPublic(ord), "payments": ord.Payments, "providers": providerResp, "business": business}})
 }
 
 func (h *OrderHandler) MeList(c *gin.Context) {
@@ -414,6 +499,56 @@ func (h *OrderHandler) MeList(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": orders, "total": total})
 }
 
+func (h *OrderHandler) MeUpdateShippingAddress(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+	if h.authSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth service not configured"})
+		return
+	}
+
+	var req updateShippingAddressReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ord, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), c.Param("id"), customerID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	addr, err := h.authSvc.GetCustomerAddressByID(c.Request.Context(), customerID, req.AddressID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "address not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.UpdateShippingAddress(c.Request.Context(), ord.ID, *shippingAddressSnapshotFromCustomerAddress(addr))
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrOrderAlreadyPaid) || errors.Is(err, ordersvc.ErrShippingAddressLocked) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
 func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 	customerID := customerIDFromContext(c)
 	if customerID == "" {
@@ -438,6 +573,19 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 	}
 	if strings.EqualFold(ord.Status, "expired") || strings.EqualFold(ord.PaymentStatus, "expired") {
 		c.JSON(http.StatusConflict, gin.H{"error": "order expired"})
+		return
+	}
+	if !ordersvc.HasShippingAddress(ord) {
+		c.JSON(http.StatusConflict, gin.H{"error": "shipping address is required"})
+		return
+	}
+	if strings.EqualFold(ord.Status, "awaiting_shipping") || strings.EqualFold(ord.Status, "pending_shipping") || strings.EqualFold(ord.Status, "awaiting_quote") ||
+		strings.EqualFold(ord.PaymentStatus, "awaiting_shipping") || strings.EqualFold(ord.PaymentStatus, "pending_shipping") || strings.EqualFold(ord.PaymentStatus, "awaiting_quote") {
+		c.JSON(http.StatusConflict, gin.H{"error": "shipping quote is pending; we will contact you via WhatsApp"})
+		return
+	}
+	if strings.EqualFold(ord.Channel, "web") && (strings.EqualFold(ord.Status, "pending") || strings.EqualFold(ord.PaymentStatus, "unpaid")) && !ordersvc.HasReadyShippingQuote(ord) {
+		c.JSON(http.StatusConflict, gin.H{"error": "shipping quote is pending; we will contact you via WhatsApp"})
 		return
 	}
 	if strings.EqualFold(ord.PaymentStatus, "paid") || ord.PaidAt != nil {

@@ -1,0 +1,5 @@
+ALTER TABLE products
+    ADD COLUMN IF NOT EXISTS weight NUMERIC(10,3),
+    ADD COLUMN IF NOT EXISTS dimensions_length NUMERIC(10,2),
+    ADD COLUMN IF NOT EXISTS dimensions_width NUMERIC(10,2),
+    ADD COLUMN IF NOT EXISTS dimensions_height NUMERIC(10,2);
