@@ -11,14 +11,23 @@ import {
   downloadMyOrderInvoice,
   getMyOrderByID,
   getMyOrderPaymentProofBlob,
+  listMyOrderReviewableItems,
   listMyOrderPaymentProofs,
+  upsertMyOrderItemReview,
   updateMyOrderShippingAddress,
   startMyOrderPayment,
+  type ReviewableOrderItem,
   type MyOrderDetailResponse,
   type OrderPaymentProvider,
   type Payment,
   type PaymentProof,
 } from "../../lib/orderApi";
+
+type ReviewDraft = {
+  rating: number;
+  review_text: string;
+  question_text: string;
+};
 
 function toCurrency(value: number, currency = "IDR"): string {
   return new Intl.NumberFormat("id-ID", {
@@ -155,6 +164,10 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const [selectedAddressID, setSelectedAddressID] = useState("");
   const [shippingAddressError, setShippingAddressError] = useState("");
   const [updatingShippingAddress, setUpdatingShippingAddress] = useState(false);
+  const [reviewableItems, setReviewableItems] = useState<ReviewableOrderItem[]>([]);
+  const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewDraft>>({});
+  const [submittingReviewItemID, setSubmittingReviewItemID] = useState("");
+  const [reviewError, setReviewError] = useState("");
 
   const loadDetail = async () => {
     if (!resolvedOrderID) {
@@ -172,6 +185,24 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       setSelectedProviderID((current) => current || defaultProviderID);
       setTransferAmount(String(Math.max(0, response.data.order.grand_total || 0)));
       setTransferredAt(new Date().toISOString().slice(0, 16));
+      if (response.data?.order?.id) {
+        const reviewRows = await listMyOrderReviewableItems(response.data.order.id);
+        const rows = reviewRows.data || [];
+        setReviewableItems(rows);
+        setReviewError("");
+        setReviewDrafts((current) => {
+          const next = { ...current };
+          rows.forEach((row) => {
+            const existing = current[row.order_item_id];
+            next[row.order_item_id] = {
+              rating: existing?.rating || Number(row.review?.rating || 5),
+              review_text: existing?.review_text ?? String(row.review?.review_text || ""),
+              question_text: existing?.question_text ?? String(row.review?.question_text || ""),
+            };
+          });
+          return next;
+        });
+      }
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : "Gagal memuat detail order";
       setError(message);
@@ -189,6 +220,42 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       const message = loadError instanceof Error ? loadError.message : "Gagal memuat alamat";
       setShippingAddressError(message);
       setAddresses([]);
+    }
+  };
+
+  const handleReviewDraftChange = (itemID: string, patch: Partial<ReviewDraft>) => {
+    setReviewDrafts((current) => ({
+      ...current,
+      [itemID]: {
+        rating: Number(current[itemID]?.rating || 5),
+        review_text: String(current[itemID]?.review_text || ""),
+        question_text: String(current[itemID]?.question_text || ""),
+        ...patch,
+      },
+    }));
+  };
+
+  const handleSubmitReview = async (itemID: string) => {
+    if (!order?.id) return;
+    const draft = reviewDrafts[itemID];
+    if (!draft) return;
+    setSubmittingReviewItemID(itemID);
+    setReviewError("");
+    try {
+      await upsertMyOrderItemReview(order.id, itemID, {
+        rating: Number(draft.rating || 0),
+        review_text: String(draft.review_text || ""),
+        question_text: String(draft.question_text || ""),
+      });
+      notifySuccess("Review pembeli berhasil disimpan.");
+      const reviewRows = await listMyOrderReviewableItems(order.id);
+      setReviewableItems(reviewRows.data || []);
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : "Gagal menyimpan review";
+      setReviewError(message);
+      notifyError(message);
+    } finally {
+      setSubmittingReviewItemID("");
     }
   };
 
@@ -529,6 +596,115 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                     </tbody>
                   </table>
                 </div>
+              </section>
+
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-900">Review Pembeli</h2>
+                {reviewableItems.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">Belum ada item yang bisa direview untuk order ini.</p>
+                ) : (
+                  <div className="mt-4 space-y-4">
+                    {reviewableItems.map((entry) => {
+                      const draft = reviewDrafts[entry.order_item_id] || {
+                        rating: Number(entry.review?.rating || 5),
+                        review_text: String(entry.review?.review_text || ""),
+                        question_text: String(entry.review?.question_text || ""),
+                      };
+                      const isSubmitting = submittingReviewItemID === entry.order_item_id;
+                      const hasReview = Boolean(entry.review);
+                      return (
+                        <article key={entry.order_item_id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-900">{entry.product_name || "Produk"}</div>
+                              <div className="text-xs text-slate-500">{entry.sku || entry.product_id || entry.order_item_id}</div>
+                            </div>
+                            {hasReview ? (
+                              <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                Sudah direview
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {hasReview && entry.review ? (
+                            <div className="mt-3 space-y-3">
+                              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Review Anda</div>
+                                <div className="mt-1 text-amber-500">{"★".repeat(Math.max(0, Math.min(5, Number(entry.review.rating || 0))))}</div>
+                                {entry.review.review_text ? <p className="mt-2 text-sm text-slate-700">{entry.review.review_text}</p> : null}
+                                {entry.review.question_text ? <p className="mt-2 text-sm text-slate-600">Pertanyaan: {entry.review.question_text}</p> : null}
+                              </div>
+                              {entry.review.seller_reply ? (
+                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                                  <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Balasan penjual</div>
+                                  <p className="mt-1 text-sm">{entry.review.seller_reply}</p>
+                                </div>
+                              ) : (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                  Review terkirim. Menunggu balasan penjual.
+                                </div>
+                              )}
+                            </div>
+                          ) : !entry.can_review ? (
+                            <p className="mt-3 text-xs text-amber-700">{entry.reason || "Item ini belum bisa direview."}</p>
+                          ) : (
+                            <div className="mt-3 space-y-3">
+                              <label className="block space-y-1 text-sm text-slate-700">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Rating</span>
+                                <select
+                                  value={String(draft.rating || 5)}
+                                  onChange={(event) => handleReviewDraftChange(entry.order_item_id, { rating: Number(event.target.value) })}
+                                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                                  disabled={isSubmitting}
+                                >
+                                  {[5, 4, 3, 2, 1].map((value) => (
+                                    <option key={value} value={value}>
+                                      {value} bintang
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+
+                              <label className="block space-y-1 text-sm text-slate-700">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Ulasan</span>
+                                <textarea
+                                  value={draft.review_text}
+                                  onChange={(event) => handleReviewDraftChange(entry.order_item_id, { review_text: event.target.value })}
+                                  className="min-h-20 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                                  placeholder="Bagikan pengalaman belanja Anda"
+                                  disabled={isSubmitting}
+                                />
+                              </label>
+
+                              <label className="block space-y-1 text-sm text-slate-700">
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Pertanyaan (opsional)</span>
+                                <textarea
+                                  value={draft.question_text}
+                                  onChange={(event) => handleReviewDraftChange(entry.order_item_id, { question_text: event.target.value })}
+                                  className="min-h-16 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                                  placeholder="Ada yang ingin ditanyakan ke penjual?"
+                                  disabled={isSubmitting}
+                                />
+                              </label>
+
+                              <div className="flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => void handleSubmitReview(entry.order_item_id)}
+                                  disabled={isSubmitting}
+                                  className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {isSubmitting ? "Menyimpan..." : entry.review ? "Perbarui Review" : "Kirim Review"}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+                {reviewError ? <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{reviewError}</div> : null}
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

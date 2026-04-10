@@ -123,6 +123,39 @@ export type PaymentProof = {
   created_at: string;
 };
 
+export type CustomerReview = {
+  id: string;
+  order_id: string;
+  order_item_id: string;
+  product_id: string;
+  customer_id: string;
+  rating: number;
+  review_text: string;
+  question_text: string;
+  seller_reply?: string | null;
+  seller_reply_at?: string | null;
+  status: string;
+  is_visible: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReviewableOrderItem = {
+  order_item_id: string;
+  product_id?: string | null;
+  product_name: string;
+  sku?: string | null;
+  can_review: boolean;
+  reason?: string;
+  review?: CustomerReview | null;
+};
+
+export type ProductReviewStats = {
+  total_reviews: number;
+  average_rating: number;
+  rating_count: Record<number, number>;
+};
+
 function getApiUrl() {
   return import.meta.env.PUBLIC_API_URL?.replace(/\/$/, "") || "";
 }
@@ -209,4 +242,40 @@ export async function getMyOrderPaymentProofBlob(orderID: string, paymentID: str
   return customerBlobRequest(
     `/api/order/orders/me/${encodeURIComponent(orderID)}/payments/${encodeURIComponent(paymentID)}/proofs/${encodeURIComponent(proofID)}/access`,
   );
+}
+
+export async function listMyOrderReviewableItems(orderID: string): Promise<{ data: ReviewableOrderItem[] }> {
+  return customerApiRequest<{ data: ReviewableOrderItem[] }>(
+    `/api/review/my/orders/${encodeURIComponent(orderID)}/items`,
+    { method: "GET" },
+  );
+}
+
+export async function upsertMyOrderItemReview(
+  orderID: string,
+  orderItemID: string,
+  payload: { rating: number; review_text?: string; question_text?: string },
+): Promise<{ data: CustomerReview }> {
+  return customerApiRequest<{ data: CustomerReview }>(
+    `/api/review/my/orders/${encodeURIComponent(orderID)}/items/${encodeURIComponent(orderItemID)}`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function getProductReviewStats(productID: string): Promise<{ data: ProductReviewStats }> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) {
+    throw new Error("PUBLIC_API_URL belum dikonfigurasi");
+  }
+  const response = await fetch(
+    `${apiUrl}/api/review/products/${encodeURIComponent(productID)}/stats`,
+    { method: "GET", credentials: "include" },
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch review stats: ${response.status}`);
+  }
+  return response.json();
 }

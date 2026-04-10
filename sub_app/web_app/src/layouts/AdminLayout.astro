@@ -16,6 +16,7 @@ const menus = [
   { href: "/admin/users", label: "Users", icon: "users", group: "general" },
   { href: "/admin/customers", label: "Customers", icon: "customers", group: "general" },
   { href: "/admin/orders", label: "Orders", icon: "orders", group: "sales" },
+  { href: "/admin/reviews", label: "Reviews", icon: "reviews", group: "sales" },
   { href: "/admin/pos", label: "POS", icon: "pos", group: "sales" },
   { href: "/admin/payment-providers", label: "Payment Providers", icon: "payments", group: "sales" },
   { href: "/admin/products", label: "Products", icon: "products", group: "catalog" },
@@ -139,6 +140,13 @@ const groupedMenus = menuGroups
                       <svg class="-mt-0.5 mr-2 inline h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                         <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/>
                         <path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                    )}
+
+                    {menu.icon === "reviews" && (
+                      <svg class="-mt-0.5 mr-2 inline h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                        <path d="M4 5h16v10H8l-4 4V5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="M8 9h8M8 12h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
                       </svg>
                     )}
 

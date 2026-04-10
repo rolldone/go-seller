@@ -6,6 +6,7 @@ import BusinessStoreHeader from "./BusinessStoreHeader";
 import Footer from "../Footer";
 import { getCustomerAuthToken } from "../../customer/auth/authApi";
 import { rememberCustomerAuthNextPath } from "../../../lib/customerAuthRedirect";
+import { getProductReviewStats } from "../../../lib/orderApi";
 import type { PublicBusinessProduct, PublicBusinessStore } from "./types";
 import type { CustomerSession } from "../../../lib/customerSession";
 
@@ -41,6 +42,17 @@ type ProductVariation = {
   is_active?: boolean;
   attributes?: VariationAttribute[];
   assets?: VariationAsset[];
+};
+
+type PublicProductReview = {
+  id: string;
+  product_id: string;
+  rating: number;
+  review_text: string;
+  question_text: string;
+  seller_reply?: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 function getPublicApiBase(): string {
@@ -88,6 +100,10 @@ export default function ProductDetailPage({ store, product, relatedProducts, cus
   const [variationLoading, setVariationLoading] = useState(false);
   const [variationMatching, setVariationMatching] = useState(false);
   const [variationError, setVariationError] = useState<string | null>(null);
+  const [productReviews, setProductReviews] = useState<PublicProductReview[]>([]);
+  const [productReviewsLoading, setProductReviewsLoading] = useState(false);
+  const [productReviewStats, setProductReviewStats] = useState<{ total_reviews: number; average_rating: number; rating_count: Record<number, number> } | null>(null);
+  const [productReviewStatsLoading, setProductReviewStatsLoading] = useState(false);
   const thumbListRef = useRef<HTMLDivElement>(null);
 
   const attributeGroups = useMemo(() => {
@@ -270,7 +286,70 @@ export default function ProductDetailPage({ store, product, relatedProducts, cus
     );
   }, [selectedVariation, selectedAttributeByGroup, attributeGroups, variationLoading, variationMatching]);
 
-  const productReviews = (store.reviews || []).filter((item) => item.productId === product.id).slice(0, 3);
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadProductReviews = async () => {
+      if (!product.id) {
+        setProductReviews([]);
+        return;
+      }
+      setProductReviewsLoading(true);
+      try {
+        const apiBase = getPublicApiBase();
+        const endpoint = apiBase
+          ? `${apiBase}/api/review/products/${encodeURIComponent(product.id)}?page=1&limit=10`
+          : `/api/review/products/${encodeURIComponent(product.id)}?page=1&limit=10`;
+        const res = await fetch(endpoint, { signal: controller.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const payload = (await res.json()) as { data?: PublicProductReview[] };
+        if (!cancelled) {
+          setProductReviews(Array.isArray(payload?.data) ? payload.data : []);
+        }
+      } catch {
+        if (!cancelled) setProductReviews([]);
+      } finally {
+        if (!cancelled) setProductReviewsLoading(false);
+      }
+    };
+
+    void loadProductReviews();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [product.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const loadReviewStats = async () => {
+      if (!product.id) {
+        setProductReviewStats(null);
+        return;
+      }
+      setProductReviewStatsLoading(true);
+      try {
+        const result = await getProductReviewStats(product.id);
+        if (!cancelled) {
+          setProductReviewStats(result.data);
+        }
+      } catch {
+        if (!cancelled) setProductReviewStats(null);
+      } finally {
+        if (!cancelled) setProductReviewStatsLoading(false);
+      }
+    };
+
+    void loadReviewStats();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [product.id]);
+
   const businessMeta = store.business as any;
   const businessRating = businessMeta?.rating || "-";
   const businessReviewCount = businessMeta?.reviewCount || 0;
@@ -628,15 +707,62 @@ export default function ProductDetailPage({ store, product, relatedProducts, cus
 
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-lg font-bold text-slate-900">Review Pembeli</h3>
+            
+            {productReviewStatsLoading ? (
+              <p className="mt-4 text-sm text-slate-500">Memuat statistik review...</p>
+            ) : productReviewStats && productReviewStats.total_reviews > 0 ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6">
+                <div className="flex items-start gap-8">
+                  <div className="flex flex-col items-center">
+                    <div className="text-4xl font-bold text-amber-600">{productReviewStats.average_rating.toFixed(1)}</div>
+                    <div className="mt-1 text-lg text-amber-500">{"★".repeat(Math.round(productReviewStats.average_rating))}</div>
+                    <div className="mt-2 text-xs text-slate-600">berdasarkan {productReviewStats.total_reviews} review</div>
+                  </div>
+                  
+                  <div className="flex-1 space-y-2">
+                    {[5, 4, 3, 2, 1].map((stars) => {
+                      const count = productReviewStats.rating_count[stars] || 0;
+                      const percentage = productReviewStats.total_reviews > 0 ? (count / productReviewStats.total_reviews) * 100 : 0;
+                      return (
+                        <div key={stars} className="flex items-center gap-2">
+                          <span className="w-8 text-right text-xs font-medium text-slate-600">{stars}★</span>
+                          <div className="h-2 w-32 rounded-full bg-slate-200">
+                            <div
+                              className="h-full rounded-full bg-amber-400 transition-all"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="w-12 text-right text-xs text-slate-600">({count})</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            
             <div className="mt-4 space-y-4">
-              {productReviews.length > 0 ? (
+              {productReviewsLoading ? (
+                <p className="text-sm text-slate-500">Memuat review produk...</p>
+              ) : productReviews.length > 0 ? (
                 productReviews.map((review) => (
                   <article key={review.id} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-900">{review.usernameMasked}</p>
-                      <p className="text-xs text-slate-500">{review.createdAtLabel}</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900">Pembeli terverifikasi</p>
+                      <p className="text-xs text-slate-500">{new Date(review.created_at).toLocaleDateString("id-ID")}</p>
                     </div>
-                    <p className="mt-2 text-sm text-slate-600">{review.content}</p>
+                    <div className="mt-1 text-sm text-amber-500">{"★".repeat(Math.max(0, Math.min(5, Number(review.rating || 0))))}</div>
+                    {review.review_text ? <p className="mt-2 text-sm text-slate-600">{review.review_text}</p> : null}
+                    {review.question_text ? (
+                      <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+                        Pertanyaan pembeli: {review.question_text}
+                      </div>
+                    ) : null}
+                    {review.seller_reply ? (
+                      <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                        Balasan penjual: {review.seller_reply}
+                      </div>
+                    ) : null}
                   </article>
                 ))
               ) : (
