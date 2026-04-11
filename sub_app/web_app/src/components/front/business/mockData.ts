@@ -242,7 +242,7 @@ export function getFallbackBusinessStore(slug?: string): PublicBusinessStore | n
 
 export function listBusinessProductPaths(): Array<{ merchant: string; slug: string }> {
   return Object.entries(STORES).flatMap(([merchant, store]) =>
-    store.products.map((product) => ({ merchant, slug: product.slug }))
+    (store.products ?? []).map((product) => ({ merchant, slug: product.slug }))
   );
 }
 
@@ -250,7 +250,7 @@ export function getBusinessProductBySlugs(merchant: string, productSlug: string)
   const store = getBusinessStoreBySlug(merchant);
   if (!store) return null;
 
-  const product = store.products.find((item) => item.slug === productSlug);
+  const product = (store.products ?? []).find((item) => item.slug === productSlug);
   if (!product) return null;
 
   return { store, product };

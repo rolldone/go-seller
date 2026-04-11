@@ -137,9 +137,9 @@ type Props = {
   onChange: (patch: Partial<FormState>) => void;
   onClose: () => void;
   onSubmit: () => void;
-  selectedProductIDs: string[];
-  onOpenProductPicker: () => void;
-  onRemoveProduct: (id: string) => void;
+  selectedProductIDs?: string[];
+  onOpenProductPicker?: () => void;
+  onRemoveProduct?: (id: string) => void;
   hideProductField?: boolean;
 };
 
@@ -151,7 +151,7 @@ export default function DiscountFormModal({
   onChange,
   onClose,
   onSubmit,
-  selectedProductIDs,
+  selectedProductIDs = [],
   onOpenProductPicker,
   onRemoveProduct,
   hideProductField = false,
@@ -227,13 +227,15 @@ export default function DiscountFormModal({
               <label className={`${labelCls} sm:col-span-2`}>
                 <div className="mb-1 flex items-center justify-between">
                   <span className={labelSpan}>Product IDs</span>
-                  <button
-                    type="button"
-                    onClick={onOpenProductPicker}
-                    className="text-xs font-medium text-slate-600 hover:text-slate-900"
-                  >
-                    Explore products
-                  </button>
+                  {onOpenProductPicker ? (
+                    <button
+                      type="button"
+                      onClick={onOpenProductPicker}
+                      className="text-xs font-medium text-slate-600 hover:text-slate-900"
+                    >
+                      Explore products
+                    </button>
+                  ) : null}
                 </div>
                 <textarea
                   className={inp}
@@ -253,14 +255,16 @@ export default function DiscountFormModal({
                         className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
                       >
                         {shortID(id)}
-                        <button
-                          type="button"
-                          onClick={() => onRemoveProduct(id)}
-                          className="rounded-full text-slate-400 transition hover:text-slate-600"
-                          aria-label="Remove product"
-                        >
-                          ×
-                        </button>
+                        {onRemoveProduct ? (
+                          <button
+                            type="button"
+                            onClick={() => onRemoveProduct(id)}
+                            className="rounded-full text-slate-400 transition hover:text-slate-600"
+                            aria-label="Remove product"
+                          >
+                            ×
+                          </button>
+                        ) : null}
                       </span>
                     ))
                   )}

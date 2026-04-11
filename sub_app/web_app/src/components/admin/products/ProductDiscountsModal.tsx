@@ -46,7 +46,7 @@ export default function ProductDiscountsModal({ open, product, onClose }: Props)
     if (open && product) {
       setDiscounts([]);
       setError(null);
-      setFormState((prev) => ({ ...prev, product_id: product.id }));
+      setFormState((prev) => ({ ...prev, product_ids: product.id, selectedProductIDs: [product.id] }));
       setSelectedDiscount(null);
       loadDiscounts();
     }
@@ -56,7 +56,7 @@ export default function ProductDiscountsModal({ open, product, onClose }: Props)
     if (!product) return;
     setFormMode("create");
     setSelectedDiscount(null);
-    setFormState({ ...emptyForm, product_id: product.id });
+    setFormState({ ...emptyForm, product_ids: product.id, selectedProductIDs: [product.id] });
     setFormOpen(true);
   };
 
@@ -172,6 +172,7 @@ export default function ProductDiscountsModal({ open, product, onClose }: Props)
       <EntityDeleteModal
         open={deleteOpen}
         title="Delete Discount"
+        itemName={selectedDiscount?.name ?? ""}
         description={`Hapus discount "${selectedDiscount?.name ?? ""}"?`}
         submitting={deleteSubmitting}
         onClose={() => setDeleteOpen(false)}

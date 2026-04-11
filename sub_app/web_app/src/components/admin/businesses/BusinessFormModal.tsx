@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 
 import AdminModal from "../ui/AdminModal";
 import type { UploadFile } from "../ui/FileUploadDropzone";
-import AssetBundleField, { type AssetRulesConfig, validateFilesAgainstUsageConfig } from "../ui/AssetBundleField";
+import AssetBundleField, { type AssetRulesConfig, type ExistingAssetFolder, validateFilesAgainstUsageConfig } from "../ui/AssetBundleField";
 import RichTextEditor, { type RichTextValue } from "../ui/RichTextEditor";
 import type { Business, BusinessPayload } from "./types";
-import { adminDelete, adminGet, adminPut } from "../entities/adminApi";
+import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 
 const defaultForm = {
@@ -47,6 +47,7 @@ type ExistingAsset = {
   is_main: boolean;
   display_order: number;
   usage_tag?: string;
+  folder_id?: string | null;
 };
 
 const businessAssetUsageConfig: AssetRulesConfig = {
@@ -132,6 +133,8 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
   const [usageTag, setUsageTag] = useState<string>("gallery");
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [existingAssets, setExistingAssets] = useState<ExistingAsset[]>([]);
+  const [assetFolders, setAssetFolders] = useState<ExistingAssetFolder[]>([]);
+  const [selectedFolderID, setSelectedFolderID] = useState<string>("");
   const [loadingExisting, setLoadingExisting] = useState(false);
   const [createdBusiness, setCreatedBusiness] = useState<Business | null>(null);
   const [descriptionValue, setDescriptionValue] = useState<RichTextValue>({
@@ -177,15 +180,19 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
         try {
           const res = await adminGet<{ data: ExistingAsset[] }>(`/admin/catalog/businesses/${initialData.id}/assets?limit=100`);
           setExistingAssets(res.data || []);
+          const folderRes = await adminGet<{ data: ExistingAssetFolder[] }>(`/admin/catalog/businesses/${initialData.id}/asset-folders`);
+          setAssetFolders(folderRes.data || []);
         } catch (err) {
           console.error("Failed to load business assets", err);
           setExistingAssets([]);
+          setAssetFolders([]);
         } finally {
           setLoadingExisting(false);
         }
       })();
     } else {
       setExistingAssets([]);
+      setAssetFolders([]);
     }
   }, [open, initialData, mode]);
 
@@ -201,8 +208,14 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
   const SHORT_DESC_MAX = 160;
 
   const refreshExistingAssets = async (businessID: string) => {
-    const res = await adminGet<{ data: ExistingAsset[] }>(`/admin/catalog/businesses/${businessID}/assets?limit=100`);
+    const folderQuery = selectedFolderID ? `&folder_id=${encodeURIComponent(selectedFolderID)}` : "&folder_id=root";
+    const res = await adminGet<{ data: ExistingAsset[] }>(`/admin/catalog/businesses/${businessID}/assets?limit=100${folderQuery}`);
     setExistingAssets(res.data || []);
+  };
+
+  const refreshAssetFolders = async (businessID: string) => {
+    const res = await adminGet<{ data: ExistingAssetFolder[] }>(`/admin/catalog/businesses/${businessID}/asset-folders`);
+    setAssetFolders(res.data || []);
   };
 
   const activeBusinessID = createdBusiness?.id || initialData?.id || undefined;
@@ -225,6 +238,9 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
       formData.append("display_order", String(uploadFile.displayOrder ?? i));
       if (usageTag) {
         formData.append("usage_tag", usageTag);
+      }
+      if (selectedFolderID) {
+        formData.append("folder_id", selectedFolderID);
       }
 
       const token = localStorage.getItem("access_token");
@@ -422,11 +438,36 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
               selectedFiles={selectedFiles}
               onSelectedFilesChange={setSelectedFiles}
               existingAssets={existingAssets}
+              folders={assetFolders}
+              selectedFolderID={selectedFolderID}
+              onSelectedFolderIDChange={async (value) => {
+                setSelectedFolderID(value);
+                if (activeBusinessID) {
+                  const folderQuery = value ? `&folder_id=${encodeURIComponent(value)}` : "&folder_id=root";
+                  const res = await adminGet<{ data: ExistingAsset[] }>(`/admin/catalog/businesses/${activeBusinessID}/assets?limit=100${folderQuery}`);
+                  setExistingAssets(res.data || []);
+                }
+              }}
+              onCreateFolder={async (name, parentID) => {
+                if (!activeBusinessID) return;
+                await adminPost(`/admin/catalog/businesses/${activeBusinessID}/asset-folders`, {
+                  name,
+                  parent_id: parentID || null,
+                });
+                await refreshAssetFolders(activeBusinessID);
+                notifySuccess("Folder created");
+              }}
               loadingExisting={loadingExisting}
               showExisting={Boolean(activeBusinessID)}
               maxFiles={20}
               maxSizeMB={10}
               accept="image/*"
+              onCopyExistingLink={async (asset) => {
+                const link = asset.public_url || asset.file_path;
+                if (!link) return;
+                await navigator.clipboard.writeText(link);
+                notifySuccess("Link copied");
+              }}
               onSetMainExisting={async (asset) => {
                 if (!activeBusinessID) return;
                 try {
@@ -461,14 +502,27 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
                             ...it,
                             ...(typeof patch.usage_tag !== "undefined" ? { usage_tag: patch.usage_tag } : {}),
                             ...(typeof patch.display_order !== "undefined" ? { display_order: patch.display_order } : {}),
+                            ...(typeof patch.folder_id !== "undefined" ? { folder_id: patch.folder_id } : {}),
                           }
                         : it
                     )
                   );
-                  notifySuccess(typeof patch.display_order !== "undefined" ? "Order updated" : "Tag updated");
+                  notifySuccess(
+                    typeof patch.display_order !== "undefined"
+                      ? "Order updated"
+                      : typeof patch.folder_id !== "undefined"
+                      ? "Asset moved"
+                      : "Tag updated"
+                  );
                 } catch (err) {
                   console.error(err);
-                  notifyError(typeof patch.display_order !== "undefined" ? "Failed to update order" : "Failed to update tag");
+                  notifyError(
+                    typeof patch.display_order !== "undefined"
+                      ? "Failed to update order"
+                      : typeof patch.folder_id !== "undefined"
+                      ? "Failed to move asset"
+                      : "Failed to update tag"
+                  );
                 }
               }}
             />

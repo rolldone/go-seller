@@ -35,7 +35,7 @@ function isTabKey(value: string | null): value is TabKey {
 export default function BusinessStoreFrontPage({ store, initialTab = "beranda", customerSession = null }: BusinessStoreFrontPageProps) {
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
-  const { business, products = [], reviewSummary = null, reviews = [] } = store;
+  const { business, products = [], reviewSummary = null, reviews = [], carousels = [] } = store;
   const safeReviews = Array.isArray(reviews) ? reviews : [];
   const needsMockProducts = (activeTab === "produk" || activeTab === "beranda") && products.length === 0;
   const needsMockReviews = activeTab === "ulasan" && !reviewSummary;
@@ -46,6 +46,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
   const effectiveProducts = productsState.length ? productsState : (products.length ? products : mockStore?.products ?? []);
   const effectiveReviewSummary = reviewSummary ?? mockStore?.reviewSummary ?? null;
   const effectiveReviews = safeReviews.length ? safeReviews : mockStore?.reviews ?? [];
+  const effectiveCarousels = Array.isArray(carousels) ? carousels : [];
   const featuredProducts = effectiveProducts.slice(0, 6);
 
   const formatNumber = (value: number) => new Intl.NumberFormat("id-ID").format(value);
@@ -156,7 +157,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
         {activeTab === "beranda" && (
           <BusinessHomeTab
             businessSlug={business.slug}
-            businessName={business.name}
+            carousels={effectiveCarousels}
             featuredProducts={featuredProducts}
             products={effectiveProducts}
             categories={categories}

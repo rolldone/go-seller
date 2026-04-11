@@ -2,12 +2,13 @@ type Props = {
   open: boolean;
   title: string;
   itemName: string;
+  description?: string;
   submitting: boolean;
   onClose: () => void;
   onConfirm: () => Promise<void>;
 };
 
-export default function EntityDeleteModal({ open, title, itemName, submitting, onClose, onConfirm }: Props) {
+export default function EntityDeleteModal({ open, title, itemName, description, submitting, onClose, onConfirm }: Props) {
   if (!open) return null;
 
   return (
@@ -15,7 +16,11 @@ export default function EntityDeleteModal({ open, title, itemName, submitting, o
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-lg">
         <h3 className="text-base font-semibold text-slate-900">Delete {title}</h3>
         <p className="mt-2 text-sm text-slate-600">
-          Hapus <span className="font-medium text-slate-900">{itemName}</span>?
+          {description || (
+            <>
+              Hapus <span className="font-medium text-slate-900">{itemName}</span>?
+            </>
+          )}
         </p>
 
         <div className="mt-4 flex justify-end gap-2">

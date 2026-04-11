@@ -1,3 +1,4 @@
+import { db, eq, BusinessCarousel } from "astro:db";
 import type { PublicBusinessStore } from "../../components/front/business/types";
 
 type BuildBusinessStoreResult = { store: PublicBusinessStore; fetchErrorMessage: string };
@@ -48,6 +49,7 @@ function buildFallbackStore(slug: string): PublicBusinessStore {
     products: [],
     reviewSummary: null,
     reviews: [],
+    carousels: [],
   };
 }
 
@@ -63,6 +65,46 @@ function normalizeProducts(payload: any) {
   }));
 }
 
+function normalizeCarouselItems(items: any): Array<{ id: string; title: string; subtitle?: string; image?: string; href?: string }> {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item, index) => ({
+      id: String(item?.id || `carousel-item-${index}`),
+      title: String(item?.title || ""),
+      subtitle: item?.subtitle ? String(item.subtitle) : undefined,
+      image: item?.image ? String(item.image) : undefined,
+      href: item?.href ? String(item.href) : undefined,
+    }))
+    .filter((item) => Boolean(item.image || item.title.trim() || item.subtitle || item.href));
+}
+
+async function loadBusinessCarousels(businessId: string) {
+  if (!businessId) return [];
+
+  try {
+    const rows = await db.select().from(BusinessCarousel).where(eq(BusinessCarousel.businessId, businessId));
+    return rows
+      .filter((row) => row.isActive !== false)
+      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
+      .map((row) => ({
+        id: row.id,
+        businessId: row.businessId,
+        slot: row.slot,
+        title: row.title,
+        subtitle: row.subtitle || null,
+        layoutType: row.layoutType as "large" | "medium" | "banner",
+        isActive: row.isActive ?? true,
+        sortOrder: Number(row.sortOrder || 0),
+        items: normalizeCarouselItems(row.items),
+        createdAt: row.createdAt ? row.createdAt.toISOString() : undefined,
+        updatedAt: row.updatedAt ? row.updatedAt.toISOString() : undefined,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function buildBusinessStore(slug: string): Promise<BuildBusinessStoreResult> {
   const { payload, fetchErrorMessage } = await fetchBusinessData(slug);
   const business = normalizeBusinessPayload(slug, payload);
@@ -76,6 +118,7 @@ export async function buildBusinessStore(slug: string): Promise<BuildBusinessSto
     products: normalizeProducts(payload),
     reviewSummary: null,
     reviews: [],
+    carousels: await loadBusinessCarousels(business.id),
   };
 
   return { store, fetchErrorMessage };

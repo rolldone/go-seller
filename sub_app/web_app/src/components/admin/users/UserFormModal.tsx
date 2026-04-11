@@ -105,8 +105,8 @@ export default function UserFormModal({ open, mode, initialValues, submitting, o
               value={String(form.is_active ?? true)}
               onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "true" }))}
             >
-              <option value={true}>Active</option>
-              <option value={false}>Inactive</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
             </select>
           </label>
         </div>

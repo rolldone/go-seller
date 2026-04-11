@@ -31,6 +31,16 @@ export type ExistingAsset = {
   is_main: boolean;
   display_order: number;
   usage_tag?: string;
+  folder_id?: string | null;
+};
+
+export type ExistingAssetFolder = {
+  id: string;
+  business_id: string;
+  parent_id?: string | null;
+  name: string;
+  slug: string;
+  path: string;
 };
 
 type Props = {
@@ -43,12 +53,20 @@ type Props = {
   existingAssets?: ExistingAsset[];
   loadingExisting?: boolean;
   showExisting?: boolean;
+  folders?: ExistingAssetFolder[];
+  selectedFolderID?: string;
+  onSelectedFolderIDChange?: (value: string) => void;
+  onCreateFolder?: (name: string, parentID?: string) => Promise<void>;
+  onRenameFolder?: (folder: ExistingAssetFolder, nextName: string) => Promise<void>;
+  onDeleteFolder?: (folder: ExistingAssetFolder) => Promise<void>;
   maxFiles?: number;
   maxSizeMB?: number;
   accept?: string;
   onSetMainExisting?: (asset: ExistingAsset) => Promise<void>;
   onDeleteExisting?: (asset: ExistingAsset) => Promise<void>;
-  onUpdateExisting?: (asset: ExistingAsset, patch: { usage_tag?: string; display_order?: number }) => Promise<void>;
+  onUpdateExisting?: (asset: ExistingAsset, patch: { usage_tag?: string; display_order?: number; folder_id?: string | null }) => Promise<void>;
+  onCopyExistingLink?: (asset: ExistingAsset) => Promise<void>;
+  onDuplicateExisting?: (asset: ExistingAsset) => Promise<void>;
 };
 
 async function loadImageFromFile(file: File): Promise<HTMLImageElement> {
@@ -155,12 +173,20 @@ export default function AssetBundleField({
   existingAssets = [],
   loadingExisting = false,
   showExisting = false,
+  folders = [],
+  selectedFolderID = "",
+  onSelectedFolderIDChange,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
   maxFiles = 20,
   maxSizeMB = 10,
   accept = "image/*",
   onSetMainExisting,
   onDeleteExisting,
   onUpdateExisting,
+  onCopyExistingLink,
+  onDuplicateExisting,
 }: Props) {
   const [cropFile, setCropFile] = useState<UploadFile | null>(null);
   const [cropImageURL, setCropImageURL] = useState("");
@@ -169,6 +195,8 @@ export default function AssetBundleField({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
   const [cropSaving, setCropSaving] = useState(false);
   const [cropError, setCropError] = useState("");
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
 
   const usageTagOptions = useMemo(() => Object.keys(usageConfig.rules), [usageConfig.rules]);
   const activeUsageRule = usageTag ? usageConfig.rules[usageTag] : undefined;
@@ -194,7 +222,14 @@ export default function AssetBundleField({
     onSelectedFilesChange(selectedFiles.map((f) => ({ ...f, isMain: f.id === id })));
   };
 
-  const groupedExistingAssets = existingAssets.reduce<Record<string, ExistingAsset[]>>((acc, asset) => {
+  const filteredExistingAssets = existingAssets.filter((asset) => {
+    if (!selectedFolderID || selectedFolderID === "root") {
+      return !asset.folder_id;
+    }
+    return asset.folder_id === selectedFolderID;
+  });
+
+  const groupedExistingAssets = filteredExistingAssets.reduce<Record<string, ExistingAsset[]>>((acc, asset) => {
     const tag = asset.usage_tag?.trim() || "untagged";
     if (!acc[tag]) {
       acc[tag] = [];
@@ -268,11 +303,58 @@ export default function AssetBundleField({
       <h4 className="mb-3 text-sm font-semibold text-slate-900">{title}</h4>
 
       {showExisting ? (
+        <div className="mb-4 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Folder</label>
+              <select
+                value={selectedFolderID || "root"}
+                onChange={(e) => onSelectedFolderIDChange?.(e.target.value === "root" ? "" : e.target.value)}
+                className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              >
+                <option value="root">Root</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>{folder.path}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="New folder"
+                className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              />
+              <button
+                type="button"
+                disabled={creatingFolder || !newFolderName.trim() || !onCreateFolder}
+                onClick={async () => {
+                  if (!onCreateFolder) return;
+                  setCreatingFolder(true);
+                  try {
+                    await onCreateFolder(newFolderName.trim(), selectedFolderID || undefined);
+                    setNewFolderName("");
+                  } finally {
+                    setCreatingFolder(false);
+                  }
+                }}
+                className="rounded border border-slate-300 bg-white px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              >
+                {creatingFolder ? "Creating..." : "Add Folder"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showExisting ? (
         <div className="mb-4">
           <h5 className="mb-2 text-sm font-medium text-slate-700">Existing Assets</h5>
           {loadingExisting ? (
             <div className="text-sm text-slate-500">Loading assets...</div>
-          ) : existingAssets.length === 0 ? (
+          ) : filteredExistingAssets.length === 0 ? (
             <div className="text-sm text-slate-500">No existing assets</div>
           ) : (
             <div className="space-y-4">
@@ -306,11 +388,27 @@ export default function AssetBundleField({
                             </button>
                             <button
                               type="button"
+                              onClick={() => onDuplicateExisting?.(a)}
+                              className="text-xs font-medium text-violet-700"
+                              disabled={!onDuplicateExisting}
+                            >
+                              Copy Asset
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => onDeleteExisting?.(a)}
                               className="text-xs text-red-600"
                               disabled={!onDeleteExisting}
                             >
                               Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onCopyExistingLink?.(a)}
+                              className="text-xs text-blue-600"
+                              disabled={!onCopyExistingLink}
+                            >
+                              Copy Link
                             </button>
                           </div>
                         </div>
@@ -340,6 +438,19 @@ export default function AssetBundleField({
                             className="w-20 rounded border border-slate-200 px-2 py-1 text-sm"
                             disabled={!onUpdateExisting}
                           />
+
+                          <label className="text-xs text-slate-600">Folder</label>
+                          <select
+                            value={a.folder_id || ""}
+                            onChange={(e) => onUpdateExisting?.(a, { folder_id: e.target.value || null })}
+                            className="rounded border border-slate-200 px-2 py-1 text-sm"
+                            disabled={!onUpdateExisting}
+                          >
+                            <option value="">Root</option>
+                            {folders.map((folder) => (
+                              <option key={folder.id} value={folder.id}>{folder.path}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     </div>
@@ -348,6 +459,78 @@ export default function AssetBundleField({
               ))}
             </div>
           )}
+        </div>
+      ) : null}
+
+      {showExisting && folders.length > 0 ? (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h5 className="text-sm font-medium text-slate-700">Folders</h5>
+            <span className="text-xs text-slate-500">{folders.length} total</span>
+          </div>
+          <div className="space-y-2">
+            {folders.map((folder) => (
+              <div
+                key={folder.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelectedFolderIDChange?.(folder.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onSelectedFolderIDChange?.(folder.id);
+                  }
+                }}
+                className={`flex items-center justify-between gap-3 rounded border bg-white px-3 py-2 text-sm transition ${
+                  selectedFolderID === folder.id ? "border-emerald-400 ring-1 ring-emerald-200" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                } cursor-pointer`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className={`truncate font-medium ${selectedFolderID === folder.id ? "text-emerald-700" : "text-slate-700"}`}>
+                    {folder.path}
+                  </div>
+                  <div className="text-xs text-slate-500">Klik kartu atau tekan Enter</div>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectedFolderIDChange?.(folder.id);
+                    }}
+                    className="rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    Enter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (!onRenameFolder) return;
+                      const nextName = window.prompt("Rename folder", folder.name)?.trim();
+                      if (!nextName) return;
+                      void onRenameFolder(folder, nextName);
+                    }}
+                    className="rounded border border-slate-300 bg-white px-2 py-1 font-medium text-slate-700 hover:bg-slate-100"
+                    disabled={!onRenameFolder}
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void onDeleteFolder?.(folder);
+                    }}
+                    className="rounded border border-rose-200 bg-rose-50 px-2 py-1 font-medium text-rose-700 hover:bg-rose-100"
+                    disabled={!onDeleteFolder}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 

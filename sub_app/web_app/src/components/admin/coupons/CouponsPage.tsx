@@ -545,6 +545,7 @@ export default function CouponsPage() {
       <EntityDeleteModal
         open={deleteOpen}
         title="Delete Coupon"
+        itemName={selectedCoupon?.name ?? selectedCoupon?.code ?? ""}
         description={`Hapus coupon "${selectedCoupon?.name}" (${selectedCoupon?.code})?`}
         submitting={deleteSubmitting}
         onClose={() => setDeleteOpen(false)}

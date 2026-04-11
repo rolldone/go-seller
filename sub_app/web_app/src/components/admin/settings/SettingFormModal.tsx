@@ -69,7 +69,7 @@ export default function SettingFormModal({ open, mode, item, submitting, onClose
       open={open}
       title={mode === "create" ? "New Setting" : "Edit Setting"}
       onClose={onClose}
-      maxWidth="2xl"
+      maxWidth="xl"
       footer={
         <>
           <button type="button" onClick={onClose} className="rounded bg-slate-100 px-3 py-2 text-sm hover:bg-slate-200">

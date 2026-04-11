@@ -19,6 +19,7 @@ const menus = [
   { href: "/admin/reviews", label: "Reviews", icon: "reviews", group: "sales" },
   { href: "/admin/pos", label: "POS", icon: "pos", group: "sales" },
   { href: "/admin/payment-providers", label: "Payment Providers", icon: "payments", group: "sales" },
+  { href: "/admin/marketing", label: "Store Front", icon: "marketing", group: "marketing" },
   { href: "/admin/products", label: "Products", icon: "products", group: "catalog" },
   { href: "/admin/variations", label: "Variations", icon: "products", group: "catalog" },
   { href: "/admin/businesses", label: "Businesses", icon: "businesses", group: "catalog" },
@@ -26,7 +27,8 @@ const menus = [
   { href: "/admin/attributes", label: "Attributes", icon: "tags", group: "catalog" },
   { href: "/admin/categories", label: "Categories", icon: "categories", group: "catalog" },
   { href: "/admin/tags", label: "Tags", icon: "tags", group: "catalog" },
-  { href: "/admin/assets", label: "Assets", icon: "assets", group: "catalog" },
+  { href: "/admin/product-assets", label: "Product Assets", icon: "assets", group: "catalog" },
+  { href: "/admin/business-assets", label: "Business Assets", icon: "businesses", group: "catalog" },
   { href: "/admin/coupons", label: "Coupons", icon: "coupons", group: "marketing" },
   { href: "/admin/discounts", label: "Discounts", icon: "discounts", group: "marketing" },
   { href: "/admin/settings", label: "Settings", icon: "settings", group: "access" },
@@ -221,6 +223,14 @@ const groupedMenus = menuGroups
                       </svg>
                     )}
 
+                    {menu.icon === "marketing" && (
+                      <svg class="-mt-0.5 mr-2 inline h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                        <path d="M4 10l12-4v12L4 14v-4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        <path d="M16 8l4 2v4l-4 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M8 14v4a2 2 0 0 0 2 2h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                    )}
+
                     {menu.label}
                         </a>
                       </li>
@@ -270,8 +280,8 @@ const groupedMenus = menuGroups
     </style>
     <script>
       (function () {
-        const defaults = { general: true, catalog: true, marketing: false, access: false };
-        const getState = (key) => {
+        const defaults: Record<string, boolean> = { general: true, catalog: true, marketing: false, access: false };
+        const getState = (key: string) => {
           try {
             const v = localStorage.getItem(`admin_menu_group_${key}`);
             if (v === null) return defaults[key] ?? false;
@@ -280,11 +290,11 @@ const groupedMenus = menuGroups
             return defaults[key] ?? false;
           }
         };
-        const setState = (key, val) => {
+        const setState = (key: string, val: boolean) => {
           try { localStorage.setItem(`admin_menu_group_${key}`, val ? '1' : '0'); } catch (e) {}
         };
 
-        const collapse = (el) => {
+        const collapse = (el: HTMLElement) => {
           el.style.maxHeight = el.scrollHeight + 'px';
           // force repaint
           void el.offsetHeight;
@@ -293,7 +303,7 @@ const groupedMenus = menuGroups
           });
         };
 
-        const expand = (el) => {
+        const expand = (el: HTMLElement) => {
           el.style.maxHeight = el.scrollHeight + 'px';
           const onEnd = () => {
             el.style.maxHeight = '';
@@ -302,9 +312,9 @@ const groupedMenus = menuGroups
           el.addEventListener('transitionend', onEnd);
         };
 
-        const setGroup = (key, show) => {
-          const list = document.querySelector(`[data-group="${key}"]`);
-          const btn = document.querySelector(`[data-toggle="${key}"]`);
+        const setGroup = (key: string, show: boolean) => {
+          const list = document.querySelector<HTMLElement>(`[data-group="${key}"]`);
+          const btn = document.querySelector<HTMLElement>(`[data-toggle="${key}"]`);
           if (!list || !btn) return;
           list.classList.add('admin-group-collapse');
           if (show) {
@@ -318,11 +328,12 @@ const groupedMenus = menuGroups
         };
 
         document.addEventListener('DOMContentLoaded', function () {
-          document.querySelectorAll('[data-toggle]').forEach((b) => {
+          document.querySelectorAll<HTMLElement>('[data-toggle]').forEach((b) => {
             const key = b.getAttribute('data-toggle');
+            if (!key) return;
             b.classList.add('admin-toggle');
             b.addEventListener('click', () => {
-              const list = document.querySelector(`[data-group="${key}"]`);
+              const list = document.querySelector<HTMLElement>(`[data-group="${key}"]`);
               if (!list) return;
               const expanded = b.getAttribute('aria-expanded') === 'true';
               setGroup(key, !expanded);
@@ -330,19 +341,20 @@ const groupedMenus = menuGroups
           });
 
           // apply initial state
-          document.querySelectorAll('[data-group]').forEach((el) => {
+          document.querySelectorAll<HTMLElement>('[data-group]').forEach((el) => {
             const key = el.getAttribute('data-group');
+            if (!key) return;
             const show = getState(key);
             el.classList.add('admin-group-collapse');
             if (show) {
               el.style.maxHeight = el.scrollHeight + 'px';
               // allow transition to settle, then clear maxHeight
               setTimeout(() => { el.style.maxHeight = ''; }, 300);
-              const btn = document.querySelector(`[data-toggle="${key}"]`);
+              const btn = document.querySelector<HTMLElement>(`[data-toggle="${key}"]`);
               if (btn) btn.setAttribute('aria-expanded', 'true');
             } else {
               el.style.maxHeight = '0px';
-              const btn = document.querySelector(`[data-toggle="${key}"]`);
+              const btn = document.querySelector<HTMLElement>(`[data-toggle="${key}"]`);
               if (btn) btn.setAttribute('aria-expanded', 'false');
             }
           });

@@ -1,8 +1,3 @@
 ---
-import AdminLayout from "../../layouts/AdminLayout.astro";
-import AssetsPage from "../../components/admin/assets/AssetsPage";
+return Astro.redirect("/admin/product-assets", 302);
 ---
-
-<AdminLayout title="Assets">
-  <AssetsPage client:load />
-</AdminLayout>

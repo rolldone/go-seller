@@ -2,6 +2,15 @@ export interface PublicBusiness {
   id: string;
   name: string;
   slug: string;
+  city?: string | null;
+  headline?: string | null;
+  logoText?: string | null;
+  isVerified?: boolean;
+  followers?: string | number | null;
+  soldCount?: string | number | null;
+  rating?: string | number | null;
+  reviewCount?: string | number | null;
+  soldLabel?: string | null;
   short_description?: string | null;
   description_html?: string | null;
   description_plain?: string | null;
@@ -21,6 +30,28 @@ export interface PublicBusiness {
   created_at?: string;
   updated_at?: string;
   assets?: PublicBusinessAsset[];
+}
+
+export interface PublicBusinessCarouselItem {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  image?: string | null;
+  href?: string | null;
+}
+
+export interface PublicBusinessCarousel {
+  id: string;
+  businessId: string;
+  slot: string;
+  title: string;
+  subtitle?: string | null;
+  layoutType: "large" | "medium" | "banner";
+  isActive?: boolean;
+  sortOrder?: number;
+  items: PublicBusinessCarouselItem[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PublicBusinessProduct {
@@ -112,4 +143,6 @@ export interface PublicBusinessStore {
   products?: PublicBusinessProduct[];
   reviewSummary?: PublicBusinessReviewSummary | null;
   reviews?: PublicBusinessReview[] | null;
+  carousels?: PublicBusinessCarousel[] | null;
+  about?: any;
 }

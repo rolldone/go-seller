@@ -3,6 +3,7 @@ import { notifyError, notifySuccess } from "../../../lib/notification";
 import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import EntityDeleteModal from "../entities/EntityDeleteModal";
 import EntityFormModal from "../entities/EntityFormModal";
+import type { EntityField } from "../entities/types";
 
 type Category = {
   id: string;
@@ -15,7 +16,7 @@ type Category = {
   updated_at: string;
 };
 
-const fields = [
+const fields: EntityField[] = [
   { key: "name", label: "Name", type: "text", required: true },
   { key: "slug", label: "Slug", type: "text" },
   { key: "icon_url", label: "Icon URL", type: "text" },

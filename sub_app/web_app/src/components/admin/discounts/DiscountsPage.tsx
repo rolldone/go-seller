@@ -231,6 +231,7 @@ export default function DiscountsPage() {
       <EntityDeleteModal
         open={deleteOpen}
         title="Delete Discount"
+        itemName={selectedDiscount?.name ?? ""}
         description={`Hapus discount "${selectedDiscount?.name}"?`}
         submitting={deleteSubmitting}
         onClose={() => setDeleteOpen(false)}

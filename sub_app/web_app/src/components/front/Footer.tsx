@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Facebook, Instagram, Twitter, Mail, Phone, MapPin } from 'lucide-react';
+import { ShoppingBag, Mail, Phone, MapPin } from 'lucide-react';
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -22,14 +22,14 @@ const Footer = () => {
               Platform terbaik untuk menemukan produk berkualitas dari ribuan bisnis terpercaya di seluruh Indonesia.
             </p>
             <div className="flex gap-4">
-              <a href="#" className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
-                <Facebook className="w-5 h-5" />
+              <a href="#" className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors" aria-label="Social link 1">
+                <span className="text-sm font-semibold">f</span>
               </a>
-              <a href="#" className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
-                <Instagram className="w-5 h-5" />
+              <a href="#" className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors" aria-label="Social link 2">
+                <span className="text-sm font-semibold">ig</span>
               </a>
-              <a href="#" className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
-                <Twitter className="w-5 h-5" />
+              <a href="#" className="w-9 h-9 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors" aria-label="Social link 3">
+                <span className="text-sm font-semibold">x</span>
               </a>
             </div>
           </div>

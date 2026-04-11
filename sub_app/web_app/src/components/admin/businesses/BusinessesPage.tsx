@@ -3,6 +3,7 @@ import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi
 import EntityDeleteModal from "../entities/EntityDeleteModal";
 import EntityTable from "../entities/EntityTable";
 import BusinessFormModal from "./BusinessFormModal";
+import BusinessTranslationsModal from "./BusinessTranslationsModal";
 import type { Business, BusinessListResponse, BusinessPayload } from "./types";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 
@@ -31,6 +32,8 @@ export default function BusinessesPage() {
   const [selected, setSelected] = useState<Business | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [translationOpen, setTranslationOpen] = useState(false);
+  const [translationBusiness, setTranslationBusiness] = useState<Business | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -67,6 +70,11 @@ export default function BusinessesPage() {
   const handleDelete = (item: Business) => {
     setSelected(item);
     setDeleteOpen(true);
+  };
+
+  const handleTranslations = (item: Business) => {
+    setTranslationBusiness(item);
+    setTranslationOpen(true);
   };
 
   const handleConfirmDelete = async () => {
@@ -202,6 +210,15 @@ export default function BusinessesPage() {
         error={error}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        renderExtraActions={(item) => (
+          <button
+            type="button"
+            onClick={() => handleTranslations(item)}
+            className="rounded bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-200"
+          >
+            Translation
+          </button>
+        )}
       />
 
       <div className="flex items-center justify-between text-sm text-slate-600">
@@ -255,6 +272,15 @@ export default function BusinessesPage() {
           setSelected(null);
         }}
         onSubmit={handleSubmit}
+      />
+
+      <BusinessTranslationsModal
+        open={translationOpen}
+        business={translationBusiness}
+        onClose={() => {
+          setTranslationOpen(false);
+          setTranslationBusiness(null);
+        }}
       />
 
       <EntityDeleteModal

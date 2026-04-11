@@ -34,10 +34,9 @@ export default function BusinessStoreHeader({ business }: BusinessStoreHeaderPro
         .toUpperCase()
     : "";
   const fallbackLabel = initials || business.name?.at(0)?.toUpperCase() || "?";
-  // Mock rating data (display-only)
-  const MOCK_RATING = "4.8";
-  const MOCK_REVIEW_COUNT = "7.456";
-  const MOCK_SOLD_LABEL = "Terjual 1.2k+";
+  const businessRating = business.rating ?? "-";
+  const businessReviewCount = business.reviewCount ?? "-";
+  const businessSoldLabel = business.soldLabel ?? "-";
   return (
     <header className="mt-6 rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -77,7 +76,7 @@ export default function BusinessStoreHeader({ business }: BusinessStoreHeaderPro
         </div>
 
         <div className="text-right">
-          <p className="text-2xl font-bold text-slate-900">⭐ {MOCK_RATING} ({MOCK_REVIEW_COUNT}) · {MOCK_SOLD_LABEL}</p>
+          <p className="text-2xl font-bold text-slate-900">⭐ {businessRating} ({businessReviewCount}) · {businessSoldLabel}</p>
           <p className="text-sm text-slate-500">Rating & Ulasan</p>
 
         
