@@ -54,6 +54,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	loginLimiter := pluginhandlers.NewIPRateLimiter(getEnvInt("AUTH_LOGIN_RATE_LIMIT", 5), time.Minute)
 	forgotLimiter := pluginhandlers.NewIPRateLimiter(getEnvInt("AUTH_FORGOT_RATE_LIMIT", 3), time.Minute)
 	adminAuth.POST("/login", loginLimiter, authHandler.Login)
+	adminAuth.GET("/me", pluginhandlers.RequireAdminJWT(), authHandler.Me)
 	adminAuth.POST("/forgot-password", forgotLimiter, authHandler.ForgotPassword)
 	adminAuth.POST("/reset-password", authHandler.ResetPassword)
 	adminAuth.POST("/logout", pluginhandlers.RequireAdminJWT(), authHandler.Logout)

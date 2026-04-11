@@ -135,6 +135,17 @@ func (h *BusinessHandler) GetByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	locale := strings.TrimSpace(c.Query("locale"))
+	if locale != "" {
+		translationMap, err := h.svc.GetBusinessTranslationMapByBusinessIDs(c.Request.Context(), []string{item.ID}, locale)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if tr, ok := translationMap[item.ID]; ok {
+			applyBusinessTranslation(item, tr)
+		}
+	}
 	c.JSON(http.StatusOK, item)
 }
 
@@ -252,6 +263,17 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	locale := strings.TrimSpace(c.Query("locale"))
+	if locale != "" {
+		translationMap, err := h.svc.GetBusinessTranslationMapByBusinessIDs(c.Request.Context(), []string{item.ID}, locale)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if tr, ok := translationMap[item.ID]; ok {
+			applyBusinessTranslation(item, tr)
+		}
 	}
 
 	// assets are preloaded by service; ensure public_url is absolute

@@ -81,6 +81,42 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+func (h *AuthHandler) Me(c *gin.Context) {
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	if adminID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin authentication required"})
+		return
+	}
+
+	admin, err := h.svc.GetAdminByID(c.Request.Context(), adminID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if admin.IsBanned {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin account is inactive"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": gin.H{
+			"authenticated": true,
+			"admin": gin.H{
+				"id":              admin.ID,
+				"username":        admin.Username,
+				"email":           admin.Email,
+				"is_activated_at": admin.IsActivatedAt,
+				"is_banned":       admin.IsBanned,
+			},
+		},
+	})
+}
+
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var req forgotPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

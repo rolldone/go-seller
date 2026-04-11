@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"path/filepath"
+	"strings"
 
 	"go_framework/internal/uuid"
 	catalogmodels "go_framework/plugins/catalog/models"
@@ -36,7 +37,7 @@ func (s *CatalogService) CreateBusinessAsset(ctx context.Context, a *catalogmode
 	})
 }
 
-func (s *CatalogService) ListBusinessAssets(ctx context.Context, businessID string, page, limit int) ([]catalogmodels.BusinessAsset, int64, error) {
+func (s *CatalogService) ListBusinessAssets(ctx context.Context, businessID, folderID string, page, limit int) ([]catalogmodels.BusinessAsset, int64, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -47,6 +48,15 @@ func (s *CatalogService) ListBusinessAssets(ctx context.Context, businessID stri
 	q := s.DB.WithContext(ctx).Model(&catalogmodels.BusinessAsset{})
 	if businessID != "" {
 		q = q.Where("business_id = ?", businessID)
+	}
+
+	folderID = strings.TrimSpace(folderID)
+	if folderID != "" {
+		if folderID == "root" {
+			q = q.Where("folder_id IS NULL")
+		} else {
+			q = q.Where("folder_id = ?", folderID)
+		}
 	}
 
 	var total int64
@@ -60,6 +70,48 @@ func (s *CatalogService) ListBusinessAssets(ctx context.Context, businessID stri
 		return nil, 0, err
 	}
 	return rows, total, nil
+}
+
+func (s *CatalogService) MoveBusinessAssetToFolder(ctx context.Context, businessID, assetID string, folderID *string) error {
+	return s.DB.WithContext(ctx).
+		Model(&catalogmodels.BusinessAsset{}).
+		Where("id = ? AND business_id = ?", assetID, businessID).
+		Update("folder_id", folderID).Error
+}
+
+func (s *CatalogService) CopyBusinessAsset(ctx context.Context, businessID, assetID string, folderID *string) (*catalogmodels.BusinessAsset, error) {
+	original, err := s.GetBusinessAssetByID(ctx, assetID)
+	if err != nil {
+		return nil, err
+	}
+	if original.BusinessID != businessID {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	newID, err := uuid.New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate id: %w", err)
+	}
+
+	copyItem := &catalogmodels.BusinessAsset{
+		ID:           newID,
+		BusinessID:   original.BusinessID,
+		FolderID:     folderID,
+		FilePath:     original.FilePath,
+		FileType:     original.FileType,
+		MimeType:     original.MimeType,
+		FileSize:     original.FileSize,
+		OriginalName: original.OriginalName,
+		PublicURL:    original.PublicURL,
+		IsMain:       false,
+		UsageTag:     original.UsageTag,
+		DisplayOrder: original.DisplayOrder,
+	}
+
+	if err := s.CreateBusinessAsset(ctx, copyItem); err != nil {
+		return nil, err
+	}
+	return copyItem, nil
 }
 
 func (s *CatalogService) GetBusinessAssetByID(ctx context.Context, id string) (*catalogmodels.BusinessAsset, error) {
@@ -99,7 +151,7 @@ func (s *CatalogService) DeleteBusinessAssetByID(ctx context.Context, id string)
 	return res.RowsAffected, res.Error
 }
 
-func (s *CatalogService) UploadBusinessAsset(ctx context.Context, businessID string, fileHeader *multipart.FileHeader, fileType string, isMain bool, displayOrder int, usageTag string) (*catalogmodels.BusinessAsset, error) {
+func (s *CatalogService) UploadBusinessAsset(ctx context.Context, businessID string, folderID *string, fileHeader *multipart.FileHeader, fileType string, isMain bool, displayOrder int, usageTag string) (*catalogmodels.BusinessAsset, error) {
 	assetID, err := uuid.New()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate asset ID: %w", err)
@@ -136,6 +188,7 @@ func (s *CatalogService) UploadBusinessAsset(ctx context.Context, businessID str
 	asset := &catalogmodels.BusinessAsset{
 		ID:           assetID,
 		BusinessID:   businessID,
+		FolderID:     folderID,
 		FilePath:     storageKey,
 		FileType:     fileType,
 		MimeType:     mimeType,
@@ -186,7 +239,7 @@ func (s *CatalogService) ListBusinessAssetDerivatives(ctx context.Context, asset
 }
 
 // FinalizeBusinessAsset moves the file from ingest path to public path, validates it, and saves DB record.
-func (s *CatalogService) FinalizeBusinessAsset(ctx context.Context, businessID, assetID, ingestPath, mimeType string, width, height int, size int64, originalName string, isMain bool, displayOrder int, usageTag string) (*catalogmodels.BusinessAsset, error) {
+func (s *CatalogService) FinalizeBusinessAsset(ctx context.Context, businessID, assetID, ingestPath, mimeType string, width, height int, size int64, originalName string, isMain bool, displayOrder int, usageTag string, folderID *string) (*catalogmodels.BusinessAsset, error) {
 	// Validate image (allow common image formats). max size nil (use size param) but also check via ValidateImage
 	maxSize := int64(0)
 	// Try validate; if it's an image we validate dimensions
@@ -219,6 +272,7 @@ func (s *CatalogService) FinalizeBusinessAsset(ctx context.Context, businessID, 
 	asset := &catalogmodels.BusinessAsset{
 		ID:           assetID,
 		BusinessID:   businessID,
+		FolderID:     folderID,
 		FilePath:     publicKey,
 		FileType:     detectFileType(mimeType),
 		MimeType:     mimeType,

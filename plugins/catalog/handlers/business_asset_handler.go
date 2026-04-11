@@ -24,6 +24,7 @@ func NewBusinessAssetHandler(svc *catalogservices.CatalogService) *BusinessAsset
 
 type createBusinessAssetRequest struct {
 	BusinessID   string `json:"business_id"`
+	FolderID     string `json:"folder_id"`
 	FilePath     string `json:"file_path"`
 	FileType     string `json:"file_type"`
 	IsMain       bool   `json:"is_main"`
@@ -46,7 +47,11 @@ func (h *BusinessAssetHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
 		return
 	}
-	item := &catalogmodels.BusinessAsset{ID: id, BusinessID: req.BusinessID, FilePath: req.FilePath, FileType: req.FileType, IsMain: req.IsMain, DisplayOrder: req.DisplayOrder, UsageTag: req.UsageTag}
+	var folderID *string
+	if v := strings.TrimSpace(req.FolderID); v != "" {
+		folderID = &v
+	}
+	item := &catalogmodels.BusinessAsset{ID: id, BusinessID: req.BusinessID, FolderID: folderID, FilePath: req.FilePath, FileType: req.FileType, IsMain: req.IsMain, DisplayOrder: req.DisplayOrder, UsageTag: req.UsageTag}
 	if err := h.svc.CreateBusinessAsset(c.Request.Context(), item); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -56,10 +61,11 @@ func (h *BusinessAssetHandler) Create(c *gin.Context) {
 
 func (h *BusinessAssetHandler) List(c *gin.Context) {
 	businessID := c.Param("business_id")
+	folderID := c.Query("folder_id")
 	page := parseIntParam(c.Query("page"), 1)
 	limit := parseIntParam(c.Query("limit"), 20)
 
-	items, total, err := h.svc.ListBusinessAssets(c.Request.Context(), businessID, page, limit)
+	items, total, err := h.svc.ListBusinessAssets(c.Request.Context(), businessID, folderID, page, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -127,6 +133,18 @@ func (h *BusinessAssetHandler) Update(c *gin.Context) {
 	if v, ok := payload["file_type"].(string); ok && v != "" {
 		item.FileType = v
 	}
+	if v, exists := payload["folder_id"]; exists {
+		if v == nil {
+			item.FolderID = nil
+		} else if s, ok := v.(string); ok {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				item.FolderID = nil
+			} else {
+				item.FolderID = &s
+			}
+		}
+	}
 	if v, exists := payload["usage_tag"]; exists {
 		if v == nil {
 			item.UsageTag = ""
@@ -175,6 +193,10 @@ func (h *BusinessAssetHandler) Upload(c *gin.Context) {
 	isMain := c.PostForm("is_main") == "true"
 	displayOrder := parseIntParam(c.PostForm("display_order"), 0)
 	usageTag := c.PostForm("usage_tag")
+	var folderID *string
+	if v := strings.TrimSpace(c.PostForm("folder_id")); v != "" {
+		folderID = &v
+	}
 
 	fileHeader, err := c.FormFile("file")
 	if err != nil {
@@ -188,7 +210,7 @@ func (h *BusinessAssetHandler) Upload(c *gin.Context) {
 		return
 	}
 
-	asset, err := h.svc.UploadBusinessAsset(c.Request.Context(), businessID, fileHeader, fileType, isMain, displayOrder, usageTag)
+	asset, err := h.svc.UploadBusinessAsset(c.Request.Context(), businessID, folderID, fileHeader, fileType, isMain, displayOrder, usageTag)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -218,6 +240,7 @@ type finalizeBusinessAssetRequest struct {
 	IsMain       bool   `json:"isMain"`
 	DisplayOrder int    `json:"displayOrder"`
 	UsageTag     string `json:"usageTag"`
+	FolderID     string `json:"folderId"`
 }
 
 // Finalize moves ingest file to public, validates and creates DB record
@@ -230,7 +253,12 @@ func (h *BusinessAssetHandler) Finalize(c *gin.Context) {
 		return
 	}
 
-	asset, err := h.svc.FinalizeBusinessAsset(c.Request.Context(), businessID, assetID, req.IngestPath, req.MimeType, req.Width, req.Height, req.Size, req.OriginalName, req.IsMain, req.DisplayOrder, req.UsageTag)
+	var folderID *string
+	if v := strings.TrimSpace(req.FolderID); v != "" {
+		folderID = &v
+	}
+
+	asset, err := h.svc.FinalizeBusinessAsset(c.Request.Context(), businessID, assetID, req.IngestPath, req.MimeType, req.Width, req.Height, req.Size, req.OriginalName, req.IsMain, req.DisplayOrder, req.UsageTag, folderID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -371,4 +399,71 @@ func (h *BusinessAssetHandler) PublicGetDerivative(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, found)
+}
+
+func (h *BusinessAssetHandler) Move(c *gin.Context) {
+	businessID := c.Param("business_id")
+	assetID := c.Param("asset_id")
+	var payload struct {
+		FolderID *string `json:"folder_id"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if payload.FolderID != nil {
+		v := strings.TrimSpace(*payload.FolderID)
+		if v == "" {
+			payload.FolderID = nil
+		} else {
+			payload.FolderID = &v
+		}
+	}
+
+	if err := h.svc.MoveBusinessAssetToFolder(c.Request.Context(), businessID, assetID, payload.FolderID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "asset moved"})
+}
+
+func (h *BusinessAssetHandler) Copy(c *gin.Context) {
+	businessID := c.Param("business_id")
+	assetID := c.Param("asset_id")
+	var payload struct {
+		FolderID *string `json:"folder_id"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if payload.FolderID != nil {
+		v := strings.TrimSpace(*payload.FolderID)
+		if v == "" {
+			payload.FolderID = nil
+		} else {
+			payload.FolderID = &v
+		}
+	}
+
+	item, err := h.svc.CopyBusinessAsset(c.Request.Context(), businessID, assetID, payload.FolderID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if item != nil {
+		if item.PublicURL != "" && strings.HasPrefix(item.PublicURL, "/") {
+			base := strings.TrimRight(os.Getenv("APP_URL"), "/")
+			item.PublicURL = base + item.PublicURL
+		}
+	}
+
+	c.JSON(http.StatusCreated, item)
 }
