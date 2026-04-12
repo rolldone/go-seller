@@ -38,6 +38,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	if localStore, ok := p.service.Store.(*storage.LocalStore); ok {
 		router.Static("/assets/businesses", localStore.GetRoot()+"/businesses")
 		router.Static("/assets/products", localStore.GetRoot()+"/products")
+		router.Static("/assets/reviews", localStore.GetRoot()+"/reviews")
 	}
 
 	// Public friendly business route, e.g. /b/:slug

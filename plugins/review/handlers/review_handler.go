@@ -32,6 +32,35 @@ type upsertReviewRequest struct {
 	QuestionText string `json:"question_text"`
 }
 
+func parseReviewMultipart(c *gin.Context) (reviewservices.UpsertReviewInput, error) {
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+		return reviewservices.UpsertReviewInput{}, err
+	}
+	rating, err := strconv.Atoi(strings.TrimSpace(c.PostForm("rating")))
+	if err != nil {
+		return reviewservices.UpsertReviewInput{}, errors.New("rating is required")
+	}
+	input := reviewservices.UpsertReviewInput{
+		Rating:       rating,
+		ReviewText:   c.PostForm("review_text"),
+		QuestionText: c.PostForm("question_text"),
+	}
+	form := c.Request.MultipartForm
+	if form != nil {
+		files := form.File["attachments"]
+		if len(files) == 0 {
+			files = form.File["attachments[]"]
+		}
+		if len(files) > 0 {
+			if len(files) > 5 {
+				return reviewservices.UpsertReviewInput{}, errors.New("maksimal 5 file lampiran")
+			}
+			input.Attachments = files
+		}
+	}
+	return input, nil
+}
+
 func (h *ReviewHandler) RegisterRoutes(admin *gin.RouterGroup, api *gin.RouterGroup) {
 	if admin != nil {
 		adminReview := admin.Group("/review")
@@ -45,6 +74,7 @@ func (h *ReviewHandler) RegisterRoutes(admin *gin.RouterGroup, api *gin.RouterGr
 	}
 
 	apiReview := api.Group("/review")
+	apiReview.GET("/businesses/:business_id", h.GetBusinessReviews)
 	apiReview.GET("/products/:product_id", h.ListProductReviews)
 	apiReview.GET("/products/:product_id/stats", h.GetProductReviewStats)
 
@@ -99,15 +129,26 @@ func (h *ReviewHandler) UpsertMyOrderItemReview(c *gin.Context) {
 	}
 
 	var req upsertReviewRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	var input reviewservices.UpsertReviewInput
+	if strings.Contains(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
+		parsed, parseErr := parseReviewMultipart(c)
+		if parseErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": parseErr.Error()})
+			return
+		}
+		input = parsed
+	} else {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		input = reviewservices.UpsertReviewInput{
+			Rating:       req.Rating,
+			ReviewText:   req.ReviewText,
+			QuestionText: req.QuestionText,
+		}
 	}
-	review, err := h.svc.UpsertMyOrderItemReview(c.Request.Context(), customerID, orderID, itemID, reviewservices.UpsertReviewInput{
-		Rating:       req.Rating,
-		ReviewText:   req.ReviewText,
-		QuestionText: req.QuestionText,
-	})
+	review, err := h.svc.UpsertMyOrderItemReview(c.Request.Context(), customerID, orderID, itemID, input)
 	if err != nil {
 		switch {
 		case errors.Is(err, reviewservices.ErrOrderNotFound), errors.Is(err, reviewservices.ErrOrderItemNotFound):
@@ -166,6 +207,25 @@ func (h *ReviewHandler) GetProductReviewStats(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": stats})
+}
+
+func (h *ReviewHandler) GetBusinessReviews(c *gin.Context) {
+	if h == nil || h.svc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "review service not configured"})
+		return
+	}
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	overview, err := h.svc.GetBusinessReviewOverview(c.Request.Context(), businessID, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": overview})
 }
 
 func (h *ReviewHandler) ListAllProductReviews(c *gin.Context) {

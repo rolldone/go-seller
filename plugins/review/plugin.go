@@ -22,7 +22,7 @@ func New() plugins.Plugin { return &Plugin{} }
 func (p *Plugin) ID() string { return "review" }
 
 func (p *Plugin) RegisterServices(deps plugins.ServiceDeps) error {
-	p.service = pluginservices.New(deps.DB)
+	p.service = pluginservices.New(deps.DB, deps.Store)
 	return nil
 }
 
