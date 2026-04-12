@@ -108,6 +108,19 @@ export interface PublicBusinessReview {
   helpfulCount: number;
   hasMedia?: boolean;
   topics?: string[];
+  attachments?: PublicBusinessReviewAttachment[];
+}
+
+export interface PublicBusinessReviewAttachment {
+  name?: string;
+  storageKey?: string;
+  storage_key?: string;
+  publicUrl?: string;
+  public_url?: string;
+  mimeType?: string;
+  mime_type?: string;
+  fileSize?: number;
+  file_size?: number;
 }
 
 export interface PublicBusinessAsset {

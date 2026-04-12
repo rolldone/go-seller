@@ -63,6 +63,7 @@ export type Order = {
   discount_amount: number;
   tax_amount: number;
   shipping_amount: number;
+  fulfillment_type?: string;
   grand_total: number;
   notes?: string | null;
   metadata?: unknown;

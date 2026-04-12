@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import type { Product } from "../products/types";
-import { adminDelete, adminGet, adminPost, adminPostForm, adminGetBlob, adminPatch } from "../entities/adminApi";
+import { adminDelete, adminGet, adminPost, adminPatch } from "../entities/adminApi";
 import ProductSelectorModal from "./ProductSelectorModal";
-import type { AppliedCoupon, Order, Payment } from "../orders/types";
-import type { Discount } from "../discounts/types";
+import type { AppliedCoupon, Order } from "../orders/types";
 import DiscountSelector from "../discounts/DiscountSelector";
-import AdminModal from "../ui/AdminModal";
 
 type CustomerOption = {
   id: string;
@@ -21,25 +19,6 @@ type BusinessOption = {
 
 type OrderCreateResponse = {
   data: Order;
-};
-
-type PaymentProviderOption = {
-  id: string;
-  name: string;
-  provider_key: string;
-  is_active: boolean;
-};
-
-type PaymentProof = {
-  id: string;
-  payment_id: string;
-  public_url?: string | null;
-  storage_key?: string | null;
-  mime_type?: string | null;
-  file_size?: number | null;
-  notes?: string | null;
-  status?: string;
-  created_at?: string;
 };
 
 function readAdminIDFromToken(): string {
@@ -74,6 +53,7 @@ export default function PosPage() {
   const [customerID, setCustomerID] = useState("");
   const [businessID, setBusinessID] = useState("");
   const [currency, setCurrency] = useState("IDR");
+  const [fulfillmentType, setFulfillmentType] = useState("delivery");
 
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -85,12 +65,6 @@ export default function PosPage() {
 
   const [draftOrder, setDraftOrder] = useState<Order | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [providers, setProviders] = useState<PaymentProviderOption[]>([]);
-  const [selectedProviderID, setSelectedProviderID] = useState("");
-  const [proofFiles, setProofFiles] = useState<Record<string, File[]>>({});
-  const [proofModalPaymentID, setProofModalPaymentID] = useState("");
-  const [proofsByPayment, setProofsByPayment] = useState<Record<string, PaymentProof[]>>({});
-  const [recheckStatus, setRecheckStatus] = useState<Record<string, string>>({});
 
   // coupon state
   const [couponCode, setCouponCode] = useState("");
@@ -143,24 +117,6 @@ export default function PosPage() {
     })();
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const sp = new URLSearchParams();
-        sp.set("include_inactive", "true");
-        if (businessID) sp.set("business_id", businessID);
-        const res = await adminGet<{ data: PaymentProviderOption[] }>(`/admin/order/payment-providers?${sp.toString()}`);
-        const allProviders = res.data || [];
-        setProviders(allProviders);
-        if (allProviders.length === 1) {
-          setSelectedProviderID(allProviders[0].id);
-        }
-      } catch {
-        setProviders([]);
-      }
-    })();
-  }, [businessID]);
-
   // load order if order_id provided in query string (open existing draft)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -170,7 +126,7 @@ export default function PosPage() {
         try {
           await loadOrderDetail(orderId);
         } catch (err) {
-          notifyError(err instanceof Error ? err.message : "Gagal memuat order");
+          notifyError(err instanceof Error ? err.message : "Failed to load order");
           // optional: redirect back to orders
           window.location.href = "/admin/orders";
         }
@@ -184,52 +140,24 @@ export default function PosPage() {
     setUserID(detail.data.order.user_id || "");
     setCustomerID(detail.data.order.customer_id || "");
     setBusinessID(detail.data.order.business_id || "");
+    setFulfillmentType(detail.data.order.fulfillment_type || "delivery");
     setCurrency(detail.data.order.currency || "IDR");
   };
 
-  const loadProofsForPayment = async (paymentID: string) => {
-    try {
-      const res = await adminGet<{ data: PaymentProof[] }>(`/admin/order/payments/${paymentID}/proofs`);
-      setProofsByPayment((p) => ({ ...p, [paymentID]: res.data || [] }));
-    } catch {
-      setProofsByPayment((p) => ({ ...p, [paymentID]: [] }));
-    }
-  };
-
-  const openProofModal = async (paymentID: string) => {
-    setProofModalPaymentID(paymentID);
-    await loadProofsForPayment(paymentID);
-  };
-
-  const deleteProof = async (proofID: string) => {
+  const syncDraftOrderFields = async (nextFields: { customerID?: string | null; fulfillmentType?: string } = {}) => {
     if (!draftOrder) return;
-    if (!proofModalPaymentID) return;
-    if (!window.confirm("Hapus bukti ini?")) return;
+    const nextCustomerID = nextFields.customerID ?? customerID ?? null;
+    const nextFulfillmentType = nextFields.fulfillmentType ?? fulfillmentType;
     setSubmitting(true);
     try {
-      await adminDelete(`/admin/order/payments/${proofModalPaymentID}/proofs/${proofID}`);
+      await adminPatch(`/admin/order/orders/${draftOrder.id}`, {
+        customer_id: nextCustomerID || null,
+        fulfillment_type: nextFulfillmentType,
+      });
       await loadOrderDetail(draftOrder.id);
-      await loadProofsForPayment(proofModalPaymentID);
-      notifySuccess("Bukti dihapus");
+      notifySuccess("Draft order updated");
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal menghapus bukti");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const openProofPublicURL = async (proofID: string) => {
-    if (!proofModalPaymentID) return;
-    setSubmitting(true);
-    try {
-      // Use proxy streaming endpoint which requires admin auth; fetch as blob
-      const blob = await adminGetBlob(`/admin/order/payments/${proofModalPaymentID}/proofs/${proofID}/access`);
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-      // revoke after a short delay to allow browser to load
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal membuka bukti");
+      notifyError(err instanceof Error ? err.message : "Failed to save draft order");
     } finally {
       setSubmitting(false);
     }
@@ -239,16 +167,17 @@ export default function PosPage() {
     if (draftOrder) return draftOrder;
     const adminID = readAdminIDFromToken();
     if (!adminID) {
-      throw new Error("Admin token tidak valid, silakan login ulang");
+      throw new Error("Invalid admin token, please sign in again");
     }
     if (!businessID) {
-      throw new Error("Business wajib dipilih");
+      throw new Error("Business is required");
     }
     const payload = {
       admin_id: adminID,
       user_id: userID || undefined,
       customer_id: customerID || undefined,
       business_id: businessID,
+      fulfillment_type: fulfillmentType,
       currency,
       is_draft: true,
     };
@@ -259,16 +188,16 @@ export default function PosPage() {
 
   const addLine = async () => {
     if (!selectedProduct) {
-      notifyError("Pilih product dulu");
+      notifyError("Select a product first");
       return;
     }
     if (qty <= 0) {
-      notifyError("Qty harus lebih dari 0");
+      notifyError("Quantity must be greater than 0");
       return;
     }
     const price = unitPrice > 0 ? unitPrice : Number((selectedProduct.sale_price ?? selectedProduct.price) || 0);
     if (price <= 0) {
-      notifyError("Unit price harus diisi");
+      notifyError("Unit price is required");
       return;
     }
 
@@ -287,9 +216,9 @@ export default function PosPage() {
       setSelectedProduct(null);
       setQty(1);
       setUnitPrice(0);
-      notifySuccess("Item ditambahkan ke order");
+      notifySuccess("Item added to order");
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal menambahkan item");
+      notifyError(err instanceof Error ? err.message : "Failed to add item");
     } finally {
       setSubmitting(false);
     }
@@ -301,9 +230,9 @@ export default function PosPage() {
     try {
       await adminDelete(`/admin/order/orders/${draftOrder.id}/items/${itemID}`);
       await loadOrderDetail(draftOrder.id);
-      notifySuccess("Item dihapus");
+      notifySuccess("Item removed");
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal menghapus item");
+      notifyError(err instanceof Error ? err.message : "Failed to remove item");
     } finally {
       setSubmitting(false);
     }
@@ -311,7 +240,7 @@ export default function PosPage() {
 
   const openDiscountSelector = async (itemID: string, productID?: string | null) => {
     if (!productID) {
-      notifyError("Item ini tidak memiliki product_id");
+      notifyError("This item does not have a product_id");
       return;
     }
     setDiscountTargetItemID(itemID);
@@ -325,26 +254,26 @@ export default function PosPage() {
     try {
       await adminDelete(`/admin/order/orders/${draftOrder.id}/items/${itemID}/discount`);
       await loadOrderDetail(draftOrder.id);
-      notifySuccess("Discount item dihapus");
+      notifySuccess("Item discount removed");
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal menghapus discount item");
+      notifyError(err instanceof Error ? err.message : "Failed to remove item discount");
     } finally {
       setSubmitting(false);
     }
   };
 
   const applyCoupon = async () => {
-    if (!draftOrder) { notifyError("Buat draft order dulu"); return; }
-    if (!couponCode.trim()) { notifyError("Masukkan kode kupon"); return; }
+    if (!draftOrder) { notifyError("Create a draft order first"); return; }
+    if (!couponCode.trim()) { notifyError("Enter a coupon code"); return; }
     setCouponApplying(true);
     try {
       await adminPost(`/admin/order/orders/${draftOrder.id}/coupon`, { coupon_code: couponCode.trim() });
       await loadOrderDetail(draftOrder.id);
-      notifySuccess("Kupon berhasil diterapkan");
+      notifySuccess("Coupon applied successfully");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Kupon tidak valid";
+      const message = err instanceof Error ? err.message : "Invalid coupon";
       if (message.toLowerCase().includes("same category")) {
-        notifyError("Kupon dengan kategori yang sama tidak bisa digabung dalam 1 order.");
+        notifyError("Coupons from the same category cannot be combined in one order.");
       } else {
         notifyError(message);
       }
@@ -359,9 +288,9 @@ export default function PosPage() {
     try {
       await adminDelete(`/admin/order/orders/${draftOrder.id}/coupon/${encodeURIComponent(code)}`);
       await loadOrderDetail(draftOrder.id);
-      notifySuccess("Kupon dihapus");
+      notifySuccess("Coupon removed");
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal menghapus kupon");
+      notifyError(err instanceof Error ? err.message : "Failed to remove coupon");
     } finally {
       setCouponApplying(false);
     }
@@ -369,121 +298,21 @@ export default function PosPage() {
 
   const onSubmit = async () => {
     if (!draftOrder) {
-      notifyError("Belum ada draft order");
+      notifyError("No draft order yet");
       return;
     }
     if (!draftOrder.order_items || draftOrder.order_items.length === 0) {
-      notifyError("Tambahkan minimal 1 item");
+      notifyError("Add at least 1 item");
       return;
     }
 
     setSubmitting(true);
     try {
       await adminPost(`/admin/order/orders/${draftOrder.id}/finalize`);
-      notifySuccess(`Order ${draftOrder.order_number} berhasil dibuat`);
-      window.location.href = "/admin/orders";
+      notifySuccess(`Order ${draftOrder.order_number} created successfully`);
+      window.location.href = `/admin/orders?order_id=${encodeURIComponent(draftOrder.id)}`;
     } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal membuat order");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const createPaymentRecord = async () => {
-    if (!draftOrder) {
-      notifyError("Buat draft order dulu");
-      return;
-    }
-    if (!selectedProviderID) {
-      notifyError("Pilih payment provider dulu");
-      return;
-    }
-    const provider = providers.find((item) => item.id === selectedProviderID);
-    if (!provider) {
-      notifyError("Provider tidak ditemukan");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      await adminPost<{ data: Payment }>("/admin/order/payments", {
-        order_id: draftOrder.id,
-        amount: grandTotal,
-        currency,
-        provider_id: provider.id,
-        provider_key: provider.provider_key,
-        payment_method: provider.provider_key,
-        gateway_name: provider.provider_key,
-      });
-      await loadOrderDetail(draftOrder.id);
-      notifySuccess("Payment berhasil dibuat");
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal membuat payment");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const uploadProof = async (paymentID: string) => {
-    const files = proofFiles[paymentID] || [];
-    if (!files || files.length === 0) {
-      notifyError("Pilih minimal 1 file bukti dulu");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append("proof", file);
-        // upload sequentially to keep it simple and preserve order
-        await adminPostForm<{ data: unknown }>(`/admin/order/payments/${paymentID}/proof`, formData);
-      }
-      if (draftOrder) {
-        await loadOrderDetail(draftOrder.id);
-      }
-      await loadProofsForPayment(paymentID);
-      setProofFiles((prev) => ({ ...prev, [paymentID]: [] }));
-      setProofModalPaymentID("");
-      notifySuccess("Bukti transfer berhasil diupload");
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal upload bukti");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const recheckGateway = async (paymentID: string) => {
-    setSubmitting(true);
-    try {
-      await adminPost(`/admin/order/payments/${paymentID}/recheck`, {
-        resolved_status: recheckStatus[paymentID] || "succeeded",
-      });
-      if (draftOrder) {
-        await loadOrderDetail(draftOrder.id);
-      }
-      notifySuccess("Recheck payment berhasil");
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal recheck payment");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const cancelPayment = async (paymentID: string) => {
-    if (!draftOrder) return;
-    const reason = window.prompt("Alasan penolakan (wajib):");
-    if (reason === null) return; // user cancelled prompt
-    if (!reason.trim()) {
-      notifyError("Alasan harus diisi");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await adminPost(`/admin/order/payments/${paymentID}/reject`, { notes: reason.trim() });
-      await loadOrderDetail(draftOrder.id);
-      notifySuccess("Payment ditolak");
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Gagal menolak payment");
+      notifyError(err instanceof Error ? err.message : "Failed to create order");
     } finally {
       setSubmitting(false);
     }
@@ -494,10 +323,13 @@ export default function PosPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-slate-900">Internal POS</h3>
-          <p className="text-sm text-slate-600">Buat order internal oleh admin (item langsung tersimpan ke order detail).</p>
+          <p className="text-sm text-slate-600">Create internal orders as an admin (items are saved directly to the order details).</p>
           {draftOrder ? <p className="text-xs text-slate-500">Draft: {draftOrder.order_number}</p> : null}
         </div>
-        <a href="/admin/orders" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+        <a
+          href={draftOrder?.id ? `/admin/orders?order_id=${encodeURIComponent(draftOrder.id)}` : "/admin/orders"}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+        >
           Back to Orders
         </a>
       </div>
@@ -511,18 +343,7 @@ export default function PosPage() {
               const val = e.target.value;
               setCustomerID(val);
               setUserID(val);
-              if (!draftOrder) return;
-              setSubmitting(true);
-              try {
-                // send PATCH to update customer_id on existing draft
-                await adminPatch(`/admin/order/orders/${draftOrder.id}`, { customer_id: val || null });
-                await loadOrderDetail(draftOrder.id);
-                notifySuccess("Customer disimpan pada draft order");
-              } catch (err) {
-                notifyError(err instanceof Error ? err.message : "Gagal menyimpan customer");
-              } finally {
-                setSubmitting(false);
-              }
+              await syncDraftOrderFields({ customerID: val || null });
             }}
             className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
           >
@@ -530,6 +351,22 @@ export default function PosPage() {
             {customers.map((c) => (
               <option key={c.id} value={c.id}>{c.name || c.email || c.id}</option>
             ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">Fulfillment</label>
+          <select
+            value={fulfillmentType}
+            onChange={async (e) => {
+              const val = e.target.value === "pickup" ? "pickup" : "delivery";
+              setFulfillmentType(val);
+              await syncDraftOrderFields({ fulfillmentType: val });
+            }}
+            className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="delivery">Delivery</option>
+            <option value="pickup">Pickup</option>
           </select>
         </div>
 
@@ -564,7 +401,7 @@ export default function PosPage() {
                 </div>
               </div>
             ) : (
-              <span className="text-slate-500">Belum ada product dipilih.</span>
+              <span className="text-slate-500">No product selected yet.</span>
             )}
           </div>
           <input
@@ -618,7 +455,7 @@ export default function PosPage() {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h4 className="text-sm font-semibold text-slate-900">Order Items</h4>
         {!draftOrder || !draftOrder.order_items || draftOrder.order_items.length === 0 ? (
-          <p className="mt-3 text-sm text-slate-600">Belum ada item.</p>
+          <p className="mt-3 text-sm text-slate-600">No items yet.</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -685,7 +522,7 @@ export default function PosPage() {
 
         {/* Coupon input */}
         <div className="mt-4 border-t border-slate-200 pt-4">
-          <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Kupon / Promo</h5>
+          <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Coupon / Promo</h5>
           {/* Applied coupons list — one badge per coupon with remove button */}
           {(draftOrder?.applied_coupons ?? []).length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
@@ -698,7 +535,7 @@ export default function PosPage() {
                     onClick={() => removeCoupon(ac.code)}
                     disabled={couponApplying}
                     className="ml-1 text-rose-400 hover:text-rose-600 disabled:opacity-50 text-xs leading-none"
-                    title="Hapus kupon"
+                    title="Remove coupon"
                   >
                     ✕
                   </button>
@@ -713,7 +550,7 @@ export default function PosPage() {
               value={couponCode}
               onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
               onKeyDown={(e) => e.key === "Enter" && applyCoupon()}
-              placeholder="Tambah kode kupon lagi…"
+              placeholder="Add another coupon code…"
               className="rounded border border-slate-300 px-3 py-2 text-sm uppercase flex-1 max-w-xs"
               disabled={!draftOrder}
             />
@@ -723,10 +560,10 @@ export default function PosPage() {
               disabled={couponApplying || !draftOrder || !couponCode.trim()}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
-              {couponApplying ? "..." : "Terapkan"}
+              {couponApplying ? "..." : "Apply"}
             </button>
           </div>
-          <p className="mt-1 text-xs text-slate-400">Kupon bisa digabung jika kategorinya berbeda: product, shipping, cashback.</p>
+          <p className="mt-1 text-xs text-slate-400">Coupons can be combined when their categories differ: product, shipping, cashback.</p>
         </div>
 
         {/* Summary totals */}
@@ -750,23 +587,27 @@ export default function PosPage() {
               )}
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="flex justify-between text-sm text-slate-600">
-              <span>Pajak</span>
+              <span>Tax</span>
               <span>{taxAmount.toLocaleString("id-ID")}</span>
             </div>
             {taxBreakdown.length > 0 ? (
               <div className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600">
                 {taxBreakdown.map((group) => (
                   <div key={`${group.taxType}-${group.taxRate}`} className="flex justify-between gap-3">
-                    <span className="capitalize text-slate-500">Pajak {formatTaxMode(group.taxType, group.taxRate)}</span>
+                    <span className="capitalize text-slate-500">Tax {formatTaxMode(group.taxType, group.taxRate)}</span>
                     <span className="font-medium text-slate-800">{group.amount.toLocaleString("id-ID")}</span>
                   </div>
                 ))}
               </div>
             ) : null}
           </div>
+          <div className="flex justify-between text-sm text-slate-600">
+            <span>Fulfillment</span>
+            <span>{fulfillmentType === "pickup" ? "Pickup" : "Delivery"}</span>
+          </div>
           {shippingAmount > 0 && (
             <div className="flex justify-between text-sm text-slate-600">
-              <span>Ongkir</span>
+              <span>Shipping</span>
               <span>{shippingAmount.toLocaleString("id-ID")}</span>
             </div>
           )}
@@ -777,28 +618,6 @@ export default function PosPage() {
         </div>
 
         <div className="mt-4 flex justify-end gap-2">
-          <div className="mr-auto flex flex-wrap items-center gap-2">
-            <select
-              value={selectedProviderID}
-              onChange={(e) => setSelectedProviderID(e.target.value)}
-              className="rounded border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="">Select payment provider</option>
-              {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.name} ({provider.provider_key})
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={createPaymentRecord}
-              disabled={submitting || !draftOrder}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-            >
-              Create Payment
-            </button>
-          </div>
           <button
             type="button"
             onClick={async () => {
@@ -809,9 +628,9 @@ export default function PosPage() {
                   await adminDelete(`/admin/order/orders/${draftOrder.id}/items/${item.id}`);
                 }
                 await loadOrderDetail(draftOrder.id);
-                notifySuccess("Semua item dihapus");
+                notifySuccess("All items removed");
               } catch (err) {
-                notifyError(err instanceof Error ? err.message : "Gagal clear item");
+                notifyError(err instanceof Error ? err.message : "Failed to clear items");
               } finally {
                 setSubmitting(false);
               }
@@ -831,102 +650,6 @@ export default function PosPage() {
           </button>
         </div>
 
-        <div className="mt-4 border-t border-slate-200 pt-4">
-          <h5 className="text-sm font-semibold text-slate-900">Payments</h5>
-          {!draftOrder?.payments || draftOrder.payments.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">Belum ada payment.</p>
-          ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Provider</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-right">Amount</th>
-                    <th className="px-3 py-2 text-left">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {draftOrder.payments.map((payment) => {
-                    const providerKey = (payment.provider_key || "").toLowerCase();
-                    const isBank = providerKey === "bank_transfer";
-                    const isCash = providerKey === "cash_money" || providerKey === "cash";
-                    const isGateway = providerKey !== "" && providerKey !== "bank_transfer" && providerKey !== "cash_money" && providerKey !== "cash";
-                    return (
-                      <tr key={payment.id}>
-                        <td className="px-3 py-2 text-slate-800">
-                          {(payment.provider_key || payment.gateway_name || payment.payment_method || "-")}
-                        </td>
-                        <td className="px-3 py-2 text-slate-700">
-                          {payment.status}
-                          {payment.proof_status ? ` / proof:${payment.proof_status}` : ""}
-                        </td>
-                        <td className="px-3 py-2 text-right text-slate-900">
-                          {payment.amount.toLocaleString("id-ID")} {payment.currency}
-                        </td>
-                        <td className="px-3 py-2">
-                          {payment.status === "cancelled" ? null : (
-                            <div className="flex items-center gap-2">
-                              {(isBank || isCash) ? (
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => openProofModal(payment.id)}
-                                    className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                                  >
-                                    Manage Proofs
-                                  </button>
-                                  {(proofsByPayment[payment.id] || []).length > 0 ? (
-                                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                                      {(proofsByPayment[payment.id] || []).length} bukti
-                                    </span>
-                                  ) : null}
-                                </div>
-                              ) : null}
-
-                              {isGateway ? (
-                                <div className="flex items-center gap-2">
-                                  <select
-                                    value={recheckStatus[payment.id] || "succeeded"}
-                                    onChange={(e) => setRecheckStatus((prev) => ({ ...prev, [payment.id]: e.target.value }))}
-                                    className="rounded border border-slate-300 px-2 py-1 text-xs"
-                                  >
-                                    <option value="succeeded">succeeded</option>
-                                    <option value="pending">pending</option>
-                                    <option value="failed">failed</option>
-                                  </select>
-                                  <button
-                                    type="button"
-                                    onClick={() => recheckGateway(payment.id)}
-                                    className="rounded border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
-                                  >
-                                    Recheck Gateway
-                                  </button>
-                                </div>
-                              ) : null}
-
-                              {/* Cancel: allow for bank_transfer and cash even if proofs exist */}
-                              {(payment.status === "pending" || payment.status === "pending_verification") && !payment.provider_transaction_id && !payment.gateway_transaction_id && (isBank || isCash || (!((proofsByPayment[payment.id] || []).length > 0))) ? (
-                                <button
-                                  type="button"
-                                  onClick={() => cancelPayment(payment.id)}
-                                  disabled={submitting}
-                                  className="ml-2 rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-                                >
-                                  Reject
-                                </button>
-                              ) : null}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
       </section>
 
       <ProductSelectorModal
@@ -953,108 +676,15 @@ export default function PosPage() {
             await adminPost(`/admin/order/orders/${draftOrder.id}/items/${discountTargetItemID}/discount`, { discount_id: discount.id });
             await loadOrderDetail(draftOrder.id);
             setDiscountSelectorOpen(false);
-            notifySuccess("Discount diterapkan");
+            notifySuccess("Discount applied");
           } catch (err) {
-            notifyError(err instanceof Error ? err.message : "Gagal menerapkan discount");
+            notifyError(err instanceof Error ? err.message : "Failed to apply discount");
           } finally {
             setSubmitting(false);
           }
         }}
       />
 
-      <AdminModal
-        open={Boolean(proofModalPaymentID)}
-        title="Upload Bukti Pembayaran"
-        onClose={() => {
-          setProofModalPaymentID("");
-        }}
-        maxWidth="md"
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setProofModalPaymentID("")}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-            >
-              Batal
-            </button>
-            <button
-              type="button"
-              onClick={() => uploadProof(proofModalPaymentID)}
-              disabled={submitting || !proofModalPaymentID}
-              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              Upload
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          {(proofsByPayment[proofModalPaymentID] || []).length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-slate-600">Bukti yang sudah diupload</p>
-              <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2">
-                {(proofsByPayment[proofModalPaymentID] || []).map((proof) => (
-                  <div key={proof.id} className="flex items-center justify-between gap-3 rounded-md bg-white px-3 py-2">
-                    <div className="min-w-0 flex-1 text-xs text-slate-700">
-                      <div className="truncate font-medium">{proof.storage_key?.split("/").pop() || "Proof file"}</div>
-                      <div className="text-slate-500">{proof.status || "uploaded"}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => openProofPublicURL(proof.id)}
-                        className="text-xs text-blue-600 underline"
-                        disabled={submitting}
-                      >
-                        View
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => deleteProof(proof.id)}
-                        className="text-xs text-rose-600 hover:underline"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500">Belum ada bukti yang diupload.</p>
-          )}
-
-          <div className="border-t border-slate-200 pt-3">
-            <p className="mb-2 text-xs font-medium text-slate-600">Tambah bukti baru</p>
-          <input
-            type="file"
-            multiple
-            accept="image/*,application/pdf,application/*"
-            onChange={(e) => {
-              if (!proofModalPaymentID) return;
-              const files = e.target.files ? Array.from(e.target.files) : [];
-              setProofFiles((prev) => ({ ...prev, [proofModalPaymentID]: files }));
-            }}
-            className="w-full rounded border border-slate-300 px-2 py-2 text-sm"
-          />
-          {(proofFiles[proofModalPaymentID] || []).length > 0 ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-              <p className="mb-2 text-xs font-medium text-slate-600">File terpilih:</p>
-              <ul className="space-y-1 text-xs text-slate-700">
-                {(proofFiles[proofModalPaymentID] || []).map((file) => (
-                  <li key={`${file.name}-${file.size}-${file.lastModified}`} className="truncate">
-                    {file.name}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500">Pilih satu atau beberapa file bukti.</p>
-          )}
-          </div>
-        </div>
-      </AdminModal>
     </div>
   );
 }

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { notifyError } from "../../../lib/notification";
-import { adminGet } from "../entities/adminApi";
 import OrderDetailModal from "./OrderDetailModal";
 import OrdersTable from "./OrdersTable";
 import { getOrderByID, listOrders } from "./api";
@@ -29,6 +28,39 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
+
+  const setOrderDetailQuery = (orderID: string | null) => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (orderID) {
+      url.searchParams.set("order_id", orderID);
+    } else {
+      url.searchParams.delete("order_id");
+    }
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  };
+
+  const openDetailByID = async (orderID: string) => {
+    setSelectedOrderID(orderID);
+    setDetailOpen(true);
+    setDetailLoading(true);
+    setOrderDetailQuery(orderID);
+    try {
+      const res = await getOrderByID(orderID);
+      setSelectedOrder({
+        ...res.data.order,
+        payments: res.data.payments || res.data.order.payments || [],
+      });
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Failed to fetch order detail");
+      setSelectedOrder(null);
+      setDetailOpen(false);
+      setSelectedOrderID("");
+      setOrderDetailQuery(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
 
   const sortedItems = useMemo(() => {
     try {
@@ -72,23 +104,16 @@ export default function OrdersPage() {
     loadData();
   }, [page, limit, q, businessID, userID, status, paymentStatus, channel, from, to]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get("order_id");
+    if (orderId) {
+      void openDetailByID(orderId);
+    }
+  }, []);
 
   const openDetail = async (order: Order) => {
-    setSelectedOrderID(order.id);
-    setDetailOpen(true);
-    setDetailLoading(true);
-    try {
-      const res = await getOrderByID(order.id);
-      setSelectedOrder({
-        ...res.data.order,
-        payments: res.data.payments || res.data.order.payments || [],
-      });
-    } catch (err) {
-      notifyError(err instanceof Error ? err.message : "Failed to fetch order detail");
-      setSelectedOrder(null);
-    } finally {
-      setDetailLoading(false);
-    }
+    await openDetailByID(order.id);
   };
 
   const refreshSelectedOrder = async () => {
@@ -259,6 +284,7 @@ export default function OrdersPage() {
           setDetailOpen(false);
           setSelectedOrderID("");
           setSelectedOrder(null);
+          setOrderDetailQuery(null);
         }}
       />
     </div>

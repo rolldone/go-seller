@@ -5,6 +5,7 @@ import type { PublicBusinessProduct, PublicBusinessReview, PublicBusinessReviewS
 const REVIEW_TOPICS = ["Kualitas Barang", "Pelayanan Penjual", "Kemasan Barang", "Kecepatan Pengiriman"] as const;
 
 interface BusinessReviewTabProps {
+  businessSlug: string;
   products: PublicBusinessProduct[];
   reviewSummary: PublicBusinessReviewSummary | null;
   reviews: PublicBusinessReview[] | null;
@@ -23,16 +24,34 @@ function getReviewTimestamp(review: PublicBusinessReview, index: number): number
   return Number.MAX_SAFE_INTEGER - index;
 }
 
-export default function BusinessReviewTab({ products, reviewSummary, reviews, formatNumber }: BusinessReviewTabProps) {
+export default function BusinessReviewTab({ businessSlug, products, reviewSummary, reviews, formatNumber }: BusinessReviewTabProps) {
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedRatings, setSelectedRatings] = useState<number[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>("latest");
+  const PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="24">No image</text></svg>';
 
   const sourceReviews = Array.isArray(reviews) ? reviews : [];
   const breakdown = Array.isArray(reviewSummary?.breakdown) ? reviewSummary.breakdown : [];
   const maxBreakdownCount = breakdown.length ? Math.max(...breakdown.map((item) => item.count || 0)) : 1;
   const productById = new Map((Array.isArray(products) ? products : []).map((item) => [item.id, item]));
+
+  const resolvePublicURL = (url?: string | null) => {
+    if (!url) return null;
+    if (url.startsWith("/")) {
+      const apiBase = (import.meta as any)?.env?.PUBLIC_API_URL
+        ? String((import.meta as any).env.PUBLIC_API_URL).replace(/\/$/, "")
+        : "";
+      return apiBase ? `${apiBase}${url}` : url;
+    }
+    return url;
+  };
+
+  const resolveProductHref = (productId: string) => {
+    const product = productById.get(productId);
+    if (!product?.slug) return null;
+    return `/b/${encodeURIComponent(businessSlug)}/p/${encodeURIComponent(product.slug)}`;
+  };
 
   const toggleRating = (rating: number) => {
     setSelectedRatings((current) =>
@@ -216,14 +235,37 @@ export default function BusinessReviewTab({ products, reviewSummary, reviews, fo
                 const productRef = productById.get(review.productId);
                 const ratingValue = Number(review.rating || 0);
                 const stars = "★".repeat(Math.max(0, Math.min(5, ratingValue))) + "☆".repeat(Math.max(0, 5 - ratingValue));
+                const reviewAttachments = Array.isArray(review.attachments) ? review.attachments : [];
+                const heroAsset = productRef?.gallery?.find((item) => item.is_main) ?? productRef?.gallery?.[0];
+                const heroUrl = resolvePublicURL(heroAsset?.public_url ?? heroAsset?.file_path ?? null) || PLACEHOLDER;
+                const productHref = resolveProductHref(review.productId);
 
                 return (
                   <article key={review.id} className="border-b border-slate-100 pb-6 last:border-none last:pb-0">
                     <div className="grid gap-4 md:grid-cols-[170px_1fr]">
                       <div className="flex gap-3 md:flex-col">
-                        <div className="h-20 w-20 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200" />
+                        <div className="h-20 w-20 overflow-hidden rounded-lg bg-slate-100">
+                          <img
+                            src={heroUrl}
+                            alt={review.productTitle || productRef?.title || "Produk"}
+                            loading="lazy"
+                            onError={(event) => {
+                              const img = event.currentTarget as HTMLImageElement;
+                              if (img.src !== PLACEHOLDER) {
+                                img.src = PLACEHOLDER;
+                              }
+                            }}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
                         <div>
-                          <p className="line-clamp-3 text-sm font-semibold text-slate-900">{review.productTitle || productRef?.title}</p>
+                          {productHref ? (
+                            <a href={productHref} className="line-clamp-3 text-sm font-semibold text-slate-900 hover:text-emerald-600 hover:underline">
+                              {review.productTitle || productRef?.title}
+                            </a>
+                          ) : (
+                            <p className="line-clamp-3 text-sm font-semibold text-slate-900">{review.productTitle || productRef?.title}</p>
+                          )}
                           <p className="mt-1 text-xs text-slate-500">Varian: {review.productVariant}</p>
                         </div>
                       </div>
@@ -235,6 +277,7 @@ export default function BusinessReviewTab({ products, reviewSummary, reviews, fo
                         </div>
                         <p className="mt-2 text-sm font-semibold text-slate-800">{review.usernameMasked}</p>
                         <p className="mt-2 text-sm leading-relaxed text-slate-700">{review.content}</p>
+                        
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
                           {review.hasMedia ? (
                             <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">Foto/Video</span>
@@ -247,9 +290,48 @@ export default function BusinessReviewTab({ products, reviewSummary, reviews, fo
                               ))
                             : null}
                         </div>
-                        <button type="button" className="mt-3 text-sm font-semibold text-slate-600 hover:text-emerald-600">
-                          Membantu ({review.helpfulCount})
-                        </button>
+                          {reviewAttachments.length > 0 ? (
+                            <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-4 lg:grid-cols-5">
+                              {reviewAttachments.map((attachment, index) => {
+                                const attachmentUrl = resolvePublicURL(attachment.publicUrl || attachment.public_url || null);
+                                if (!attachmentUrl) return null;
+                                const attachmentMimeType = String(attachment.mimeType || attachment.mime_type || "").toLowerCase();
+                                const isVideo = attachmentMimeType.startsWith("video/");
+                                const key = `${attachment.storageKey || attachment.storage_key || attachmentUrl || index}`;
+                                return (
+                                  <a
+                                    key={key}
+                                    href={attachmentUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                                  >
+                                    <div className="relative aspect-square bg-slate-100">
+                                      {isVideo ? (
+                                        <video src={attachmentUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                                      ) : (
+                                        <img
+                                          src={attachmentUrl}
+                                          alt={attachment.name || review.productTitle || productRef?.title || `Lampiran ${index + 1}`}
+                                          loading="lazy"
+                                          onError={(event) => {
+                                            const img = event.currentTarget as HTMLImageElement;
+                                            if (img.src !== PLACEHOLDER) {
+                                              img.src = PLACEHOLDER;
+                                            }
+                                          }}
+                                          className="h-full w-full object-cover"
+                                        />
+                                      )}
+                                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/70 to-transparent px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                                        {attachment.name || `Lampiran ${index + 1}`}
+                                      </div>
+                                    </div>
+                                  </a>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                       </div>
                     </div>
                   </article>

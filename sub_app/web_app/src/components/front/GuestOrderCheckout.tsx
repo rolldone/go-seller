@@ -51,6 +51,7 @@ type Order = {
   discount_amount: number;
   tax_amount: number;
   shipping_amount: number;
+  fulfillment_type?: string;
   grand_total: number;
   metadata?: unknown;
   order_items: OrderItem[];

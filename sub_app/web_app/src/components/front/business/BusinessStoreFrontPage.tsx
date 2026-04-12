@@ -178,6 +178,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
 
         {activeTab === "ulasan" && effectiveReviewSummary && (
           <BusinessReviewTab
+            businessSlug={business.slug}
             products={effectiveProducts}
             reviewSummary={effectiveReviewSummary}
             reviews={effectiveReviews}
