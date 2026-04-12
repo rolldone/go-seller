@@ -23,17 +23,6 @@ if ((initialTab === "produk" || initialTab === "beranda") && !store.products?.le
   }
 }
 
-if (initialTab === "ulasan" && !store.reviewSummary) {
-  const mockStore = getFallbackBusinessStore(store.business.slug || slug);
-  if (mockStore) {
-    store.reviewSummary = mockStore.reviewSummary;
-    store.reviews = mockStore.reviews;
-    if (!store.products?.length) {
-      store.products = mockStore.products;
-    }
-  }
-}
-
 const title = `${store.business.name || ""} | Go Seller`;
 const description = store.business.description || store.business.short_description || "";
 const customerSession = Astro.locals.customerSession ?? null;

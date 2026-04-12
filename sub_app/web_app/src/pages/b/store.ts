@@ -1,7 +1,11 @@
-import { db, eq, BusinessCarousel } from "astro:db";
-import type { PublicBusinessStore } from "../../components/front/business/types";
+import type { PublicBusinessCarousel, PublicBusinessReview, PublicBusinessReviewSummary, PublicBusinessStore } from "../../components/front/business/types";
 
 type BuildBusinessStoreResult = { store: PublicBusinessStore; fetchErrorMessage: string };
+
+type ReviewBundlePayload = {
+  summary?: PublicBusinessReviewSummary | null;
+  reviews?: PublicBusinessReview[] | null;
+};
 
 const BASE = import.meta.env.PUBLIC_API_URL || "http://localhost:8080";
 
@@ -83,11 +87,18 @@ async function loadBusinessCarousels(businessId: string) {
   if (!businessId) return [];
 
   try {
-    const rows = await db.select().from(BusinessCarousel).where(eq(BusinessCarousel.businessId, businessId));
+    const res = await fetch(`${BASE}/api/marketing/business-carousels?business_id=${encodeURIComponent(businessId)}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const payload = await res.json().catch(() => ({}));
+    const rows: PublicBusinessCarousel[] = Array.isArray(payload?.data) ? payload.data : [];
     return rows
       .filter((row) => row.isActive !== false)
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0))
-      .map((row) => ({
+      .map((row: PublicBusinessCarousel) => ({
         id: row.id,
         businessId: row.businessId,
         slot: row.slot,
@@ -97,11 +108,43 @@ async function loadBusinessCarousels(businessId: string) {
         isActive: row.isActive ?? true,
         sortOrder: Number(row.sortOrder || 0),
         items: normalizeCarouselItems(row.items),
-        createdAt: row.createdAt ? row.createdAt.toISOString() : undefined,
-        updatedAt: row.updatedAt ? row.updatedAt.toISOString() : undefined,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
       }));
   } catch {
     return [];
+  }
+}
+
+async function loadBusinessReviews(businessId: string) {
+  if (!businessId) {
+    return {
+      summary: null,
+      reviews: [],
+    };
+  }
+
+  try {
+    const res = await fetch(`${BASE}/api/review/businesses/${encodeURIComponent(businessId)}?limit=100`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) {
+      return {
+        summary: null,
+        reviews: [],
+      };
+    }
+
+    const payload = (await res.json().catch(() => ({}))) as { data?: ReviewBundlePayload };
+    return {
+      summary: payload?.data?.summary ?? null,
+      reviews: Array.isArray(payload?.data?.reviews) ? payload.data.reviews : [],
+    };
+  } catch {
+    return {
+      summary: null,
+      reviews: [],
+    };
   }
 }
 
@@ -120,6 +163,10 @@ export async function buildBusinessStore(slug: string): Promise<BuildBusinessSto
     reviews: [],
     carousels: await loadBusinessCarousels(business.id),
   };
+
+  const reviewBundle = await loadBusinessReviews(business.id);
+  store.reviewSummary = reviewBundle.summary;
+  store.reviews = reviewBundle.reviews;
 
   return { store, fetchErrorMessage };
 }

@@ -136,6 +136,7 @@ export type CustomerReview = {
   seller_reply_at?: string | null;
   status: string;
   is_visible: boolean;
+  metadata?: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -254,13 +255,13 @@ export async function listMyOrderReviewableItems(orderID: string): Promise<{ dat
 export async function upsertMyOrderItemReview(
   orderID: string,
   orderItemID: string,
-  payload: { rating: number; review_text?: string; question_text?: string },
+  payload: { rating: number; review_text?: string; question_text?: string } | FormData,
 ): Promise<{ data: CustomerReview }> {
   return customerApiRequest<{ data: CustomerReview }>(
     `/api/review/my/orders/${encodeURIComponent(orderID)}/items/${encodeURIComponent(orderItemID)}`,
     {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: payload instanceof FormData ? payload : JSON.stringify(payload),
     },
   );
 }

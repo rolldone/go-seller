@@ -38,14 +38,13 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
   const { business, products = [], reviewSummary = null, reviews = [], carousels = [] } = store;
   const safeReviews = Array.isArray(reviews) ? reviews : [];
   const needsMockProducts = (activeTab === "produk" || activeTab === "beranda") && products.length === 0;
-  const needsMockReviews = activeTab === "ulasan" && !reviewSummary;
-  const mockStore = needsMockProducts || needsMockReviews ? getFallbackBusinessStore(business.slug) : null;
+  const mockStore = needsMockProducts ? getFallbackBusinessStore(business.slug) : null;
   const [productsState, setProductsState] = useState<PublicBusinessProduct[]>(products ?? []);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
   const effectiveProducts = productsState.length ? productsState : (products.length ? products : mockStore?.products ?? []);
-  const effectiveReviewSummary = reviewSummary ?? mockStore?.reviewSummary ?? null;
-  const effectiveReviews = safeReviews.length ? safeReviews : mockStore?.reviews ?? [];
+  const effectiveReviewSummary = reviewSummary;
+  const effectiveReviews = safeReviews;
   const effectiveCarousels = Array.isArray(carousels) ? carousels : [];
   const featuredProducts = effectiveProducts.slice(0, 6);
 

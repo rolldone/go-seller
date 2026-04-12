@@ -1,0 +1,9 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import BusinessCarouselManagementPage from "../../../components/admin/marketing/BusinessCarouselManagementPage";
+export const prerender = false;
+---
+
+<AdminLayout title="Carousel">
+  <BusinessCarouselManagementPage client:load />
+</AdminLayout>

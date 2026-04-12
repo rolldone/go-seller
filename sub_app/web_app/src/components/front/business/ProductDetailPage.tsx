@@ -51,8 +51,21 @@ type PublicProductReview = {
   review_text: string;
   question_text: string;
   seller_reply?: string | null;
+  metadata?: unknown;
   created_at: string;
   updated_at: string;
+};
+
+type ReviewAttachmentMeta = {
+  name?: string;
+  publicUrl?: string;
+  public_url?: string;
+  storageKey?: string;
+  storage_key?: string;
+  mimeType?: string;
+  mime_type?: string;
+  fileSize?: number;
+  file_size?: number;
 };
 
 function getPublicApiBase(): string {
@@ -89,6 +102,39 @@ function toCurrency(value: number): string {
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(Math.max(0, Math.round(value)));
+}
+
+function parseMetadata(value: unknown): Record<string, any> | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as Record<string, any>;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "object") {
+    return value as Record<string, any>;
+  }
+  return null;
+}
+
+function parseReviewAttachments(value: unknown): ReviewAttachmentMeta[] {
+  const metadata = parseMetadata(value);
+  const attachments = Array.isArray(metadata?.attachments) ? metadata.attachments : [];
+  return attachments
+    .map((item) => (item && typeof item === "object" ? (item as ReviewAttachmentMeta) : null))
+    .filter((item): item is ReviewAttachmentMeta => Boolean(item));
+}
+
+function resolveAttachmentUrl(attachment: ReviewAttachmentMeta): string {
+  const rawUrl = attachment.publicUrl || attachment.public_url || attachment.storageKey || attachment.storage_key || "";
+  if (!rawUrl) return "";
+  if (rawUrl.startsWith("/")) {
+    const apiBase = getPublicApiBase();
+    return apiBase ? `${apiBase}${rawUrl}` : rawUrl;
+  }
+  return rawUrl;
 }
 
 export default function ProductDetailPage({ store, product, relatedProducts, customerSession = null }: ProductDetailPageProps) {
@@ -747,6 +793,43 @@ export default function ProductDetailPage({ store, product, relatedProducts, cus
               ) : productReviews.length > 0 ? (
                 productReviews.map((review) => (
                   <article key={review.id} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                    {(() => {
+                      const attachments = parseReviewAttachments(review.metadata);
+                      return attachments.length > 0 ? (
+                        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {attachments.map((attachment, index) => {
+                            const publicUrl = resolveAttachmentUrl(attachment);
+                            const mimeType = String(attachment.mimeType || attachment.mime_type || "").toLowerCase();
+                            const isVideo = mimeType.startsWith("video/");
+                            const key = `${attachment.storageKey || attachment.storage_key || publicUrl || index}`;
+                            return (
+                              <a
+                                key={key}
+                                href={publicUrl || undefined}
+                                target={publicUrl ? "_blank" : undefined}
+                                rel={publicUrl ? "noreferrer" : undefined}
+                                className="group overflow-hidden rounded-xl border border-slate-200 bg-white"
+                              >
+                                <div className="relative flex h-28 items-center justify-center bg-slate-100">
+                                  {publicUrl ? (
+                                    isVideo ? (
+                                      <video src={publicUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                                    ) : (
+                                      <img src={publicUrl} alt={attachment.name || `Lampiran ${index + 1}`} className="h-full w-full object-cover" />
+                                    )
+                                  ) : (
+                                    <div className="px-3 text-center text-xs font-semibold text-slate-500">Lampiran tersedia</div>
+                                  )}
+                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/70 to-transparent px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                                    {attachment.name || `Lampiran ${index + 1}`}
+                                  </div>
+                                </div>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      ) : null;
+                    })()}
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-slate-900">Pembeli terverifikasi</p>
                       <p className="text-xs text-slate-500">{new Date(review.created_at).toLocaleDateString("id-ID")}</p>

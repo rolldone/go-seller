@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { adminGet } from "../entities/adminApi";
+import type { FormEvent } from "react";
+import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import type { Business, BusinessListResponse } from "../businesses/types";
 
@@ -26,7 +27,6 @@ type BusinessCarouselRecord = {
 };
 
 type CarouselFormState = {
-  businessId: string;
   slot: string;
   title: string;
   subtitle: string;
@@ -38,36 +38,24 @@ type CarouselFormState = {
 
 type CarouselListResponse = { data: BusinessCarouselRecord[] };
 
-const getAdminHeaders = () => {
-  const headers: HeadersInit = { "Content-Type": "application/json" };
-  const token = localStorage.getItem("access_token");
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-  return headers;
-};
+const defaultItems = [
+  {
+    id: "item-1",
+    title: "Hero Section",
+    subtitle: "Teks pendukung carousel",
+    image: "",
+    href: "",
+  },
+];
 
-const createEmptyDraft = (businessId = ""): CarouselFormState => ({
-  businessId,
+const createEmptyDraft = (): CarouselFormState => ({
   slot: "hero",
   title: "",
   subtitle: "",
   layoutType: "large",
   isActive: true,
   sortOrder: 0,
-  itemsJson: JSON.stringify(
-    [
-      {
-        id: "item-1",
-        title: "Hero Section",
-        subtitle: "Teks pendukung carousel",
-        image: "",
-        href: "",
-      },
-    ],
-    null,
-    2,
-  ),
+  itemsJson: JSON.stringify(defaultItems, null, 2),
 });
 
 const formatDate = (value?: string) => {
@@ -95,12 +83,11 @@ export default function BusinessCarouselManagementPage() {
   const loadBusinesses = async () => {
     setLoadingBusinesses(true);
     try {
-      const res = await adminGet<BusinessListResponse>("/admin/catalog/businesses?page=1&limit=200");
-      const list = res.data || [];
+      const response = await adminGet<BusinessListResponse>("/admin/catalog/businesses?page=1&limit=200");
+      const list = response.data || [];
       setBusinesses(list);
       if (!selectedBusinessId && list[0]?.id) {
         setSelectedBusinessId(list[0].id);
-        setDraft(createEmptyDraft(list[0].id));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat daftar business");
@@ -118,14 +105,8 @@ export default function BusinessCarouselManagementPage() {
     setLoadingItems(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/marketing/business-carousels?business_id=${encodeURIComponent(businessId)}`, {
-        headers: getAdminHeaders(),
-      });
-      const payload = (await res.json().catch(() => ({}))) as CarouselListResponse & { error?: string };
-      if (!res.ok) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
-      }
-      setItems(Array.isArray(payload.data) ? payload.data : []);
+      const response = await adminGet<CarouselListResponse>(`/admin/marketing/business-carousels?business_id=${encodeURIComponent(businessId)}`);
+      setItems(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat carousel");
     } finally {
@@ -138,21 +119,24 @@ export default function BusinessCarouselManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedBusinessId) return;
-    setDraft((current) => ({ ...current, businessId: selectedBusinessId }));
+    if (!selectedBusinessId) {
+      setItems([]);
+      return;
+    }
+
     setEditingId(null);
+    setDraft(createEmptyDraft());
     void loadItems(selectedBusinessId);
   }, [selectedBusinessId]);
 
   const resetDraft = () => {
     setEditingId(null);
-    setDraft(createEmptyDraft(selectedBusinessId));
+    setDraft(createEmptyDraft());
   };
 
   const handleEdit = (record: BusinessCarouselRecord) => {
     setEditingId(record.id);
     setDraft({
-      businessId: record.businessId,
       slot: record.slot,
       title: record.title,
       subtitle: record.subtitle || "",
@@ -170,19 +154,12 @@ export default function BusinessCarouselManagementPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/admin/marketing/business-carousels/${record.id}`, {
-        method: "DELETE",
-        headers: getAdminHeaders(),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
-      }
+      await adminDelete(`/admin/marketing/business-carousels/${record.id}`);
       notifySuccess("Carousel deleted");
-      await loadItems(selectedBusinessId);
       if (editingId === record.id) {
         resetDraft();
       }
+      await loadItems(selectedBusinessId);
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Gagal menghapus carousel");
     } finally {
@@ -190,8 +167,9 @@ export default function BusinessCarouselManagementPage() {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     if (!selectedBusinessId) {
       notifyError("Pilih business terlebih dulu");
       return;
@@ -219,16 +197,10 @@ export default function BusinessCarouselManagementPage() {
         items: parsedItems,
       };
 
-      const endpoint = editingId ? `/api/admin/marketing/business-carousels/${editingId}` : "/api/admin/marketing/business-carousels";
-      const method = editingId ? "PUT" : "POST";
-      const res = await fetch(endpoint, {
-        method,
-        headers: getAdminHeaders(),
-        body: JSON.stringify(body),
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(payload?.error || `HTTP ${res.status}`);
+      if (editingId) {
+        await adminPut(`/admin/marketing/business-carousels/${editingId}`, body);
+      } else {
+        await adminPost("/admin/marketing/business-carousels", body);
       }
 
       notifySuccess(editingId ? "Carousel updated" : "Carousel created");
@@ -241,11 +213,11 @@ export default function BusinessCarouselManagementPage() {
     }
   };
 
-  const businessLabel = selectedBusiness ? `${selectedBusiness.name} / ${selectedBusiness.slug}` : "Pilih business";
+  const businessLabel = selectedBusiness ? `${selectedBusiness.name} / ${selectedBusiness.slug}` : selectedBusinessId || "-";
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-slate-900">Business Carousel</h3>
           <p className="text-sm text-slate-600">Kelola carousel storefront per business_id.</p>
@@ -403,7 +375,7 @@ export default function BusinessCarouselManagementPage() {
                         <button type="button" onClick={() => handleEdit(record)} className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">
                           Edit
                         </button>
-                        <button type="button" onClick={() => void handleDelete(record)} className="rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100">
+                        <button type="button" onClick={() => void handleDelete(record)} className="rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100" disabled={submitting}>
                           Delete
                         </button>
                       </div>

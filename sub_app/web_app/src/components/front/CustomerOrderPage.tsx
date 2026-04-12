@@ -27,7 +27,94 @@ type ReviewDraft = {
   rating: number;
   review_text: string;
   question_text: string;
+  attachments: File[];
 };
+
+type ReviewAttachmentMeta = {
+  name?: string;
+  publicUrl?: string;
+  public_url?: string;
+  storageKey?: string;
+  storage_key?: string;
+  mimeType?: string;
+  mime_type?: string;
+  fileSize?: number;
+  file_size?: number;
+};
+
+const MAX_REVIEW_ATTACHMENTS = 5;
+const MAX_REVIEW_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+
+function createEmptyReviewDraft(existing?: Partial<ReviewDraft>): ReviewDraft {
+  return {
+    rating: existing?.rating || 5,
+    review_text: existing?.review_text || "",
+    question_text: existing?.question_text || "",
+    attachments: existing?.attachments || [],
+  };
+}
+
+function parseReviewAttachments(value: unknown): ReviewAttachmentMeta[] {
+  const metadata = parseMetadata(value);
+  const attachments = Array.isArray(metadata?.attachments) ? metadata.attachments : [];
+  return attachments
+    .map((item) => (item && typeof item === "object" ? (item as ReviewAttachmentMeta) : null))
+    .filter((item): item is ReviewAttachmentMeta => Boolean(item));
+}
+
+function ReviewAttachmentPreviewStrip({ files, onRemove }: { files: File[]; onRemove: (index: number) => void }) {
+  const [items, setItems] = useState<Array<{ key: string; url: string; file: File }>>([]);
+
+  useEffect(() => {
+    const nextItems = files.map((file) => ({
+      key: `${file.name}:${file.size}:${file.lastModified}`,
+      url: URL.createObjectURL(file),
+      file,
+    }));
+    setItems(nextItems);
+
+    return () => {
+      nextItems.forEach((item) => URL.revokeObjectURL(item.url));
+    };
+  }, [files]);
+
+  if (files.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.key} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2">
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+            {item.file.type.startsWith("video/") ? (
+              <video src={item.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+            ) : (
+              <img src={item.url} alt={item.file.name} className="h-full w-full object-cover" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-semibold text-slate-800">{item.file.name}</div>
+            <div className="text-xs text-slate-500">{item.file.type || "file"}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const index = items.findIndex((entry) => entry.key === item.key);
+              if (index >= 0) {
+                onRemove(index);
+              }
+            }}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-600 transition hover:bg-rose-50 hover:text-rose-700"
+            aria-label={`Hapus ${item.file.name}`}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function toCurrency(value: number, currency = "IDR"): string {
   return new Intl.NumberFormat("id-ID", {
@@ -198,6 +285,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
               rating: existing?.rating || Number(row.review?.rating || 5),
               review_text: existing?.review_text ?? String(row.review?.review_text || ""),
               question_text: existing?.question_text ?? String(row.review?.question_text || ""),
+              attachments: existing?.attachments || [],
             };
           });
           return next;
@@ -227,12 +315,40 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     setReviewDrafts((current) => ({
       ...current,
       [itemID]: {
-        rating: Number(current[itemID]?.rating || 5),
-        review_text: String(current[itemID]?.review_text || ""),
-        question_text: String(current[itemID]?.question_text || ""),
+        ...createEmptyReviewDraft(current[itemID]),
         ...patch,
       },
     }));
+  };
+
+  const handleReviewAttachmentsChange = (itemID: string, files: FileList | null) => {
+    const selectedFiles = Array.from(files || [])
+      .filter((file) => file.type.startsWith("image/") || file.type.startsWith("video/"))
+      .filter((file) => file.size > 0 && file.size <= MAX_REVIEW_ATTACHMENT_SIZE)
+      .slice(0, MAX_REVIEW_ATTACHMENTS);
+
+    if (files && selectedFiles.length !== files.length) {
+      notifyError(`Hanya file gambar/video, maksimal ${MAX_REVIEW_ATTACHMENTS} file, ukuran maksimal 10MB per file.`);
+    }
+
+    handleReviewDraftChange(itemID, { attachments: selectedFiles });
+  };
+
+  const handleReviewAttachmentRemove = (itemID: string, index: number) => {
+    setReviewDrafts((current) => {
+      const existing = current[itemID];
+      if (!existing) {
+        return current;
+      }
+      const nextAttachments = (existing.attachments || []).filter((_, attachmentIndex) => attachmentIndex !== index);
+      return {
+        ...current,
+        [itemID]: {
+          ...existing,
+          attachments: nextAttachments,
+        },
+      };
+    });
   };
 
   const handleSubmitReview = async (itemID: string) => {
@@ -242,11 +358,21 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     setSubmittingReviewItemID(itemID);
     setReviewError("");
     try {
-      await upsertMyOrderItemReview(order.id, itemID, {
-        rating: Number(draft.rating || 0),
-        review_text: String(draft.review_text || ""),
-        question_text: String(draft.question_text || ""),
-      });
+      const hasAttachments = Array.isArray(draft.attachments) && draft.attachments.length > 0;
+      if (hasAttachments) {
+        const form = new FormData();
+        form.set("rating", String(Number(draft.rating || 0)));
+        form.set("review_text", String(draft.review_text || ""));
+        form.set("question_text", String(draft.question_text || ""));
+        draft.attachments.forEach((file) => form.append("attachments", file));
+        await upsertMyOrderItemReview(order.id, itemID, form);
+      } else {
+        await upsertMyOrderItemReview(order.id, itemID, {
+          rating: Number(draft.rating || 0),
+          review_text: String(draft.review_text || ""),
+          question_text: String(draft.question_text || ""),
+        });
+      }
       notifySuccess("Review pembeli berhasil disimpan.");
       const reviewRows = await listMyOrderReviewableItems(order.id);
       setReviewableItems(reviewRows.data || []);
@@ -609,9 +735,11 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                         rating: Number(entry.review?.rating || 5),
                         review_text: String(entry.review?.review_text || ""),
                         question_text: String(entry.review?.question_text || ""),
+                        attachments: [],
                       };
                       const isSubmitting = submittingReviewItemID === entry.order_item_id;
                       const hasReview = Boolean(entry.review);
+                      const reviewAttachments = parseReviewAttachments(entry.review?.metadata);
                       return (
                         <article key={entry.order_item_id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -633,6 +761,39 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                 <div className="mt-1 text-amber-500">{"★".repeat(Math.max(0, Math.min(5, Number(entry.review.rating || 0))))}</div>
                                 {entry.review.review_text ? <p className="mt-2 text-sm text-slate-700">{entry.review.review_text}</p> : null}
                                 {entry.review.question_text ? <p className="mt-2 text-sm text-slate-600">Pertanyaan: {entry.review.question_text}</p> : null}
+                                {reviewAttachments.length > 0 ? (
+                                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    {reviewAttachments.map((attachment, index) => {
+                                      const publicUrl = attachment.publicUrl || attachment.public_url || "";
+                                      const isVideo = String(attachment.mimeType || attachment.mime_type || "").startsWith("video/");
+                                      const key = `${attachment.storageKey || publicUrl || index}`;
+                                      return (
+                                        <a
+                                          key={key}
+                                          href={publicUrl || undefined}
+                                          target={publicUrl ? "_blank" : undefined}
+                                          rel={publicUrl ? "noreferrer" : undefined}
+                                          className="group overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                                        >
+                                          <div className="relative flex h-24 items-center justify-center bg-slate-100">
+                                            {publicUrl ? (
+                                              isVideo ? (
+                                                <video src={publicUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                                              ) : (
+                                                <img src={publicUrl} alt={attachment.name || `Lampiran ${index + 1}`} className="h-full w-full object-cover" />
+                                              )
+                                            ) : (
+                                              <div className="text-xs font-semibold text-slate-500">Lampiran</div>
+                                            )}
+                                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/70 to-transparent px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
+                                              {attachment.name || `Lampiran ${index + 1}`}
+                                            </div>
+                                          </div>
+                                        </a>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
                               </div>
                               {entry.review.seller_reply ? (
                                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
@@ -686,6 +847,34 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                   disabled={isSubmitting}
                                 />
                               </label>
+
+                              <div className="space-y-2 text-sm text-slate-700">
+                                <label className="block space-y-1">
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Lampiran Foto/Video (opsional)</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*,video/*"
+                                    multiple
+                                    onChange={(event) => handleReviewAttachmentsChange(entry.order_item_id, event.target.files)}
+                                    className="block w-full rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-900 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-slate-800"
+                                    disabled={isSubmitting}
+                                  />
+                                </label>
+
+                                {Array.isArray(draft.attachments) && draft.attachments.length > 0 ? (
+                                  <div className="space-y-2">
+                                    <ReviewAttachmentPreviewStrip
+                                      files={draft.attachments}
+                                      onRemove={(index) => handleReviewAttachmentRemove(entry.order_item_id, index)}
+                                    />
+                                    <p className="text-xs text-slate-500">
+                                      {draft.attachments.length} file dipilih: {draft.attachments.map((file) => file.name).join(", ")}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-slate-500">Pilih hingga {MAX_REVIEW_ATTACHMENTS} file, maksimal 10MB per file.</p>
+                                )}
+                              </div>
 
                               <div className="flex justify-end">
                                 <button

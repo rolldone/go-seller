@@ -102,9 +102,12 @@ export interface PublicBusinessReview {
   productVariant: string;
   rating: number;
   createdAtLabel: string;
+  createdAt?: string;
   usernameMasked: string;
   content: string;
   helpfulCount: number;
+  hasMedia?: boolean;
+  topics?: string[];
 }
 
 export interface PublicBusinessAsset {
