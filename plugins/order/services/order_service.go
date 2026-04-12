@@ -68,6 +68,11 @@ var ErrOrderAlreadyPaid = errors.New("order is locked; cannot modify")
 var ErrDuplicateCouponCategory = errors.New("cannot combine two coupons from the same category")
 var ErrShippingAddressLocked = errors.New("shipping address cannot be changed after shipping quote is created")
 
+const (
+	FulfillmentTypeDelivery = "delivery"
+	FulfillmentTypePickup   = "pickup"
+)
+
 func normalizeAppliedCouponCategory(value string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(value))
 	switch trimmed {
@@ -81,6 +86,18 @@ func normalizeAppliedCouponCategory(value string) string {
 		return "cashback"
 	default:
 		return "product_discount"
+	}
+}
+
+func normalizeFulfillmentType(value string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	switch trimmed {
+	case "", FulfillmentTypeDelivery:
+		return FulfillmentTypeDelivery, nil
+	case FulfillmentTypePickup:
+		return FulfillmentTypePickup, nil
+	default:
+		return "", fmt.Errorf("invalid fulfillment type")
 	}
 }
 
@@ -291,23 +308,24 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			metadataJSON = buf
 		}
 		ord := models.Order{
-			ID:             uuid.NewString(),
-			OrderNumber:    "ORD-" + uuid.NewString(),
-			CustomerID:     &cart.CustomerID,
-			BusinessID:     cart.BusinessID,
-			Channel:        "web",
-			Status:         "pending",
-			PaymentStatus:  "unpaid",
-			Currency:       currency,
-			Subtotal:       preview.Subtotal,
-			DiscountAmount: preview.DiscountAmount,
-			TaxAmount:      preview.TaxAmount,
-			ShippingAmount: preview.ShippingAmount,
-			GrandTotal:     preview.GrandTotal,
-			Metadata:       metadataJSON,
-			PlacedAt:       &now,
-			CreatedAt:      now,
-			UpdatedAt:      now,
+			ID:              uuid.NewString(),
+			OrderNumber:     "ORD-" + uuid.NewString(),
+			CustomerID:      &cart.CustomerID,
+			BusinessID:      cart.BusinessID,
+			Channel:         "web",
+			Status:          "pending",
+			PaymentStatus:   "unpaid",
+			Currency:        currency,
+			Subtotal:        preview.Subtotal,
+			DiscountAmount:  preview.DiscountAmount,
+			TaxAmount:       preview.TaxAmount,
+			ShippingAmount:  preview.ShippingAmount,
+			FulfillmentType: FulfillmentTypeDelivery,
+			GrandTotal:      preview.GrandTotal,
+			Metadata:        metadataJSON,
+			PlacedAt:        &now,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		if err := tx.Create(&ord).Error; err != nil {
 			return err
@@ -378,13 +396,17 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 	return order, nil
 }
 
-func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, userID *string, customerID *string, businessID *string, items []models.OrderItem, currency string) (*models.Order, error) {
+func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, userID *string, customerID *string, businessID *string, fulfillmentType string, items []models.OrderItem, currency string) (*models.Order, error) {
 	var order *models.Order
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 		subtotal := 0.0
 		for _, it := range items {
 			subtotal += float64(it.Qty) * it.UnitPrice
+		}
+		normalizedFulfillmentType, err := normalizeFulfillmentType(fulfillmentType)
+		if err != nil {
+			return err
 		}
 		ord := models.Order{
 			ID:               uuid.NewString(),
@@ -401,6 +423,7 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 			DiscountAmount:   0,
 			TaxAmount:        0,
 			ShippingAmount:   0,
+			FulfillmentType:  normalizedFulfillmentType,
 			GrandTotal:       subtotal,
 			CreatedAt:        now,
 			UpdatedAt:        now,
@@ -434,8 +457,12 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 }
 
 // CreateDraftOrderAsAdmin creates a draft POS order with no items yet.
-func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID string, userID *string, customerID *string, businessID *string, currency string) (*models.Order, error) {
+func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID string, userID *string, customerID *string, businessID *string, fulfillmentType string, currency string) (*models.Order, error) {
 	now := time.Now()
+	normalizedFulfillmentType, err := normalizeFulfillmentType(fulfillmentType)
+	if err != nil {
+		return nil, err
+	}
 	ord := &models.Order{
 		ID:               uuid.NewString(),
 		OrderNumber:      "POS-" + uuid.NewString(),
@@ -451,6 +478,7 @@ func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID stri
 		DiscountAmount:   0,
 		TaxAmount:        0,
 		ShippingAmount:   0,
+		FulfillmentType:  normalizedFulfillmentType,
 		GrandTotal:       0,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -1052,17 +1080,62 @@ func (s *OrderService) GetOrderByIDForCustomer(ctx context.Context, id string, c
 	return order, nil
 }
 
-// UpdateOrderCustomer updates the customer_id of an existing order (used by POS to persist selection).
-func (s *OrderService) UpdateOrderCustomer(ctx context.Context, orderID string, customerID *string) (*models.Order, error) {
-	var ord models.Order
-	if err := s.DB.WithContext(ctx).Where("id = ?", orderID).First(&ord).Error; err != nil {
-		return nil, err
-	}
-	if isOrderLocked(ord) {
-		return nil, ErrOrderAlreadyPaid
-	}
-	now := time.Now()
-	if err := s.DB.WithContext(ctx).Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{"customer_id": customerID, "updated_at": now}).Error; err != nil {
+// UpdateOrderCustomerAndFulfillment updates draft POS order fields in one transaction.
+func (s *OrderService) UpdateOrderCustomerAndFulfillment(ctx context.Context, orderID string, customerID *string, fulfillmentType *string) (*models.Order, error) {
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		var ord models.Order
+		if err := tx.Where("id = ?", orderID).First(&ord).Error; err != nil {
+			return err
+		}
+		if isOrderLocked(ord) {
+			return ErrOrderAlreadyPaid
+		}
+
+		updates := map[string]interface{}{
+			"customer_id": customerID,
+			"updated_at":  now,
+		}
+
+		needsRecalc := false
+		if fulfillmentType != nil {
+			normalizedFulfillmentType, err := normalizeFulfillmentType(*fulfillmentType)
+			if err != nil {
+				return err
+			}
+			updates["fulfillment_type"] = normalizedFulfillmentType
+			needsRecalc = true
+			if normalizedFulfillmentType == FulfillmentTypePickup {
+				updates["shipping_amount"] = 0
+				metadata := map[string]any{}
+				if len(ord.Metadata) > 0 && !strings.EqualFold(strings.TrimSpace(string(ord.Metadata)), "null") {
+					if err := json.Unmarshal(ord.Metadata, &metadata); err != nil {
+						metadata = map[string]any{}
+					}
+				}
+				delete(metadata, "shipping_address")
+				delete(metadata, "shippingAddress")
+				delete(metadata, "shipping_quote")
+				delete(metadata, "shippingQuote")
+				metadataJSON, err := json.Marshal(metadata)
+				if err != nil {
+					return err
+				}
+				updates["metadata"] = metadataJSON
+			}
+		}
+
+		if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if needsRecalc {
+			if err := s.recalculateOrderTotalsTx(tx, orderID, now); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 	return s.GetOrderByID(ctx, orderID)

@@ -76,40 +76,42 @@ func orderToPublic(ord *ordermodels.Order) gin.H {
 		}
 	}
 	return gin.H{
-		"id":              ord.ID,
-		"order_number":    ord.OrderNumber,
-		"user_id":         ord.UserID,
-		"customer_id":     ord.CustomerID,
-		"business_id":     ord.BusinessID,
-		"channel":         ord.Channel,
-		"status":          ord.Status,
-		"payment_status":  ord.PaymentStatus,
-		"currency":        ord.Currency,
-		"subtotal":        ord.Subtotal,
-		"discount_amount": ord.DiscountAmount,
-		"tax_amount":      ord.TaxAmount,
-		"shipping_amount": ord.ShippingAmount,
-		"grand_total":     ord.GrandTotal,
-		"applied_coupons": ord.OrderCoupons,
-		"notes":           ord.Notes,
-		"metadata":        metadata,
-		"placed_at":       ord.PlacedAt,
-		"paid_at":         ord.PaidAt,
-		"cancelled_at":    ord.CancelledAt,
-		"created_at":      ord.CreatedAt,
-		"updated_at":      ord.UpdatedAt,
-		"order_items":     ord.OrderItems,
+		"id":               ord.ID,
+		"order_number":     ord.OrderNumber,
+		"user_id":          ord.UserID,
+		"customer_id":      ord.CustomerID,
+		"business_id":      ord.BusinessID,
+		"channel":          ord.Channel,
+		"status":           ord.Status,
+		"payment_status":   ord.PaymentStatus,
+		"currency":         ord.Currency,
+		"subtotal":         ord.Subtotal,
+		"discount_amount":  ord.DiscountAmount,
+		"tax_amount":       ord.TaxAmount,
+		"shipping_amount":  ord.ShippingAmount,
+		"fulfillment_type": ord.FulfillmentType,
+		"grand_total":      ord.GrandTotal,
+		"applied_coupons":  ord.OrderCoupons,
+		"notes":            ord.Notes,
+		"metadata":         metadata,
+		"placed_at":        ord.PlacedAt,
+		"paid_at":          ord.PaidAt,
+		"cancelled_at":     ord.CancelledAt,
+		"created_at":       ord.CreatedAt,
+		"updated_at":       ord.UpdatedAt,
+		"order_items":      ord.OrderItems,
 	}
 }
 
 type adminCreateOrderReq struct {
-	AdminID    string  `json:"admin_id" binding:"required"`
-	UserID     *string `json:"user_id"`
-	CustomerID *string `json:"customer_id"`
-	BusinessID *string `json:"business_id"`
-	Currency   string  `json:"currency" binding:"required"`
-	IsDraft    bool    `json:"is_draft"`
-	Items      []struct {
+	AdminID         string  `json:"admin_id" binding:"required"`
+	UserID          *string `json:"user_id"`
+	CustomerID      *string `json:"customer_id"`
+	BusinessID      *string `json:"business_id"`
+	FulfillmentType string  `json:"fulfillment_type"`
+	Currency        string  `json:"currency" binding:"required"`
+	IsDraft         bool    `json:"is_draft"`
+	Items           []struct {
 		ProductID string  `json:"product_id" binding:"required"`
 		Qty       int     `json:"qty" binding:"required"`
 		UnitPrice float64 `json:"unit_price" binding:"required"`
@@ -136,7 +138,7 @@ func (h *OrderHandler) AdminCreate(c *gin.Context) {
 		})
 	}
 	if req.IsDraft || len(items) == 0 {
-		ord, err := h.svc.CreateDraftOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.CustomerID, req.BusinessID, req.Currency)
+		ord, err := h.svc.CreateDraftOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.CustomerID, req.BusinessID, req.FulfillmentType, req.Currency)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -145,7 +147,7 @@ func (h *OrderHandler) AdminCreate(c *gin.Context) {
 		return
 	}
 
-	ord, err := h.svc.CreateOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.CustomerID, req.BusinessID, items, req.Currency)
+	ord, err := h.svc.CreateOrderAsAdmin(c.Request.Context(), req.AdminID, req.UserID, req.CustomerID, req.BusinessID, req.FulfillmentType, items, req.Currency)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -313,7 +315,8 @@ func (h *OrderHandler) RemoveCoupon(c *gin.Context) {
 }
 
 type updateOrderReq struct {
-	CustomerID *string `json:"customer_id"`
+	CustomerID      *string `json:"customer_id"`
+	FulfillmentType *string `json:"fulfillment_type"`
 }
 
 func (h *OrderHandler) Update(c *gin.Context) {
@@ -323,7 +326,7 @@ func (h *OrderHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	ord, err := h.svc.UpdateOrderCustomer(c.Request.Context(), orderID, req.CustomerID)
+	ord, err := h.svc.UpdateOrderCustomerAndFulfillment(c.Request.Context(), orderID, req.CustomerID, req.FulfillmentType)
 	if err != nil {
 		if errors.Is(err, ordersvc.ErrOrderAlreadyPaid) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})

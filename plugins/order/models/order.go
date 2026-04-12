@@ -27,6 +27,7 @@ type Order struct {
 	DiscountAmount   float64       `gorm:"type:numeric(15,2)" json:"discount_amount"`
 	TaxAmount        float64       `gorm:"type:numeric(15,2)" json:"tax_amount"`
 	ShippingAmount   float64       `gorm:"type:numeric(15,2)" json:"shipping_amount"`
+	FulfillmentType  string        `gorm:"size:24;index" json:"fulfillment_type"`
 	GrandTotal       float64       `gorm:"type:numeric(15,2)" json:"grand_total"`
 	OrderCoupons     []OrderCoupon `gorm:"foreignKey:OrderID" json:"applied_coupons"`
 	Notes            *string       `gorm:"type:text" json:"notes"`

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -236,6 +237,7 @@ func (h *ReviewHandler) ListAllProductReviews(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 	productID := strings.TrimSpace(c.Query("product_id"))
+	businessID := strings.TrimSpace(c.Query("business_id"))
 	hasReplyParam := strings.TrimSpace(c.Query("has_reply"))
 
 	if page <= 0 {
@@ -250,17 +252,22 @@ func (h *ReviewHandler) ListAllProductReviews(c *gin.Context) {
 
 	offset := (page - 1) * limit
 	query := h.svc.DB.WithContext(c.Request.Context()).
-		Table("customer_reviews").
-		Where("status = ? AND is_visible = ?", "published", true)
+		Table("customer_reviews cr").
+		Joins("JOIN orders o ON o.id = cr.order_id").
+		Joins("LEFT JOIN businesses b ON b.id = o.business_id").
+		Where("cr.status = ? AND cr.is_visible = ?", "published", true)
 
 	if productID != "" {
-		query = query.Where("product_id = ?", productID)
+		query = query.Where("cr.product_id = ?", productID)
+	}
+	if businessID != "" {
+		query = query.Where("o.business_id = ?", businessID)
 	}
 	if hasReplyParam != "" {
 		if hasReplyParam == "true" {
-			query = query.Where("seller_reply IS NOT NULL AND seller_reply <> ''")
+			query = query.Where("cr.seller_reply IS NOT NULL AND cr.seller_reply <> ''")
 		} else if hasReplyParam == "false" {
-			query = query.Where("seller_reply IS NULL OR seller_reply = ''")
+			query = query.Where("cr.seller_reply IS NULL OR cr.seller_reply = ''")
 		}
 	}
 
@@ -271,26 +278,30 @@ func (h *ReviewHandler) ListAllProductReviews(c *gin.Context) {
 	}
 
 	type reviewRow struct {
-		ID            string     `json:"id"`
-		ProductID     string     `json:"product_id"`
-		CustomerID    string     `json:"customer_id"`
-		OrderID       string     `json:"order_id"`
-		OrderItemID   string     `json:"order_item_id"`
-		Rating        int        `json:"rating"`
-		ReviewText    string     `json:"review_text"`
-		QuestionText  string     `json:"question_text"`
-		SellerReply   *string    `json:"seller_reply"`
-		SellerReplyAt *time.Time `json:"seller_reply_at"`
-		Status        string     `json:"status"`
-		IsVisible     bool       `json:"is_visible"`
-		CreatedAt     time.Time  `json:"created_at"`
-		UpdatedAt     time.Time  `json:"updated_at"`
+		ID            string          `json:"id"`
+		ProductID     string          `json:"product_id"`
+		Metadata      json.RawMessage `json:"metadata"`
+		BusinessID    string          `json:"business_id"`
+		BusinessName  string          `json:"business_name"`
+		BusinessSlug  string          `json:"business_slug"`
+		CustomerID    string          `json:"customer_id"`
+		OrderID       string          `json:"order_id"`
+		OrderItemID   string          `json:"order_item_id"`
+		Rating        int             `json:"rating"`
+		ReviewText    string          `json:"review_text"`
+		QuestionText  string          `json:"question_text"`
+		SellerReply   *string         `json:"seller_reply"`
+		SellerReplyAt *time.Time      `json:"seller_reply_at"`
+		Status        string          `json:"status"`
+		IsVisible     bool            `json:"is_visible"`
+		CreatedAt     time.Time       `json:"created_at"`
+		UpdatedAt     time.Time       `json:"updated_at"`
 	}
 
 	var rows []reviewRow
 	if err := query.
-		Select("id, product_id, customer_id, order_id, order_item_id, rating, review_text, question_text, seller_reply, seller_reply_at, status, is_visible, created_at, updated_at").
-		Order("created_at DESC").
+		Select("cr.id, cr.product_id, COALESCE(cr.metadata, '{}'::jsonb) AS metadata, COALESCE(o.business_id::text, '') AS business_id, COALESCE(b.name, '') AS business_name, COALESCE(b.slug, '') AS business_slug, cr.customer_id, cr.order_id, cr.order_item_id, cr.rating, cr.review_text, cr.question_text, cr.seller_reply, cr.seller_reply_at, cr.status, cr.is_visible, cr.created_at, cr.updated_at").
+		Order("cr.created_at DESC").
 		Offset(offset).
 		Limit(limit).
 		Scan(&rows).Error; err != nil {

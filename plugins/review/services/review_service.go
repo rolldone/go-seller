@@ -95,18 +95,19 @@ type PublicBusinessReviewSummary struct {
 }
 
 type PublicBusinessReview struct {
-	ID             string   `json:"id"`
-	ProductID      string   `json:"productId"`
-	ProductTitle   string   `json:"productTitle"`
-	ProductVariant string   `json:"productVariant"`
-	Rating         int      `json:"rating"`
-	CreatedAtLabel string   `json:"createdAtLabel"`
-	CreatedAt      string   `json:"createdAt,omitempty"`
-	UsernameMasked string   `json:"usernameMasked"`
-	Content        string   `json:"content"`
-	HelpfulCount   int      `json:"helpfulCount"`
-	HasMedia       bool     `json:"hasMedia"`
-	Topics         []string `json:"topics,omitempty"`
+	ID             string             `json:"id"`
+	ProductID      string             `json:"productId"`
+	ProductTitle   string             `json:"productTitle"`
+	ProductVariant string             `json:"productVariant"`
+	Rating         int                `json:"rating"`
+	CreatedAtLabel string             `json:"createdAtLabel"`
+	CreatedAt      string             `json:"createdAt,omitempty"`
+	UsernameMasked string             `json:"usernameMasked"`
+	Content        string             `json:"content"`
+	HelpfulCount   int                `json:"helpfulCount"`
+	HasMedia       bool               `json:"hasMedia"`
+	Topics         []string           `json:"topics,omitempty"`
+	Attachments    []ReviewAttachment `json:"attachments,omitempty"`
 }
 
 type ReviewAttachment struct {
@@ -771,11 +772,13 @@ func (s *ReviewService) GetBusinessReviewOverview(ctx context.Context, businessI
 		limit = 100
 	}
 
-	summaryQuery := businessReviewsBaseQuery(ctx, s.DB, businessID)
+	totalQuery := businessReviewsBaseQuery(ctx, s.DB, businessID)
+	avgQuery := businessReviewsBaseQuery(ctx, s.DB, businessID)
+	countQuery := businessReviewsBaseQuery(ctx, s.DB, businessID)
 	listQuery := businessReviewsBaseQuery(ctx, s.DB, businessID)
 
 	var total int64
-	if err := summaryQuery.Count(&total).Error; err != nil {
+	if err := totalQuery.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
@@ -798,13 +801,13 @@ func (s *ReviewService) GetBusinessReviewOverview(ctx context.Context, businessI
 	}
 
 	var averageRating float64
-	if err := summaryQuery.Select("COALESCE(AVG(cr.rating), 0)").Row().Scan(&averageRating); err != nil {
+	if err := avgQuery.Select("COALESCE(AVG(cr.rating), 0)").Row().Scan(&averageRating); err != nil {
 		return nil, err
 	}
 	overview.Summary.Score = averageRating
 
 	var counts []ratingCountRow
-	if err := summaryQuery.
+	if err := countQuery.
 		Select("cr.rating AS rating, COUNT(*) AS count").
 		Group("cr.rating").
 		Order("cr.rating DESC").
@@ -873,6 +876,7 @@ func (s *ReviewService) GetBusinessReviewOverview(ctx context.Context, businessI
 			HelpfulCount:   0,
 			HasMedia:       hasMedia,
 			Topics:         topics,
+			Attachments:    parseReviewAttachmentMetadata(row.Metadata),
 		})
 	}
 	overview.Reviews = views
