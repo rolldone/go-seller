@@ -10,6 +10,8 @@ import BusinessAboutTab from "./tabs/BusinessAboutTab";
 import Footer from "../Footer";
 import { getFallbackBusinessStore } from "./mockData";
 import type { CustomerSession } from "../../../lib/customerSession";
+import { buildLocalizedPath } from "../../../lib/siteLocale";
+import { useTranslations } from "../../../i18n";
 
 interface BusinessStoreFrontPageProps {
   store: PublicBusinessStore;
@@ -20,14 +22,9 @@ interface BusinessStoreFrontPageProps {
 
 type TabKey = "beranda" | "produk" | "ulasan" | "tentang";
 
-const TAB_ITEMS: Array<{ key: TabKey; label: string }> = [
-  { key: "beranda", label: "Beranda" },
-  { key: "produk", label: "Produk" },
-  { key: "ulasan", label: "Ulasan" },
-  { key: "tentang", label: "Tentang Toko" },
-];
+const TAB_ITEMS: TabKey[] = ["beranda", "produk", "ulasan", "tentang"];
 
-const VALID_TAB_KEYS = new Set<TabKey>(TAB_ITEMS.map((item) => item.key));
+const VALID_TAB_KEYS = new Set<TabKey>(TAB_ITEMS);
 
 function isTabKey(value: string | null): value is TabKey {
   return Boolean(value) && VALID_TAB_KEYS.has(value as TabKey);
@@ -48,6 +45,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
   const effectiveReviews = safeReviews;
   const effectiveCarousels = Array.isArray(carousels) ? carousels : [];
   const featuredProducts = effectiveProducts.slice(0, 6);
+  const t = useTranslations("business", locale);
 
   const formatNumber = (value: number) => new Intl.NumberFormat("id-ID").format(value);
   
@@ -83,7 +81,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
     const basePath = `/b/${business.slug}`;
     const nextPath = activeTab === "beranda" ? basePath : `${basePath}/${activeTab}`;
 
-    url.pathname = nextPath;
+    url.pathname = buildLocalizedPath(nextPath, locale);
     url.searchParams.delete("tab");
 
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
@@ -141,21 +139,21 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-slate-900">
       <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        <BusinessPageNav business={business} customerSession={customerSession} />
+        <BusinessPageNav business={business} customerSession={customerSession} locale={locale} />
 
-        <BusinessStoreHeader business={business} />
+        <BusinessStoreHeader business={business} locale={locale} />
 
         <nav className="mt-5 border-b border-slate-300">
           <ul className="flex items-center gap-6 text-sm font-semibold">
             {TAB_ITEMS.map((tab) => (
               <li
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                key={tab}
+                onClick={() => setActiveTab(tab)}
                 className={`cursor-pointer pb-3 transition-colors ${
-                  activeTab === tab.key ? "border-b-2 border-emerald-500 text-emerald-600" : "text-slate-500 hover:text-slate-800"
+                  activeTab === tab ? "border-b-2 border-emerald-500 text-emerald-600" : "text-slate-500 hover:text-slate-800"
                 }`}
               >
-                {tab.label}
+                {tab === "beranda" ? t("home", "Beranda") : tab === "produk" ? t("products", "Produk") : tab === "ulasan" ? t("reviews", "Ulasan") : t("aboutStore", "Tentang Toko")}
               </li>
             ))}
           </ul>
@@ -197,7 +195,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
           />
         )}
 
-        {activeTab === "tentang" && <BusinessAboutTab business={business} />}
+        {activeTab === "tentang" && <BusinessAboutTab business={business} locale={locale} />}
       </div>
 
       <Footer />

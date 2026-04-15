@@ -9,6 +9,7 @@ import {
   type CustomerProfile,
 } from "../../../lib/customerSession";
 import { rememberCustomerAuthNextPath } from "../../../lib/customerAuthRedirect";
+import { isCustomerAuthPathname } from "../../../lib/siteLocale";
 import { notifyWithAction } from "../../../lib/notification";
 
 const CUSTOMER_REFRESH_TOKEN_KEY = "customer_refresh_token";
@@ -89,7 +90,7 @@ function shouldHandleUnauthorized(status: number, payload: any): boolean {
 function handleCustomerUnauthorized(message?: string): void {
   clearCustomerSession();
   if (typeof window === "undefined") return;
-  if (window.location.pathname.startsWith("/customer/auth/")) return;
+  if (isCustomerAuthPathname(window.location.pathname)) return;
   if (isHandlingCustomerUnauthorized) return;
 
   isHandlingCustomerUnauthorized = true;

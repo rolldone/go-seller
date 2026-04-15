@@ -1,15 +1,18 @@
 /** @jsxRuntime classic */
 import React, { useEffect, useRef, useState } from "react";
-import { ShoppingBag } from "lucide-react";
+import { Bell, MessageSquare, ShoppingBag } from "lucide-react";
 import type { PublicBusiness } from "./types";
 import type { CustomerSession } from "../../../lib/customerSession";
 import { getCustomerAuthToken, getCustomerProfile } from "../../customer/auth/authApi";
 import { getCartPreview, type CartPreview } from "../../../lib/cartApi";
+import { buildLocalizedPath, getLocaleFromPathname } from "../../../lib/siteLocale";
+import { useTranslations } from "../../../i18n";
 
 interface BusinessPageNavProps {
   business: PublicBusiness;
   customerSession?: CustomerSession | null;
   cartPreview?: CartPreview | null;
+  locale?: string;
 }
 
 function NavIcon({ children, label, href }: { children: React.ReactNode; label: string; href?: string }) {
@@ -29,12 +32,15 @@ function NavIcon({ children, label, href }: { children: React.ReactNode; label: 
   );
 }
 
-export default function BusinessPageNav({ business, customerSession = null, cartPreview = null }: BusinessPageNavProps) {
+export default function BusinessPageNav({ business, customerSession = null, cartPreview = null, locale }: BusinessPageNavProps) {
+  const tCommon = useTranslations("common", locale);
+  const tBusiness = useTranslations("business", locale);
   const [session, setSession] = useState<CustomerSession | null>(customerSession);
   const [internalPreview, setInternalPreview] = useState<CartPreview | null>(null);
   const preview = cartPreview ?? internalPreview;
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewFetchKeyRef = useRef("");
+  const resolvedLocale = locale || (typeof window !== "undefined" ? getLocaleFromPathname(window.location.pathname) : undefined);
 
   useEffect(() => {
     if (session?.authenticated) return;
@@ -91,30 +97,28 @@ export default function BusinessPageNav({ business, customerSession = null, cart
   }, [business?.id, cartPreview, session?.authenticated]);
 
   const isAuthenticated = Boolean(session?.authenticated);
-  const customerName = session?.profile?.name || "Akun saya";
+  const customerName = session?.profile?.name || tBusiness("myAccount", "Akun saya");
   const cartItemCount = preview?.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
   const cartPreviewItems = (preview?.items || []).slice(0, 3);
   const hasCartPreview = Boolean(preview && (preview.items?.length || 0) > 0);
 
   return (
     <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-      <a href="/" className="inline-flex items-center gap-2 transition hover:opacity-80">
+      <a href={buildLocalizedPath("/", resolvedLocale)} className="inline-flex items-center gap-2 transition hover:opacity-80">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-200">
           <ShoppingBag className="h-5 w-5 text-white" />
         </div>
         <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-xl font-bold text-transparent">
-          GoSeller
+          {tCommon("goSeller", "GoSeller")}
         </span>
       </a>
 
       <div className="flex items-center justify-end gap-2">
-        <NavIcon label="Chat">
-          <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-          </svg>
+        <NavIcon label={tBusiness("chatSeller", "Chat Penjual")}>
+          <MessageSquare className="h-4.5 w-4.5" />
         </NavIcon>
         <div className="relative group" onMouseEnter={() => setPreviewOpen(true)} onMouseLeave={() => setPreviewOpen(false)}>
-          <NavIcon label="Keranjang" href={business?.slug ? `/b/${encodeURIComponent(business.slug)}/cart` : "/cart"}>
+          <NavIcon label={tBusiness("cart", "Keranjang")} href={buildLocalizedPath(business?.slug ? `/b/${encodeURIComponent(business.slug)}/cart` : "/cart", resolvedLocale)}>
             <span className="relative inline-flex">
               <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="9" cy="20" r="1" />
@@ -133,14 +137,14 @@ export default function BusinessPageNav({ business, customerSession = null, cart
             <div className="absolute right-0 top-full z-20 mt-3 w-80 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/60">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-slate-900">Keranjang</div>
+                  <div className="text-sm font-semibold text-slate-900">{tBusiness("cart", "Keranjang")}</div>
                   <div className="text-xs text-slate-500">
-                    {cartItemCount > 0 ? `${cartItemCount} item dalam keranjang` : "Keranjang masih kosong"}
+                    {cartItemCount > 0 ? `${cartItemCount} ${tBusiness("itemsInCart", "item dalam keranjang")}` : tBusiness("cartEmpty", "Keranjang masih kosong")}
                   </div>
                 </div>
                 {preview?.grand_total ? (
                   <div className="text-right text-xs text-slate-500">
-                    Total
+                    {tBusiness("total", "Total")}
                     <div className="text-sm font-semibold text-slate-900">
                       {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Math.max(0, Math.round(preview.grand_total)))}
                     </div>
@@ -153,8 +157,8 @@ export default function BusinessPageNav({ business, customerSession = null, cart
                   cartPreviewItems.map((item) => (
                     <div key={item.id || `${item.product_id}-${item.sku || item.variation_id || item.qty}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
                       <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-slate-900">{item.product_name || "Produk"}</div>
-                        <div className="text-xs text-slate-500">Qty {item.qty}</div>
+                        <div className="truncate text-sm font-medium text-slate-900">{item.product_name || tBusiness("product", "Produk")}</div>
+                        <div className="text-xs text-slate-500">{tBusiness("quantityShort", "Qty")} {item.qty}</div>
                       </div>
                       <div className="text-xs font-semibold text-slate-700">
                         {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Math.max(0, Math.round(item.net_total || item.line_total || 0)))}
@@ -162,38 +166,35 @@ export default function BusinessPageNav({ business, customerSession = null, cart
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">Belum ada item di keranjang.</div>
+                  <div className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">{tBusiness("cartEmpty", "Keranjang masih kosong")}</div>
                 )}
               </div>
 
               <a
-                href={business?.slug ? `/b/${encodeURIComponent(business.slug)}/cart` : "/cart"}
+                href={buildLocalizedPath(business?.slug ? `/b/${encodeURIComponent(business.slug)}/cart` : "/cart", resolvedLocale)}
                 className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
-                Buka Keranjang
+                {tBusiness("openCart", "Buka Keranjang")}
               </a>
             </div>
           ) : null}
         </div>
-        <NavIcon label="Notifikasi">
-          <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
-            <path d="M9 17a3 3 0 0 0 6 0" />
-          </svg>
+        <NavIcon label={tBusiness("notifications", "Notifikasi")}>
+          <Bell className="h-4.5 w-4.5" />
         </NavIcon>
 
         <a
-          href={isAuthenticated ? "/customer/dashboard" : "/customer/auth/login"}
+          href={buildLocalizedPath(isAuthenticated ? "/customer/dashboard" : "/customer/auth/login", resolvedLocale)}
           className="ml-1 inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
         >
-          {isAuthenticated ? customerName : "Login"}
+          {isAuthenticated ? customerName : tCommon("signIn", "Login")}
         </a>
         {isAuthenticated ? (
           <a
-            href="/customer/auth/logout"
+            href={buildLocalizedPath("/customer/auth/logout", resolvedLocale)}
             className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
           >
-            Logout
+            {tCommon("logout", "Logout")}
           </a>
         ) : null}
       </div>

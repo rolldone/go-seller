@@ -6,11 +6,14 @@ interface ProductItem {
   description: string;
 }
 
+import { useTranslations } from "../../i18n";
+
 interface ProductGridProps {
   items: ProductItem[];
 }
 
 export default function ProductGrid({ items }: ProductGridProps) {
+  const t = useTranslations();
   return (
     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {items.map((item) => (
@@ -21,10 +24,10 @@ export default function ProductGrid({ items }: ProductGridProps) {
           <p className="text-xs uppercase tracking-[0.12em] text-slate-500">{item.category}</p>
           <h3 className="mt-2 text-base font-semibold text-slate-900">{item.name}</h3>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.description}</p>
-          <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex items-center justify-between">
             <span className="text-base font-bold text-emerald-600">{item.price}</span>
             <a href="#" className="text-xs font-semibold uppercase tracking-wide text-emerald-600 transition hover:text-emerald-500">
-              View
+              {t("view", "View")}
             </a>
           </div>
         </article>

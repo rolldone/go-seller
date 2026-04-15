@@ -1,0 +1,24 @@
+---
+export const prerender = false;
+
+import "../../../styles/front.css";
+import CustomerOrderPage from "../../../components/front/CustomerOrderPage";
+import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
+import { normalizeLocale } from "../../../lib/siteLocale";
+
+const locale = normalizeLocale(Astro.params.lang);
+const { id = "" } = Astro.params;
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang={locale}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Detail Order | GoSeller</title>
+		<CustomerSessionBootstrap session={customerSession} />
+	</head>
+	<body class="bg-[#f7f7f5] text-slate-900 antialiased">
+		<CustomerOrderPage client:only="react" orderID={id} />
+	</body>
+</html>

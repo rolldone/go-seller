@@ -4,9 +4,11 @@ import { ArrowLeft, Building2, CreditCard, LoaderCircle, Receipt, ShieldCheck, U
 import Footer from "./Footer";
 import CourierCard from "./CourierCard";
 import type { PublicBusiness } from "./business/types";
+import { useTranslations } from "../../i18n";
 import { buildCustomerAuthLoginUrl } from "../../lib/customerAuthRedirect";
 import { getCustomerAuthToken, listMyCustomerAddresses, type CustomerAddress } from "../customer/auth/authApi";
 import { notifyError, notifySuccess } from "../../lib/notification";
+import { buildLocalizedPath } from "../../lib/siteLocale";
 import {
   downloadMyOrderInvoice,
   getMyOrderByID,
@@ -173,14 +175,14 @@ function parseShippingAddress(orderMetadata: unknown): Record<string, any> | nul
 
 function mapStatusLabel(value?: string | null): string {
   const key = String(value || "").trim().toLowerCase();
-  if (key === "awaiting_quote" || key === "pending_shipping" || key === "awaiting_shipping") return "Menunggu Ongkir";
-  if (key === "quote_ready") return "Ongkir Siap";
-  if (key === "paid" || key === "completed" || key === "confirmed") return "Selesai";
-  if (key === "pending_verification" || key === "payment_verification") return "Verifikasi";
-  if (key === "expired") return "Kedaluwarsa";
-  if (key === "cancelled" || key === "canceled" || key === "failed") return "Dibatalkan";
-  if (key === "unpaid" || key === "pending") return "Menunggu";
-  return key ? key.replace(/_/g, " ") : "-";
+  if (key === "awaiting_quote" || key === "pending_shipping" || key === "awaiting_shipping") return "orderStatus.awaitingQuote";
+  if (key === "quote_ready") return "orderStatus.quoteReady";
+  if (key === "paid" || key === "completed" || key === "confirmed") return "orderStatus.completed";
+  if (key === "pending_verification" || key === "payment_verification") return "orderStatus.verification";
+  if (key === "expired") return "orderStatus.expired";
+  if (key === "cancelled" || key === "canceled" || key === "failed") return "orderStatus.cancelled";
+  if (key === "unpaid" || key === "pending") return "orderStatus.pending";
+  return key || "-";
 }
 
 function mapStatusClass(value?: string | null): string {
@@ -256,9 +258,29 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const [submittingReviewItemID, setSubmittingReviewItemID] = useState("");
   const [reviewError, setReviewError] = useState("");
 
+  const t = useTranslations();
+
+  const translateStatus = (value?: string | null) => {
+    const statusKey = mapStatusLabel(value);
+    const fallbackMap: Record<string, string> = {
+      "orderStatus.awaitingQuote": "Menunggu Ongkir",
+      "orderStatus.quoteReady": "Ongkir Siap",
+      "orderStatus.completed": "Selesai",
+      "orderStatus.verification": "Verifikasi",
+      "orderStatus.expired": "Kedaluwarsa",
+      "orderStatus.cancelled": "Dibatalkan",
+      "orderStatus.pending": "Menunggu",
+    };
+    if (Object.prototype.hasOwnProperty.call(fallbackMap, statusKey)) {
+      return t(statusKey, fallbackMap[statusKey]);
+    }
+    if (!statusKey || statusKey === "-") return "-";
+    return t(statusKey, String(value || "").replace(/_/g, " "));
+  };
+
   const loadDetail = async () => {
     if (!resolvedOrderID) {
-      setError("Order ID tidak ditemukan.");
+      setError(t("orderIdNotFound", "Order ID tidak ditemukan."));
       setLoading(false);
       return;
     }
@@ -292,7 +314,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
         });
       }
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Gagal memuat detail order";
+      const message = loadError instanceof Error ? loadError.message : t("failedLoadOrderDetail", "Gagal memuat detail order");
       setError(message);
     } finally {
       setLoading(false);
@@ -305,7 +327,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       const rows = await listMyCustomerAddresses();
       setAddresses(rows);
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Gagal memuat alamat";
+      const message = loadError instanceof Error ? loadError.message : t("failedLoadAddress", "Gagal memuat alamat");
       setShippingAddressError(message);
       setAddresses([]);
     }
@@ -328,7 +350,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       .slice(0, MAX_REVIEW_ATTACHMENTS);
 
     if (files && selectedFiles.length !== files.length) {
-      notifyError(`Hanya file gambar/video, maksimal ${MAX_REVIEW_ATTACHMENTS} file, ukuran maksimal 10MB per file.`);
+      notifyError(t("reviewAttachmentRestriction", `Hanya file gambar/video, maksimal ${MAX_REVIEW_ATTACHMENTS} file, ukuran maksimal 10MB per file.`));
     }
 
     handleReviewDraftChange(itemID, { attachments: selectedFiles });
@@ -373,11 +395,11 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
           question_text: String(draft.question_text || ""),
         });
       }
-      notifySuccess("Review pembeli berhasil disimpan.");
+      notifySuccess(t("reviewSaved", "Review pembeli berhasil disimpan."));
       const reviewRows = await listMyOrderReviewableItems(order.id);
       setReviewableItems(reviewRows.data || []);
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : "Gagal menyimpan review";
+      const message = submitError instanceof Error ? submitError.message : t("failedSaveReview", "Gagal menyimpan review");
       setReviewError(message);
       notifyError(message);
     } finally {
@@ -388,7 +410,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const handleApplyShippingAddress = async () => {
     if (!order?.id || !selectedAddressID) return;
     if (shippingAddressLocked) {
-      const message = "Alamat tidak bisa diubah karena ongkir sudah dibuat.";
+      const message = t("shippingLocked", "Alamat tidak bisa diubah karena ongkir sudah dibuat.");
       setShippingAddressError(message);
       notifyError(message);
       return;
@@ -397,10 +419,10 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     setShippingAddressError("");
     try {
       await updateMyOrderShippingAddress(order.id, selectedAddressID);
-      notifySuccess("Alamat pengiriman diperbarui. Menunggu konfirmasi ongkir baru.");
+      notifySuccess(t("shippingUpdated", "Alamat pengiriman diperbarui. Menunggu konfirmasi ongkir baru."));
       await loadDetail();
     } catch (updateError) {
-      const message = updateError instanceof Error ? updateError.message : "Gagal memperbarui alamat pengiriman";
+      const message = updateError instanceof Error ? updateError.message : t("failedUpdateShippingAddress", "Gagal memperbarui alamat pengiriman");
       setShippingAddressError(message);
       notifyError(message);
     } finally {
@@ -521,9 +543,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       return;
     }
     if (awaitingShippingQuote && !statusMessage) {
-      setStatusMessage(
-        "Pesanan diterima. Tim kami akan menghubungi Anda via WhatsApp untuk konfirmasi ongkir dan total pembayaran.",
-      );
+      setStatusMessage(t("orderReceivedAwaitingShipping", "Pesanan diterima. Tim kami akan menghubungi Anda via WhatsApp untuk konfirmasi ongkir dan total pembayaran."));
     }
   }, [awaitingShippingQuote, order?.id, statusMessage]);
 
@@ -551,13 +571,17 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
         await startMyOrderPayment(order.id, { provider_id: selectedProvider.id });
       }
 
-      notifySuccess("Pembayaran berhasil dibuat.");
-      setStatusMessage(isBankTransfer ? "Konfirmasi pembayaran terkirim. Tim kami akan memverifikasi bukti transfer Anda." : "Pembayaran baru berhasil dibuat. Silakan lanjutkan sesuai instruksi metode pembayaran.");
+      notifySuccess(t("paymentCreated", "Pembayaran berhasil dibuat."));
+      setStatusMessage(
+        isBankTransfer
+          ? t("bankTransferConfirmationSent", "Konfirmasi pembayaran terkirim. Tim kami akan memverifikasi bukti transfer Anda.")
+          : t("paymentCreatedInstructions", "Pembayaran baru berhasil dibuat. Silakan lanjutkan sesuai instruksi metode pembayaran."),
+      );
       setProofFiles([]);
       setProofNotes("");
       await loadDetail();
     } catch (submitError) {
-      const message = submitError instanceof Error ? submitError.message : "Gagal memulai pembayaran";
+      const message = submitError instanceof Error ? submitError.message : t("failedStartPayment", "Gagal memulai pembayaran");
       setError(message);
       notifyError(message);
     } finally {
@@ -578,9 +602,9 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(objectURL), 60_000);
-      notifySuccess("Invoice berhasil diunduh.");
+      notifySuccess(t("invoiceDownloaded", "Invoice berhasil diunduh."));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal mengunduh invoice";
+      const message = err instanceof Error ? err.message : t("failedDownloadInvoice", "Gagal mengunduh invoice");
       setError(message);
       notifyError(message);
     } finally {
@@ -611,19 +635,19 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <a href="/customer/dashboard" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
+            <a href={buildLocalizedPath("/customer/dashboard", typeof window !== "undefined" ? window.location.pathname : null)} className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 transition hover:text-slate-900">
               <ArrowLeft className="h-4 w-4" />
-              Kembali ke dashboard
+              {t("backToDashboard", "Kembali ke dashboard")}
             </a>
-            <h1 className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">Detail Order</h1>
-            <p className="mt-2 text-sm text-slate-500">Pantau status order dan lanjutkan pembayaran dari halaman ini.</p>
+            <h1 className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">{t("orderDetailTitle", "Detail Order")}</h1>
+            <p className="mt-2 text-sm text-slate-500">{t("orderDetailDescription", "Pantau status order dan lanjutkan pembayaran dari halaman ini.")}</p>
           </div>
           {order ? (
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">Order</div>
-              <div className="mt-1 text-base font-semibold text-slate-900">{order.order_number}</div>
-              <div className="mt-1 text-xs text-slate-500">Dibuat {formatDateTime(order.created_at)}</div>
-            </div>
+                <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{t("orderCardLabel", "Order")}</div>
+                <div className="mt-1 text-base font-semibold text-slate-900">{order.order_number}</div>
+                <div className="mt-1 text-xs text-slate-500">{t("createdAtLabel", "Dibuat")} {formatDateTime(order.created_at)}</div>
+              </div>
           ) : null}
         </header>
 
@@ -638,39 +662,39 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
           <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
             <div className="flex items-center justify-center gap-3 text-sm text-slate-500">
               <LoaderCircle className="h-5 w-5 animate-spin text-emerald-600" />
-              Memuat detail order...
+              {t("loadingOrderDetail", "Memuat detail order...")}
             </div>
           </section>
         ) : !order ? (
           <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-            <h2 className="text-xl font-bold text-slate-900">Order tidak ditemukan</h2>
-            <p className="mt-2 text-sm text-slate-500">Pastikan order ini milik akun yang sedang login.</p>
+            <h2 className="text-xl font-bold text-slate-900">{t("orderNotFoundTitle", "Order tidak ditemukan")}</h2>
+            <p className="mt-2 text-sm text-slate-500">{t("orderNotFoundDescription", "Pastikan order ini milik akun yang sedang login.")}</p>
           </section>
         ) : (
           <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
             <section className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><Receipt className="h-4 w-4" /> Status Order</div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><Receipt className="h-4 w-4" /> {t("statusOrder", "Status Order")}</div>
                   <div className="mt-3">
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-sm font-semibold ${mapStatusClass(order.status)}`}>
-                      {mapStatusLabel(order.status)}
+                      {translateStatus(order.status)}
                     </span>
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><CreditCard className="h-4 w-4" /> Status Bayar</div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><CreditCard className="h-4 w-4" /> {t("statusPayment", "Status Bayar")}</div>
                   <div className="mt-3">
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-sm font-semibold ${mapStatusClass(order.payment_status)}`}>
-                      {mapStatusLabel(order.payment_status)}
+                      {translateStatus(order.payment_status)}
                     </span>
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><Building2 className="h-4 w-4" /> Business</div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><Building2 className="h-4 w-4" /> {t("businessLabel", "Business")}</div>
                   <div className="mt-3">
                     {business?.slug ? (
-                      <a href={`/b/${business.slug}`} className="block break-words text-sm font-semibold text-emerald-700 transition hover:text-emerald-600 hover:underline">
+                      <a href={buildLocalizedPath(`/b/${business.slug}`, typeof window !== "undefined" ? window.location.pathname : null)} className="block break-words text-sm font-semibold text-emerald-700 transition hover:text-emerald-600 hover:underline">
                         {business.name}
                       </a>
                     ) : (
@@ -680,36 +704,37 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                   </div>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><ShieldCheck className="h-4 w-4" /> Total</div>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-slate-500"><ShieldCheck className="h-4 w-4" /> {t("totalLabel", "Total")}</div>
                   <div className="mt-3 text-lg font-semibold text-slate-900">{toCurrency(order.grand_total, order.currency)}</div>
                 </div>
               </div>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">Item Order</h2>
+                <h2 className="text-lg font-bold text-slate-900">{t("orderItemsTitle", "Item Order")}</h2>
                 <div className="mt-4 overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">Produk</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Qty</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Harga</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Pajak</th>
-                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">Total</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">{t("tableHeader.product", "Produk")}</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{t("tableHeader.qty", "Qty")}</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{t("tableHeader.price", "Harga")}</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{t("tableHeader.tax", "Pajak")}</th>
+                        <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">{t("tableHeader.total", "Total")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {(order.order_items || []).map((item) => (
                         <tr key={item.id}>
                           <td className="px-3 py-3 text-sm text-slate-800">
-                            <div className="font-medium text-slate-900">{item.product_name || item.product_id || "Produk"}</div>
+                            <div className="font-medium text-slate-900">{item.product_name || item.product_id || t("productFallback", "Produk")}</div>
+                            
                             <div className="text-xs text-slate-500">{item.sku || item.product_id || "-"}</div>
                             <div className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold">
                               <span className={`rounded-full px-2 py-0.5 ${String(item.tax_type || "exclude") === "include" ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-700"}`}>
                                 {formatTaxMode(item.tax_type, item.tax_rate)}
                               </span>
                               <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                                Pajak {toCurrency(item.tax_amount, order.currency)}
+                                {t("tax", "Pajak")} {toCurrency(item.tax_amount, order.currency)}
                               </span>
                             </div>
                           </td>
@@ -725,9 +750,9 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">Review Pembeli</h2>
+                <h2 className="text-lg font-bold text-slate-900">{t("buyerReviews", "Review Pembeli")}</h2>
                 {reviewableItems.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-500">Belum ada item yang bisa direview untuk order ini.</p>
+                  <p className="mt-3 text-sm text-slate-500">{t("noReviewItems", "Belum ada item yang bisa direview untuk order ini.")}</p>
                 ) : (
                   <div className="mt-4 space-y-4">
                     {reviewableItems.map((entry) => {
@@ -744,12 +769,12 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                         <article key={entry.order_item_id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                              <div className="text-sm font-semibold text-slate-900">{entry.product_name || "Produk"}</div>
+                              <div className="text-sm font-semibold text-slate-900">{entry.product_name || t("productFallback", "Produk")}</div>
                               <div className="text-xs text-slate-500">{entry.sku || entry.product_id || entry.order_item_id}</div>
                             </div>
                             {hasReview ? (
                               <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                                Sudah direview
+                                {t("alreadyReviewed", "Sudah direview")}
                               </span>
                             ) : null}
                           </div>
@@ -757,10 +782,10 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                           {hasReview && entry.review ? (
                             <div className="mt-3 space-y-3">
                               <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Review Anda</div>
+                                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t("yourReviewTitle", "Review Anda")}</div>
                                 <div className="mt-1 text-amber-500">{"★".repeat(Math.max(0, Math.min(5, Number(entry.review.rating || 0))))}</div>
                                 {entry.review.review_text ? <p className="mt-2 text-sm text-slate-700">{entry.review.review_text}</p> : null}
-                                {entry.review.question_text ? <p className="mt-2 text-sm text-slate-600">Pertanyaan: {entry.review.question_text}</p> : null}
+                                {entry.review.question_text ? <p className="mt-2 text-sm text-slate-600">{t("questionLabel", "Pertanyaan:")} {entry.review.question_text}</p> : null}
                                 {reviewAttachments.length > 0 ? (
                                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                                     {reviewAttachments.map((attachment, index) => {
@@ -783,10 +808,10 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                                 <img src={publicUrl} alt={attachment.name || `Lampiran ${index + 1}`} className="h-full w-full object-cover" />
                                               )
                                             ) : (
-                                              <div className="text-xs font-semibold text-slate-500">Lampiran</div>
+                                              <div className="text-xs font-semibold text-slate-500">{t("attachment", "Lampiran")}</div>
                                             )}
                                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/70 to-transparent px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                                              {attachment.name || `Lampiran ${index + 1}`}
+                                                {attachment.name || t("attachmentN", `Lampiran ${index + 1}`)}
                                             </div>
                                           </div>
                                         </a>
@@ -795,23 +820,23 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                   </div>
                                 ) : null}
                               </div>
-                              {entry.review.seller_reply ? (
-                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                                  <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Balasan penjual</div>
-                                  <p className="mt-1 text-sm">{entry.review.seller_reply}</p>
-                                </div>
-                              ) : (
-                                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                                  Review terkirim. Menunggu balasan penjual.
-                                </div>
-                              )}
+                                {entry.review.seller_reply ? (
+                                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">{t("sellerReply", "Balasan penjual")}</div>
+                                    <p className="mt-1 text-sm">{entry.review.seller_reply}</p>
+                                  </div>
+                                ) : (
+                                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                    {t("reviewSentAwaitingSeller", "Review terkirim. Menunggu balasan penjual.")}
+                                  </div>
+                                )}
                             </div>
                           ) : !entry.can_review ? (
-                            <p className="mt-3 text-xs text-amber-700">{entry.reason || "Item ini belum bisa direview."}</p>
+                              <p className="mt-3 text-xs text-amber-700">{entry.reason || t("itemNotReviewable", "Item ini belum bisa direview.")}</p>
                           ) : (
                             <div className="mt-3 space-y-3">
                               <label className="block space-y-1 text-sm text-slate-700">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Rating</span>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("ratingLabel", "Rating")}</span>
                                 <select
                                   value={String(draft.rating || 5)}
                                   onChange={(event) => handleReviewDraftChange(entry.order_item_id, { rating: Number(event.target.value) })}
@@ -820,37 +845,37 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                 >
                                   {[5, 4, 3, 2, 1].map((value) => (
                                     <option key={value} value={value}>
-                                      {value} bintang
+                                      {value} {t("starUnit", "bintang")}
                                     </option>
                                   ))}
                                 </select>
                               </label>
 
                               <label className="block space-y-1 text-sm text-slate-700">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Ulasan</span>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("reviewLabel", "Ulasan")}</span>
                                 <textarea
                                   value={draft.review_text}
                                   onChange={(event) => handleReviewDraftChange(entry.order_item_id, { review_text: event.target.value })}
                                   className="min-h-20 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                                  placeholder="Bagikan pengalaman belanja Anda"
+                                  placeholder={t("reviewPlaceholder", "Bagikan pengalaman belanja Anda")}
                                   disabled={isSubmitting}
                                 />
                               </label>
 
                               <label className="block space-y-1 text-sm text-slate-700">
-                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Pertanyaan (opsional)</span>
+                                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("questionOptional", "Pertanyaan (opsional)")}</span>
                                 <textarea
                                   value={draft.question_text}
                                   onChange={(event) => handleReviewDraftChange(entry.order_item_id, { question_text: event.target.value })}
                                   className="min-h-16 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                                  placeholder="Ada yang ingin ditanyakan ke penjual?"
+                                  placeholder={t("questionPlaceholder", "Ada yang ingin ditanyakan ke penjual?")}
                                   disabled={isSubmitting}
                                 />
                               </label>
 
                               <div className="space-y-2 text-sm text-slate-700">
                                 <label className="block space-y-1">
-                                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Lampiran Foto/Video (opsional)</span>
+                                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">{t("attachmentsOptional", "Lampiran Foto/Video (opsional)")}</span>
                                   <input
                                     type="file"
                                     accept="image/*,video/*"
@@ -861,18 +886,18 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                   />
                                 </label>
 
-                                {Array.isArray(draft.attachments) && draft.attachments.length > 0 ? (
+                                  {Array.isArray(draft.attachments) && draft.attachments.length > 0 ? (
                                   <div className="space-y-2">
                                     <ReviewAttachmentPreviewStrip
                                       files={draft.attachments}
                                       onRemove={(index) => handleReviewAttachmentRemove(entry.order_item_id, index)}
                                     />
                                     <p className="text-xs text-slate-500">
-                                      {draft.attachments.length} file dipilih: {draft.attachments.map((file) => file.name).join(", ")}
+                                      {draft.attachments.length} {t("filesSelected", "file dipilih")} : {draft.attachments.map((file) => file.name).join(", ")}
                                     </p>
                                   </div>
                                 ) : (
-                                  <p className="text-xs text-slate-500">Pilih hingga {MAX_REVIEW_ATTACHMENTS} file, maksimal 10MB per file.</p>
+                                  <p className="text-xs text-slate-500">{t("selectFilesHelp", `Pilih hingga ${MAX_REVIEW_ATTACHMENTS} file, maksimal 10MB per file.`)}</p>
                                 )}
                               </div>
 
@@ -883,7 +908,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                   disabled={isSubmitting}
                                   className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                  {isSubmitting ? "Menyimpan..." : entry.review ? "Perbarui Review" : "Kirim Review"}
+                                  {isSubmitting ? t("saving", "Menyimpan...") : entry.review ? t("updateReview", "Perbarui Review") : t("submitReview", "Kirim Review")}
                                 </button>
                               </div>
                             </div>
@@ -897,9 +922,9 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">Riwayat Pembayaran</h2>
+                <h2 className="text-lg font-bold text-slate-900">{t("paymentHistory", "Riwayat Pembayaran")}</h2>
                 {payments.length === 0 ? (
-                  <p className="mt-3 text-sm text-slate-500">Belum ada pembayaran untuk order ini.</p>
+                  <p className="mt-3 text-sm text-slate-500">{t("noPayments", "Belum ada pembayaran untuk order ini.")}</p>
                 ) : (
                   <div className="mt-4 space-y-3">
                     {payments.map((payment: Payment) => {
@@ -909,17 +934,17 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                         <article key={payment.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <div className="text-sm font-semibold text-slate-900">{payment.gateway_name || payment.payment_method || payment.provider_key || "Payment"}</div>
+                              <div className="text-sm font-semibold text-slate-900">{payment.gateway_name || payment.payment_method || payment.provider_key || t("paymentFallback", "Payment")}</div>
                               <div className="mt-1 text-xs text-slate-500">{payment.id}</div>
                             </div>
                             <div className="text-right">
                               <div className="text-sm font-semibold text-slate-900">{toCurrency(payment.amount, payment.currency)}</div>
                               <div className="mt-2 flex items-center justify-end gap-2">
                                 <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${mapStatusClass(payment.status)}`}>
-                                  {mapStatusLabel(payment.status)}
+                                  {translateStatus(payment.status)}
                                 </span>
                                 <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${mapStatusClass(payment.proof_status)}`}>
-                                  Bukti: {mapStatusLabel(payment.proof_status)}
+                                  {t("proofLabel", "Bukti:")} {translateStatus(payment.proof_status)}
                                 </span>
                               </div>
                             </div>
@@ -927,13 +952,13 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                           {bankTransfer ? (
                             <div className="mt-3 grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
                               <div>
-                                <div className="font-medium text-slate-800">Bank Pengirim</div>
+                                <div className="font-medium text-slate-800">{t("bankSender", "Bank Pengirim")}</div>
                                 <div>{bankTransfer.sender_bank?.bank_name || "-"}</div>
                                 <div>{bankTransfer.sender_bank?.account_number || "-"}</div>
                                 <div>{bankTransfer.sender_bank?.account_holder || "-"}</div>
                               </div>
                               <div>
-                                <div className="font-medium text-slate-800">Transfer</div>
+                                <div className="font-medium text-slate-800">{t("transferLabel", "Transfer")}</div>
                                 <div>{toCurrency(Number(bankTransfer.transfer?.amount || 0), payment.currency)}</div>
                                 <div>{formatDateTime(String(bankTransfer.transfer?.transferred_at || ""))}</div>
                                 <div>{bankTransfer.transfer?.reference || "-"}</div>
@@ -941,8 +966,8 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                             </div>
                           ) : null}
                           {(proofsByPaymentID[payment.id] || []).length > 0 ? (
-                            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-                              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Bukti Transfer</div>
+                              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{t("transferProofTitle", "Bukti Transfer")}</div>
                               <div className="mt-2 space-y-2">
                                 {(proofsByPaymentID[payment.id] || []).map((proof) => {
                                   const opKey = `${payment.id}:${proof.id}`;
@@ -958,7 +983,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                         disabled={openingProofKey === opKey}
                                         className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                                       >
-                                        {openingProofKey === opKey ? "Membuka..." : "Lihat"}
+                                        {openingProofKey === opKey ? t("opening", "Membuka...") : t("view", "Lihat")}
                                       </button>
                                     </div>
                                   );
@@ -967,7 +992,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                             </div>
                           ) : (
                             <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-500">
-                              Belum ada file bukti pembayaran pada transaksi ini.
+                              {t("noPaymentProofs", "Belum ada file bukti pembayaran pada transaksi ini.")}
                             </div>
                           )}
                         </article>
@@ -979,7 +1004,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
 
               {shippingAddress ? (
                 <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h2 className="text-lg font-bold text-slate-900">Alamat Pengiriman</h2>
+                  <h2 className="text-lg font-bold text-slate-900">{t("shippingAddressTitle", "Alamat Pengiriman")}</h2>
                   <div className="mt-4 space-y-2 text-sm text-slate-600">
                     <div className="font-semibold text-slate-900">
                       {String(shippingAddress.receiver_name || "-")}
@@ -1010,15 +1035,15 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
 
             <aside className="space-y-6 lg:sticky lg:top-6 lg:h-fit">
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">Ringkasan</h2>
+                <h2 className="text-lg font-bold text-slate-900">{t("summaryTitle", "Ringkasan")}</h2>
                 <div className="mt-4 space-y-3 text-sm text-slate-600">
                   <div className="flex items-center justify-between">
-                    <span>Subtotal</span>
+                    <span>{t("subtotal", "Subtotal")}</span>
                     <span className="font-medium text-slate-900">{toCurrency(order.subtotal, order.currency)}</span>
                   </div>
                   {(order.discount_amount || 0) > 0 && (
                     <div className="flex items-center justify-between">
-                      <span>Diskon</span>
+                      <span>{t("discount", "Diskon")}</span>
                       <span className="font-medium text-slate-900">-{toCurrency(order.discount_amount, order.currency)}</span>
                     </div>
                   )}
@@ -1026,35 +1051,35 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                     <div className="ml-3 space-y-1 border-l-2 border-slate-300 pl-3">
                       {appliedCoupons.map((coupon) => (
                         <div key={coupon.code} className="flex items-center justify-between text-xs">
-                          <span className="text-slate-500">Kupon {coupon.code}</span>
+                          <span className="text-slate-500">{t("couponLabel", "Kupon")} {coupon.code}</span>
                           <span className="font-medium text-slate-700">-{toCurrency(coupon.discount_amount, order.currency)}</span>
                         </div>
                       ))}
                     </div>
                   )}
                   <div className="flex items-center justify-between">
-                    <span>Pajak</span>
+                    <span>{t("tax", "Pajak")}</span>
                     <span className="font-medium text-slate-900">{toCurrency(order.tax_amount || 0, order.currency)}</span>
                   </div>
                   {taxBreakdown.length > 0 ? (
                     <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                      {taxBreakdown.map((group) => (
+                        {taxBreakdown.map((group) => (
                         <div key={`${group.taxType}-${group.taxRate}`} className="flex items-center justify-between gap-3">
-                          <span className="text-slate-500">Pajak {formatTaxMode(group.taxType, group.taxRate)}</span>
+                          <span className="text-slate-500">{t("tax", "Pajak")} {formatTaxMode(group.taxType, group.taxRate)}</span>
                           <span className="font-medium text-slate-800">{toCurrency(group.amount, order.currency)}</span>
                         </div>
                       ))}
                     </div>
                   ) : null}
                   <div className="flex items-center justify-between">
-                    <span>Ongkir</span>
+                    <span>{t("shippingLabel", "Ongkir")}</span>
                     <span className="font-medium text-slate-900">{toCurrency(order.shipping_amount, order.currency)}</span>
                   </div>
                   {shippingQuote ? (
                     <CourierCard shippingQuote={shippingQuote} fallbackAmount={order.shipping_amount} currency={order.currency} />
                   ) : null}
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-sm font-semibold text-slate-900">Alamat Pengiriman</div>
+                    <div className="text-sm font-semibold text-slate-900">{t("shippingAddressTitle", "Alamat Pengiriman")}</div>
                     {shippingAddress ? (
                       <div className="mt-3 space-y-2 text-sm text-slate-700">
                         <div className="font-semibold text-slate-900">
@@ -1090,36 +1115,36 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                           disabled={shippingAddressLocked || updatingShippingAddress}
                           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
                         >
-                          <option value="">Pilih alamat</option>
+                          <option value="">{t("chooseAddress", "Pilih alamat")}</option>
                           {addresses.map((address) => (
                             <option key={address.id} value={address.id}>
-                              {(address.label || "Alamat") + (address.is_primary ? " (Utama)" : "") + " - " + address.receiver_name}
+                              {(address.label || t("addressLabel", "Alamat")) + (address.is_primary ? ` (${t("primaryLabel", "Utama")})` : "") + " - " + address.receiver_name}
                             </option>
                           ))}
                         </select>
                       ) : (
                         <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-600">
-                          Belum ada alamat tersimpan. Tambahkan alamat dulu dari dashboard agar checkout bisa lanjut.
+                          {t("noSavedAddressesPrompt", "Belum ada alamat tersimpan. Tambahkan alamat dulu dari dashboard agar checkout bisa lanjut.")}
                         </div>
                       )}
 
-                      {addresses.length > 0 ? (
+                        {addresses.length > 0 ? (
                         <button
                           type="button"
                           onClick={() => void handleApplyShippingAddress()}
                           disabled={!selectedAddressID || updatingShippingAddress || selectedAddressID === shippingAddressID || shippingAddressLocked}
                           className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          {updatingShippingAddress ? "Menyimpan alamat..." : shippingAddressLocked ? "Alamat Dikunci" : selectedAddressID === shippingAddressID ? "Alamat Aktif" : "Pakai Alamat Ini"}
+                          {updatingShippingAddress ? t("savingAddress", "Menyimpan alamat...") : shippingAddressLocked ? t("addressLocked", "Alamat Dikunci") : selectedAddressID === shippingAddressID ? t("addressActive", "Alamat Aktif") : t("useThisAddress", "Pakai Alamat Ini")}
                         </button>
                       ) : (
-                        <a href="/customer/dashboard?tab=addresses" className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
-                          Buka Dashboard Alamat
+                        <a href={buildLocalizedPath("/customer/dashboard?tab=addresses", typeof window !== "undefined" ? window.location.pathname : null)} className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800">
+                          {t("openAddressDashboard", "Buka Dashboard Alamat")}
                         </a>
                       )}
 
-                      {shippingAddressLocked ? <p className="text-xs text-amber-700">Alamat dikunci karena ongkir sudah dibuat. Untuk mengganti alamat, ongkir harus direset terlebih dulu.</p> : null}
-                      <p className="text-xs text-slate-500">Mengganti alamat akan menghapus ongkir sebelumnya dan menunggu konfirmasi ongkir baru.</p>
+                      {shippingAddressLocked ? <p className="text-xs text-amber-700">{t("addressLockedNote", "Alamat dikunci karena ongkir sudah dibuat. Untuk mengganti alamat, ongkir harus direset terlebih dulu.")}</p> : null}
+                      <p className="text-xs text-slate-500">{t("addressChangeNote", "Mengganti alamat akan menghapus ongkir sebelumnya dan menunggu konfirmasi ongkir baru.")}</p>
                       {shippingAddressError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{shippingAddressError}</div> : null}
                     </div>
                   </div>
@@ -1127,7 +1152,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                 </div>
                 <div className="mt-4 border-t border-slate-200 pt-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-700">Grand Total</span>
+                    <span className="text-sm font-semibold text-slate-700">{t("grandTotal", "Grand Total")}</span>
                     <span className="text-lg font-bold text-slate-900">{toCurrency(order.grand_total, order.currency)}</span>
                   </div>
                 </div>
@@ -1137,25 +1162,25 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                   disabled={downloadingInvoice}
                   className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                 >
-                  {downloadingInvoice ? "Mengunduh invoice..." : "Unduh Invoice"}
+                  {downloadingInvoice ? t("downloadingInvoice", "Mengunduh invoice...") : t("downloadInvoice", "Unduh Invoice")}
                 </button>
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900">Pembayaran</h2>
+                <h2 className="text-lg font-bold text-slate-900">{t("paymentTitle", "Pembayaran")}</h2>
                 {(order.payment_status || "").toLowerCase() === "paid" ? (
                   <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    Order ini sudah lunas.
+                    {t("orderPaid", "Order ini sudah lunas.")}
                   </div>
                 ) : awaitingShippingQuote ? (
                   <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">
-                    Pembayaran belum tersedia. Tim kami akan menghubungi Anda via WhatsApp setelah ongkir dan total final dikonfirmasi.
+                    {t("paymentNotAvailableAwaitingShipping", "Pembayaran belum tersedia. Tim kami akan menghubungi Anda via WhatsApp setelah ongkir dan total final dikonfirmasi.")}
                   </div>
                 ) : (
                   <>
                     {providers.length === 0 ? (
                       <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        Belum ada metode pembayaran aktif untuk order ini.
+                        {t("noActivePaymentMethods", "Belum ada metode pembayaran aktif untuk order ini.")}
                       </div>
                     ) : (
                       <div className="mt-4 space-y-3">
@@ -1180,24 +1205,24 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                     {selectedProvider && isBankTransfer ? (
                       <div className="mt-5 space-y-4">
                         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                          <div className="font-semibold">Tujuan Transfer</div>
-                          <div className="mt-2">Bank: {selectedProvider.config?.bank_name || "-"}</div>
-                          <div>No. Rekening: {selectedProvider.config?.account_number || "-"}</div>
-                          <div>Atas Nama: {selectedProvider.config?.account_holder || selectedProvider.config?.account_name || "-"}</div>
+                          <div className="font-semibold">{t("transferDestination", "Tujuan Transfer")}</div>
+                          <div className="mt-2">{t("bankLabel", "Bank")} : {selectedProvider.config?.bank_name || "-"}</div>
+                          <div>{t("accountNumberLabel", "No. Rekening")} : {selectedProvider.config?.account_number || "-"}</div>
+                          <div>{t("accountHolderLabel", "Atas Nama")} : {selectedProvider.config?.account_holder || selectedProvider.config?.account_name || "-"}</div>
                           {selectedProvider.config?.instructions ? <div className="mt-2 text-xs">{selectedProvider.config.instructions}</div> : null}
                         </div>
 
                         <div className="grid gap-3">
-                          <input value={senderBankName} onChange={(e) => setSenderBankName(e.target.value)} placeholder="Bank pengirim" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
-                          <input value={senderAccountNumber} onChange={(e) => setSenderAccountNumber(e.target.value)} placeholder="Nomor rekening pengirim" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
-                          <input value={senderAccountHolder} onChange={(e) => setSenderAccountHolder(e.target.value)} placeholder="Nama pemilik rekening" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
-                          <input value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} placeholder="Jumlah transfer" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+                          <input value={senderBankName} onChange={(e) => setSenderBankName(e.target.value)} placeholder={t("placeholder.senderBank", "Bank pengirim")} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+                          <input value={senderAccountNumber} onChange={(e) => setSenderAccountNumber(e.target.value)} placeholder={t("placeholder.senderAccountNumber", "Nomor rekening pengirim")} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+                          <input value={senderAccountHolder} onChange={(e) => setSenderAccountHolder(e.target.value)} placeholder={t("placeholder.senderAccountHolder", "Nama pemilik rekening")} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+                          <input value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} placeholder={t("placeholder.transferAmount", "Jumlah transfer")} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
                           <input type="datetime-local" value={transferredAt} onChange={(e) => setTransferredAt(e.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
-                          <input value={transferReference} onChange={(e) => setTransferReference(e.target.value)} placeholder="Referensi transfer (opsional)" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
-                          <textarea value={proofNotes} onChange={(e) => setProofNotes(e.target.value)} placeholder="Catatan bukti pembayaran (opsional)" className="min-h-24 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+                          <input value={transferReference} onChange={(e) => setTransferReference(e.target.value)} placeholder={t("placeholder.transferReference", "Referensi transfer (opsional)")} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
+                          <textarea value={proofNotes} onChange={(e) => setProofNotes(e.target.value)} placeholder={t("placeholder.proofNotes", "Catatan bukti pembayaran (opsional)")} className="min-h-24 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm" />
                           <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-600">
                             <Upload className="h-4 w-4" />
-                            <span>{proofFiles.length > 0 ? `${proofFiles.length} file dipilih` : "Upload bukti transfer"}</span>
+                            <span>{proofFiles.length > 0 ? `${proofFiles.length} ${t("filesSelected", "file dipilih")}` : t("uploadProof", "Upload bukti transfer")}</span>
                             <input
                               type="file"
                               accept="image/png,image/jpeg,image/jpg,image/webp"
@@ -1212,11 +1237,11 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
 
                     {latestBankTransferMeta ? (
                       <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
-                        <div className="font-semibold">Konfirmasi terakhir</div>
-                        <div className="mt-2">Bank pengirim: {latestBankTransferMeta.sender_bank?.bank_name || "-"}</div>
-                        <div>Nominal: {toCurrency(Number(latestBankTransferMeta.transfer?.amount || 0), order.currency)}</div>
-                        <div>Waktu: {formatDateTime(String(latestBankTransferMeta.transfer?.transferred_at || ""))}</div>
-                      </div>
+                          <div className="font-semibold">{t("lastConfirmation", "Konfirmasi terakhir")}</div>
+                          <div className="mt-2">{t("bankSender", "Bank pengirim")} : {latestBankTransferMeta.sender_bank?.bank_name || "-"}</div>
+                          <div>{t("amountLabel", "Nominal")} : {toCurrency(Number(latestBankTransferMeta.transfer?.amount || 0), order.currency)}</div>
+                          <div>{t("timeLabel", "Waktu")} : {formatDateTime(String(latestBankTransferMeta.transfer?.transferred_at || ""))}</div>
+                        </div>
                     ) : null}
 
                     <button
@@ -1225,7 +1250,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                       disabled={providers.length === 0 || !canSubmit || submitting}
                       className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {submitting ? "Memproses..." : isBankTransfer ? "Kirim Konfirmasi Pembayaran" : "Buat Pembayaran"}
+                      {submitting ? t("processing", "Memproses...") : isBankTransfer ? t("sendPaymentConfirmation", "Kirim Konfirmasi Pembayaran") : t("createPayment", "Buat Pembayaran")}
                     </button>
                   </>
                 )}

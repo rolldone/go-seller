@@ -1,0 +1,25 @@
+---
+export const prerender = false;
+
+import "../../../../styles/front.css";
+import LoginPage from "../../../../components/customer/auth/LoginPage";
+import CustomerSessionBootstrap from "../../../../components/customer/CustomerSessionBootstrap.astro";
+import { normalizeLocale } from "../../../../lib/siteLocale";
+import { useTranslations } from "../../../../i18n";
+
+const customerSession = Astro.locals.customerSession ?? null;
+const locale = normalizeLocale(Astro.params.lang);
+const t = useTranslations("auth", locale);
+---
+
+<html lang={locale}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>{t("loginTitle", "Masuk")} | {t("goSeller", "GoSeller")}</title>
+		<CustomerSessionBootstrap session={customerSession} />
+	</head>
+	<body>
+		<LoginPage client:only="react" locale={locale} />
+	</body>
+</html>

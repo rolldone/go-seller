@@ -1,0 +1,20 @@
+---
+export const prerender = false;
+
+import "../../styles/front.css";
+import GuestOrderCheckout from "../../components/front/GuestOrderCheckout";
+import { normalizeLocale } from "../../lib/siteLocale";
+---
+
+<html lang={normalizeLocale(Astro.params.lang)}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Checkout Order | GoSeller</title>
+	</head>
+	<body class="bg-slate-100 text-slate-900 antialiased">
+		<main class="mx-auto min-h-screen w-full max-w-4xl px-4 py-8">
+			<GuestOrderCheckout client:only="react" />
+		</main>
+	</body>
+</html>

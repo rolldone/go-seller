@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Package, Heart, MapPin, Settings, Bell, ChevronRight } from "lucide-react";
 import CustomerPageNav from "./CustomerPageNav";
 import ProfileSettings from "./ProfileSettings";
+import { useTranslations } from "../../i18n";
 import {
   createMyCustomerAddress,
   clearCustomerSession,
@@ -17,6 +18,7 @@ import {
   type CustomerAddress,
 } from "./auth/authApi";
 import { rememberCustomerAuthNextPath } from "../../lib/customerAuthRedirect";
+import { buildLocalizedPath } from "../../lib/siteLocale";
 import { notifyError, notifySuccess } from "../../lib/notification";
 import type { CustomerSession } from "../../lib/customerSession";
 import { getMyCartBusinesses, type CartBusinessSummary } from "../../lib/cartApi";
@@ -37,10 +39,10 @@ function formatOrderDate(value?: string): string {
 
 function mapOrderStatusLabel(value?: string): string {
   const key = String(value || "").toLowerCase();
-  if (key === "paid" || key === "completed" || key === "confirmed") return "Selesai";
-  if (key === "expired") return "Kedaluwarsa";
-  if (key === "cancelled" || key === "canceled") return "Dibatalkan";
-  return "Diproses";
+  if (key === "paid" || key === "completed" || key === "confirmed") return "orderStatus.completed";
+  if (key === "expired") return "orderStatus.expired";
+  if (key === "cancelled" || key === "canceled") return "orderStatus.cancelled";
+  return "orderStatus.processing";
 }
 
 function mapOrderStatusClass(value?: string): string {
@@ -58,14 +60,7 @@ interface CustomerDashboardProps {
   customerSession?: CustomerSession | null;
 }
 
-const sidebarItems = [
-  { key: "orders" as MenuKey, icon: Package, label: "Pesanan Saya" },
-  { key: "carts" as MenuKey, icon: Package, label: "Cart" },
-  { key: "wishlist" as MenuKey, icon: Heart, label: "Wishlist" },
-  { key: "addresses" as MenuKey, icon: MapPin, label: "Alamat" },
-  { key: "notifications" as MenuKey, icon: Bell, label: "Notifikasi" },
-  { key: "settings" as MenuKey, icon: Settings, label: "Pengaturan Akun" },
-];
+
 
 function formatIDR(amount: number): string {
   if (!Number.isFinite(amount)) return "Rp 0";
@@ -125,6 +120,17 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
           .join("") || customerUser.initials
       : customerUser.initials,
   );
+
+  const t = useTranslations();
+
+  const sidebarItems = [
+    { key: "orders" as MenuKey, icon: Package, label: t("ordersLabel", "Pesanan Saya") },
+    { key: "carts" as MenuKey, icon: Package, label: t("cartsLabel", "Cart") },
+    { key: "wishlist" as MenuKey, icon: Heart, label: t("wishlistLabel", "Wishlist") },
+    { key: "addresses" as MenuKey, icon: MapPin, label: t("addressesLabel", "Alamat") },
+    { key: "notifications" as MenuKey, icon: Bell, label: t("notificationsLabel", "Notifikasi") },
+    { key: "settings" as MenuKey, icon: Settings, label: t("settingsLabel", "Pengaturan Akun") },
+  ];
 
   useEffect(() => {
     let cancelled = false;
@@ -200,7 +206,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
         }
       } catch (err) {
         if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
-        const message = err instanceof Error ? err.message : "Gagal memuat daftar order";
+        const message = err instanceof Error ? err.message : t("failedLoadOrders", "Gagal memuat daftar order");
         if (!cancelled) {
           setOrders([]);
           setOrdersError(message);
@@ -228,7 +234,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
         if (!cancelled) setAddresses(rows);
       } catch (err) {
         if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
-        const message = err instanceof Error ? err.message : "Gagal memuat alamat";
+        const message = err instanceof Error ? err.message : t("failedLoadAddress", "Gagal memuat alamat");
         if (!cancelled) {
           setAddresses([]);
           setAddressesError(message);
@@ -251,7 +257,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
       const rows = await listMyCustomerAddresses();
       setAddresses(rows);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Gagal memuat alamat";
+        const message = err instanceof Error ? err.message : t("failedLoadAddress", "Gagal memuat alamat");
       setAddressesError(message);
     } finally {
       setAddressesLoading(false);
@@ -308,7 +314,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
         if (!cancelled) setCartBusinesses(rows);
       } catch (err) {
         if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
-        const message = err instanceof Error ? err.message : "Gagal memuat daftar cart";
+        const message = err instanceof Error ? err.message : t("failedLoadCarts", "Gagal memuat daftar cart");
         if (!cancelled) {
           setCartBusinesses([]);
           setCartBusinessesError(message);
@@ -337,7 +343,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
         if (!cancelled) setCartBusinesses(rows);
       } catch (err) {
         if (err instanceof Error && err.message === CUSTOMER_UNAUTHORIZED_REDIRECT_ERROR) return;
-        const message = err instanceof Error ? err.message : "Gagal memuat daftar cart";
+          const message = err instanceof Error ? err.message : t("failedLoadCarts", "Gagal memuat daftar cart");
         if (!cancelled) {
           setCartBusinesses([]);
           setCartBusinessesError(message);
@@ -363,21 +369,21 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
   };
 
   const activeTitle = {
-    orders: "Pesanan Saya",
-    carts: "Cart per Bisnis",
-    wishlist: "Wishlist",
-    addresses: "Alamat",
-    notifications: "Notifikasi",
-    settings: "Pengaturan Akun",
+    orders: t("activeTitle.orders", "Pesanan Saya"),
+    carts: t("activeTitle.carts", "Cart per Bisnis"),
+    wishlist: t("activeTitle.wishlist", "Wishlist"),
+    addresses: t("activeTitle.addresses", "Alamat"),
+    notifications: t("activeTitle.notifications", "Notifikasi"),
+    settings: t("activeTitle.settings", "Pengaturan Akun"),
   }[activeMenu];
 
   const activeDescription = {
-    orders: "Daftar transaksi terbaru dan status pengiriman Anda.",
-    carts: "Daftar cart Anda yang dikelompokkan per bisnis.",
-    wishlist: "Produk yang Anda simpan untuk dibeli nanti.",
-    addresses: "Kelola alamat pengiriman untuk checkout lebih cepat.",
-    notifications: "Ringkasan update order, promo, dan aktivitas akun.",
-    settings: "Preferensi akun personal dan pengaturan notifikasi.",
+    orders: t("activeDescription.orders", "Daftar transaksi terbaru dan status pengiriman Anda."),
+    carts: t("activeDescription.carts", "Daftar cart Anda yang dikelompokkan per bisnis."),
+    wishlist: t("activeDescription.wishlist", "Produk yang Anda simpan untuk dibeli nanti."),
+    addresses: t("activeDescription.addresses", "Kelola alamat pengiriman untuk checkout lebih cepat."),
+    notifications: t("activeDescription.notifications", "Ringkasan update order, promo, dan aktivitas akun."),
+    settings: t("activeDescription.settings", "Preferensi akun personal dan pengaturan notifikasi."),
   }[activeMenu];
 
   return (
@@ -421,7 +427,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                   <div className="ml-auto flex items-center gap-2">
                     {key === "carts" ? (
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                        {loadingCartBusinesses ? "..." : cartBusinesses.length}
+                        {loadingCartBusinesses ? t("loadingShort", "...") : cartBusinesses.length}
                       </span>
                     ) : null}
                     {activeMenu === key ? <ChevronRight className="h-3.5 w-3.5 text-emerald-400" /> : null}
@@ -450,21 +456,31 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
             {activeMenu === "orders" && (
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                  <h2 className="font-semibold text-slate-900">Pesanan Terbaru</h2>
-                  <span className="text-xs text-slate-500">{orders.length} order</span>
+                  <h2 className="font-semibold text-slate-900">{t("recentOrders", "Pesanan Terbaru")}</h2>
+                  <span className="text-xs text-slate-500">{orders.length} {t("orderUnit", "order")}</span>
                 </div>
                 {ordersLoading ? (
-                  <div className="px-5 py-5 text-sm text-slate-500">Memuat order...</div>
+                  <div className="px-5 py-5 text-sm text-slate-500">{t("loadingOrders", "Memuat order...")}</div>
                 ) : ordersError ? (
                   <div className="px-5 py-5 text-sm text-red-600">{ordersError}</div>
                 ) : orders.length === 0 ? (
-                  <div className="px-5 py-5 text-sm text-slate-500">Belum ada order.</div>
+                  <div className="px-5 py-5 text-sm text-slate-500">{t("noOrders", "Belum ada order.")}</div>
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {orders.map((order) => {
                       const firstItem = order.order_items?.[0];
                       const title = firstItem?.product_name || order.order_number;
-                      const paymentLabel = mapOrderStatusLabel(order.payment_status || order.status);
+                      const statusKey = mapOrderStatusLabel(order.payment_status || order.status);
+                      const paymentLabel = t(
+                        statusKey,
+                        statusKey === "orderStatus.completed"
+                          ? "Selesai"
+                          : statusKey === "orderStatus.expired"
+                          ? "Kedaluwarsa"
+                          : statusKey === "orderStatus.cancelled"
+                          ? "Dibatalkan"
+                          : "Diproses",
+                      );
                       return (
                         <a key={order.id} href={`/order/${encodeURIComponent(order.id)}`} className="flex items-center justify-between px-5 py-4 transition hover:bg-slate-50">
                           <div className="min-w-0 flex-1">
@@ -488,19 +504,19 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
             {activeMenu === "carts" && (
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                  <h2 className="font-semibold text-slate-900">Cart per Bisnis</h2>
-                  <span className="text-xs text-slate-500">{cartBusinesses.length} bisnis</span>
+                  <h2 className="font-semibold text-slate-900">{t("cartsPerBusiness", "Cart per Bisnis")}</h2>
+                  <span className="text-xs text-slate-500">{cartBusinesses.length} {t("businessCountUnit", "bisnis")}</span>
                 </div>
                 {loadingCartBusinesses ? (
-                  <div className="px-5 py-5 text-sm text-slate-500">Memuat cart...</div>
+                  <div className="px-5 py-5 text-sm text-slate-500">{t("loadingCarts", "Memuat cart...")}</div>
                 ) : cartBusinessesError ? (
                   <div className="px-5 py-5 text-sm text-red-600">{cartBusinessesError}</div>
                 ) : cartBusinesses.length === 0 ? (
-                  <div className="px-5 py-5 text-sm text-slate-500">Belum ada cart aktif.</div>
+                  <div className="px-5 py-5 text-sm text-slate-500">{t("noActiveCarts", "Belum ada cart aktif.")}</div>
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {cartBusinesses.map((entry) => {
-                      const target = entry.business_slug?.trim() ? `/b/${entry.business_slug}/cart` : "/cart";
+                      const target = buildLocalizedPath(entry.business_slug?.trim() ? `/b/${entry.business_slug}/cart` : "/cart", typeof window !== "undefined" ? window.location.pathname : null);
                       return (
                         <a
                           key={entry.cart_id}
@@ -508,14 +524,14 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                           className="flex items-center justify-between gap-4 px-5 py-4 transition hover:bg-slate-50"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-900">{entry.business_name || "Tanpa Nama Bisnis"}</p>
+                            <p className="truncate text-sm font-semibold text-slate-900">{entry.business_name || t("noBusinessName", "Tanpa Nama Bisnis")}</p>
                             <p className="mt-1 text-xs text-slate-500">
-                              {entry.item_count} item · {entry.total_qty} qty
+                              {entry.item_count} {t("itemUnit", "item")} · {entry.total_qty} {t("qtyUnit", "qty")}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">
                             <p className="text-sm font-bold text-slate-900">{formatIDR(entry.total_amount)}</p>
-                            <p className="mt-1 text-xs font-medium text-emerald-600">Buka cart</p>
+                            <p className="mt-1 text-xs font-medium text-emerald-600">{t("openCart", "Buka cart")}</p>
                           </div>
                         </a>
                       );
@@ -528,7 +544,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
             {activeMenu === "wishlist" && (
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4">
-                  <h2 className="font-semibold text-slate-900">Wishlist</h2>
+                  <h2 className="font-semibold text-slate-900">{t("wishlistTitle", "Wishlist")}</h2>
                 </div>
                 <div className="grid gap-4 p-5 sm:grid-cols-2">
                   {customerWishlist.map((item) => (
@@ -537,8 +553,8 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                       <p className="mt-1 text-xs text-slate-500">{item.store}</p>
                       <p className="mt-3 text-sm font-bold text-slate-800">{item.price}</p>
                       <div className="mt-4 flex gap-2">
-                        <button type="button" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">Beli Sekarang</button>
-                        <button type="button" className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white">Hapus</button>
+                        <button type="button" className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700">{t("buyNow", "Beli Sekarang")}</button>
+                        <button type="button" className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-white">{t("remove", "Hapus")}</button>
                       </div>
                     </div>
                   ))}
@@ -549,7 +565,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
             {activeMenu === "addresses" && (
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                  <h2 className="font-semibold text-slate-900">Alamat Pengiriman</h2>
+                  <h2 className="font-semibold text-slate-900">{t("shippingAddresses", "Alamat Pengiriman")}</h2>
                   <button
                     type="button"
                     onClick={() => {
@@ -563,7 +579,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                     }}
                     className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800"
                   >
-                    {showAddressForm ? "Tutup" : "Tambah Alamat"}
+                    {showAddressForm ? t("close", "Tutup") : t("addAddress", "Tambah Alamat")}
                   </button>
                 </div>
                 <div className="space-y-3 p-5">
@@ -584,16 +600,16 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                           };
                           if (editingAddressID) {
                             await updateMyCustomerAddress(editingAddressID, payload);
-                            notifySuccess("Alamat berhasil diperbarui.");
+                            notifySuccess(t("addressUpdated", "Alamat berhasil diperbarui."));
                           } else {
                             await createMyCustomerAddress(payload);
-                            notifySuccess("Alamat berhasil ditambahkan.");
+                            notifySuccess(t("addressAdded", "Alamat berhasil ditambahkan."));
                           }
                           resetAddressForm();
                           setShowAddressForm(false);
                           await loadAddresses();
                         } catch (err) {
-                          const message = err instanceof Error ? err.message : "Gagal menambah alamat";
+                          const message = err instanceof Error ? err.message : t("failedAddAddress", "Gagal menambah alamat");
                           setAddressesError(message);
                           notifyError(message);
                         } finally {
@@ -603,112 +619,112 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                     >
                       <div className="space-y-4 text-slate-900">
                         <div className="rounded-lg border border-slate-200 bg-white p-3">
-                          <p className="text-sm font-semibold text-slate-900">Form Alamat Pengiriman</p>
-                          <p className="mt-1 text-xs text-slate-700">Isi data inti dulu. Detail tambahan hanya kalau memang diperlukan.</p>
+                          <p className="text-sm font-semibold text-slate-900">{t("addressFormTitle", "Form Alamat Pengiriman")}</p>
+                          <p className="mt-1 text-xs text-slate-700">{t("addressFormDescription", "Isi data inti dulu. Detail tambahan hanya kalau memang diperlukan.")}</p>
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-2">
                           <label className="space-y-1 text-sm text-slate-900">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Label alamat</span>
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.label", "Label alamat")}</span>
                             <input
                               value={addressForm.label}
                               onChange={(e) => setAddressForm((current) => ({ ...current, label: e.target.value }))}
-                              placeholder="Rumah, Kantor, Gudang"
+                              placeholder={t("placeholder.addressLabel", "Rumah, Kantor, Gudang")}
                               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                             />
                           </label>
                           <label className="space-y-1 text-sm text-slate-900">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Nama penerima</span>
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.receiverName", "Nama penerima")}</span>
                             <input
                               value={addressForm.receiver_name}
                               onChange={(e) => setAddressForm((current) => ({ ...current, receiver_name: e.target.value }))}
-                              placeholder="Nama lengkap penerima"
+                              placeholder={t("placeholder.receiverName", "Nama lengkap penerima")}
                               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                               required
                             />
                           </label>
                           <label className="space-y-1 text-sm text-slate-900">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Nomor HP</span>
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.phone", "Nomor HP")}</span>
                             <input
                               value={addressForm.phone_number}
                               onChange={(e) => setAddressForm((current) => ({ ...current, phone_number: e.target.value }))}
-                              placeholder="08xxxxxxxxxx"
+                              placeholder={t("placeholder.phone", "08xxxxxxxxxx")}
                               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                               required
                             />
                           </label>
                           <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
                             <input type="checkbox" checked={addressForm.is_primary} onChange={(e) => setAddressForm((current) => ({ ...current, is_primary: e.target.checked }))} />
-                            Jadikan alamat utama
+                            {t("addressField.makePrimary", "Jadikan alamat utama")}
                           </label>
                         </div>
 
                         <div className="space-y-2">
                           <label className="space-y-1 text-sm text-slate-900">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Alamat lengkap</span>
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.fullAddress", "Alamat lengkap")}</span>
                             <textarea
                               value={addressForm.address_line_1}
                               onChange={(e) => setAddressForm((current) => ({ ...current, address_line_1: e.target.value }))}
-                              placeholder="Jalan, nomor rumah, RT/RW, patokan, gedung, dll"
+                              placeholder={t("placeholder.fullAddress", "Jalan, nomor rumah, RT/RW, patokan, gedung, dll")}
                               className="min-h-28 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                               required
                             />
                           </label>
-                          <p className="text-xs text-slate-700">Tulis alamat utama secara lengkap supaya kurir tidak bingung.</p>
+                          <p className="text-xs text-slate-700">{t("addressPrimaryNote", "Tulis alamat utama secara lengkap supaya kurir tidak bingung.")}</p>
                         </div>
 
                         <div className="grid gap-3 sm:grid-cols-3">
                           <label className="space-y-1 text-sm text-slate-900">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kota / Kabupaten</span>
-                            <input value={addressForm.city} onChange={(e) => setAddressForm((current) => ({ ...current, city: e.target.value }))} placeholder="Contoh: Bandung" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.city", "Kota / Kabupaten")}</span>
+                            <input value={addressForm.city} onChange={(e) => setAddressForm((current) => ({ ...current, city: e.target.value }))} placeholder={t("placeholder.exampleCity", "Contoh: Bandung")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                           </label>
                           <label className="space-y-1 text-sm text-slate-900">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Provinsi</span>
-                            <input value={addressForm.province} onChange={(e) => setAddressForm((current) => ({ ...current, province: e.target.value }))} placeholder="Contoh: Jawa Barat" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.province", "Provinsi")}</span>
+                            <input value={addressForm.province} onChange={(e) => setAddressForm((current) => ({ ...current, province: e.target.value }))} placeholder={t("placeholder.exampleProvince", "Contoh: Jawa Barat")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                           </label>
                           <label className="space-y-1 text-sm text-slate-900">
-                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kode pos</span>
-                            <input value={addressForm.postal_code} onChange={(e) => setAddressForm((current) => ({ ...current, postal_code: e.target.value }))} placeholder="40123" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                            <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.postalCode", "Kode pos")}</span>
+                            <input value={addressForm.postal_code} onChange={(e) => setAddressForm((current) => ({ ...current, postal_code: e.target.value }))} placeholder={t("placeholder.postalCode", "40123")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                           </label>
                         </div>
 
                         <details className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-2 text-slate-900">
-                          <summary className="cursor-pointer text-sm font-medium text-slate-900">Detail tambahan opsional</summary>
+                          <summary className="cursor-pointer text-sm font-medium text-slate-900">{t("optionalDetails", "Detail tambahan opsional")}</summary>
                           <div className="mt-3 grid gap-3 sm:grid-cols-2">
                             <label className="space-y-1 text-sm text-slate-900">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Alamat tambahan</span>
-                              <input value={addressForm.address_line_2 || ""} onChange={(e) => setAddressForm((current) => ({ ...current, address_line_2: e.target.value }))} placeholder="Blok, nomor unit, patokan tambahan" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.additional", "Alamat tambahan")}</span>
+                              <input value={addressForm.address_line_2 || ""} onChange={(e) => setAddressForm((current) => ({ ...current, address_line_2: e.target.value }))} placeholder={t("placeholder.addressLine2", "Blok, nomor unit, patokan tambahan")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                             </label>
                             <label className="space-y-1 text-sm text-slate-900">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kelurahan / Desa</span>
-                              <input value={addressForm.subdistrict || ""} onChange={(e) => setAddressForm((current) => ({ ...current, subdistrict: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.subdistrict", "Kelurahan / Desa")}</span>
+                              <input value={addressForm.subdistrict || ""} onChange={(e) => setAddressForm((current) => ({ ...current, subdistrict: e.target.value }))} placeholder={t("placeholder.optional", "Opsional")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                             </label>
                             <label className="space-y-1 text-sm text-slate-900">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kecamatan</span>
-                              <input value={addressForm.district || ""} onChange={(e) => setAddressForm((current) => ({ ...current, district: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.district", "Kecamatan")}</span>
+                              <input value={addressForm.district || ""} onChange={(e) => setAddressForm((current) => ({ ...current, district: e.target.value }))} placeholder={t("placeholder.optional", "Opsional")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                             </label>
                             <label className="space-y-1 text-sm text-slate-900">
-                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Catatan kurir</span>
-                              <input value={addressForm.notes || ""} onChange={(e) => setAddressForm((current) => ({ ...current, notes: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                              <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("addressField.notes", "Catatan kurir")}</span>
+                              <input value={addressForm.notes || ""} onChange={(e) => setAddressForm((current) => ({ ...current, notes: e.target.value }))} placeholder={t("placeholder.optional", "Opsional")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                             </label>
                           </div>
                         </details>
 
                         <button type="submit" disabled={submittingAddress} className="inline-flex w-fit rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60">
-                          {submittingAddress ? "Menyimpan..." : editingAddressID ? "Perbarui Alamat" : "Simpan Alamat"}
+                          {submittingAddress ? t("saving", "Menyimpan...") : editingAddressID ? t("updateAddress", "Perbarui Alamat") : t("saveAddress", "Simpan Alamat")}
                         </button>
                       </div>
                     </form>
                   ) : null}
                   {addressesError ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{addressesError}</div> : null}
-                  {addressesLoading ? <div className="text-sm text-slate-500">Memuat alamat...</div> : null}
-                  {!addressesLoading && addresses.length === 0 ? <div className="text-sm text-slate-500">Belum ada alamat tersimpan.</div> : null}
+                  {addressesLoading ? <div className="text-sm text-slate-500">{t("loadingAddresses", "Memuat alamat...")}</div> : null}
+                  {!addressesLoading && addresses.length === 0 ? <div className="text-sm text-slate-500">{t("noSavedAddresses", "Belum ada alamat tersimpan.")}</div> : null}
                   {addresses.map((address) => (
                     <div key={address.id} className="rounded-lg border border-slate-200 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-900">{address.label || "Alamat"}</p>
-                          {address.is_primary ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Utama</span> : null}
+                          <p className="text-sm font-semibold text-slate-900">{address.label || t("addressLabel", "Alamat")}</p>
+                          {address.is_primary ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{t("primaryLabel", "Utama")}</span> : null}
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -717,7 +733,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                             onClick={() => startEditAddress(address)}
                             className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                           >
-                            Edit
+                            {t("edit", "Edit")}
                           </button>
                           {!address.is_primary ? (
                             <button
@@ -727,10 +743,10 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                                 setAddressActionID(address.id);
                                 try {
                                   await setPrimaryMyCustomerAddress(address.id);
-                                  notifySuccess("Alamat utama diperbarui.");
+                                  notifySuccess(t("addressPrimaryUpdated", "Alamat utama diperbarui."));
                                   await loadAddresses();
                                 } catch (err) {
-                                  const message = err instanceof Error ? err.message : "Gagal mengubah alamat utama";
+                                  const message = err instanceof Error ? err.message : t("failedSetPrimary", "Gagal mengubah alamat utama");
                                   notifyError(message);
                                 } finally {
                                   setAddressActionID("");
@@ -738,7 +754,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                               }}
                               className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
                             >
-                              Jadikan Utama
+                              {t("makePrimary", "Jadikan Utama")}
                             </button>
                           ) : null}
                           <button
@@ -748,10 +764,10 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                               setAddressActionID(address.id);
                               try {
                                 await deleteMyCustomerAddress(address.id);
-                                notifySuccess("Alamat dihapus.");
+                                notifySuccess(t("addressDeleted", "Alamat dihapus."));
                                 await loadAddresses();
                               } catch (err) {
-                                const message = err instanceof Error ? err.message : "Gagal menghapus alamat";
+                                const message = err instanceof Error ? err.message : t("failedDeleteAddress", "Gagal menghapus alamat");
                                 notifyError(message);
                               } finally {
                                 setAddressActionID("");
@@ -759,7 +775,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                             }}
                             className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-60"
                           >
-                            Hapus
+                            {t("delete", "Hapus")}
                           </button>
                         </div>
                       </div>
@@ -776,7 +792,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
             {activeMenu === "notifications" && (
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4">
-                  <h2 className="font-semibold text-slate-900">Notifikasi</h2>
+                  <h2 className="font-semibold text-slate-900">{t("notificationsTitle", "Notifikasi")}</h2>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {customerNotifications.map((notification) => (
@@ -795,7 +811,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
             {activeMenu === "settings" && (
               <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="border-b border-slate-100 px-5 py-4">
-                  <h2 className="font-semibold text-slate-900">Pengaturan Akun</h2>
+                  <h2 className="font-semibold text-slate-900">{t("settingsTitle", "Pengaturan Akun")}</h2>
                 </div>
                 <div className="p-5">
                   <ProfileSettings className="space-y-6" />

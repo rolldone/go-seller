@@ -1,13 +1,17 @@
 /** @jsxRuntime classic */
 import React, { useState } from "react";
+import { ArrowUpRight, MessageSquare, MoreHorizontal } from "lucide-react";
 import type { PublicBusiness, PublicBusinessAsset } from "./types";
+import { useTranslations } from "../../../i18n";
 
 interface BusinessStoreHeaderProps {
   business: PublicBusiness;
+  locale?: string;
 }
 
-export default function BusinessStoreHeader({ business }: BusinessStoreHeaderProps) {
+export default function BusinessStoreHeader({ business, locale }: BusinessStoreHeaderProps) {
   const [imgError, setImgError] = useState(false);
+  const t = useTranslations("business", locale);
 
   const pickCover = (assets?: PublicBusinessAsset[]) => {
     if (!assets || assets.length === 0) return null;
@@ -64,20 +68,24 @@ export default function BusinessStoreHeader({ business }: BusinessStoreHeaderPro
 
             <div className="flex flex-wrap gap-2 pt-1">
               <button className="rounded-lg bg-emerald-500 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-600">
-                Subscribe
+                {t("subscribe", "Subscribe")}
               </button>
               <button className="rounded-lg border border-emerald-400 px-5 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50">
-                Chat Penjual
+                {t("chatSeller", "Chat Penjual")}
               </button>
-              <button className="rounded-lg border border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-100">⋯</button>
-              <button className="rounded-lg border border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-100">↗</button>
+              <button aria-label={t("moreActions", "Lainnya")} title={t("moreActions", "Lainnya")} className="rounded-lg border border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-100">
+                <MoreHorizontal className="h-4.5 w-4.5" />
+              </button>
+              <button aria-label={t("share", "Bagikan")} title={t("share", "Bagikan")} className="rounded-lg border border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-100">
+                <ArrowUpRight className="h-4.5 w-4.5" />
+              </button>
             </div>
           </div>
         </div>
 
         <div className="text-right">
-          <p className="text-2xl font-bold text-slate-900">⭐ {businessRating} ({businessReviewCount}) · {businessSoldLabel}</p>
-          <p className="text-sm text-slate-500">Rating & Ulasan</p>
+          <p className="text-2xl font-bold text-slate-900">⭐ {businessRating} ({businessReviewCount} {t("reviews", "ulasan")}) {t("separatorDot", "·")} {businessSoldLabel}</p>
+          <p className="text-sm text-slate-500">{t("ratingAndReviews", "Rating & Ulasan")}</p>
 
         
         </div>

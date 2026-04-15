@@ -1,6 +1,9 @@
 /** @jsxRuntime classic */
 import React from "react";
+import { Search } from "lucide-react";
 import type { PublicBusinessProduct } from "../types";
+import { buildLocalizedPath } from "../../../../lib/siteLocale";
+import { useTranslations } from "../../../../i18n";
 
 interface BusinessProductTabProps {
   businessSlug: string;
@@ -25,6 +28,7 @@ export default function BusinessProductTab({
   loading,
   error,
 }: BusinessProductTabProps) {
+  const t = useTranslations("business", locale);
   const currency = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
   const formatPrice = (p?: number | string | null) => {
@@ -62,19 +66,19 @@ export default function BusinessProductTab({
 
   const buildProductHref = (productSlug: string) => {
     const path = `/b/${businessSlug}/p/${productSlug}`;
-    return locale ? `${path}?locale=${encodeURIComponent(locale)}` : path;
+    return buildLocalizedPath(path, locale);
   };
   return (
     <div className="mt-6">
       <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div className="flex gap-2 text-xs text-slate-500">
-          <span>Official Store</span> <span>›</span> <span>Brand</span> <span>›</span> <span>{businessName}</span> <span>›</span> <span className="font-semibold text-slate-900">Produk</span>
+          <span>{t("officialStore", "Official Store")}</span> <span>›</span> <span>{t("brand", "Brand")}</span> <span>›</span> <span>{businessName}</span> <span>›</span> <span className="font-semibold text-slate-900">{t("products", "Produk")}</span>
         </div>
 
         <div className="relative w-full md:max-w-[320px]">
           <input
             type="text"
-            placeholder="Cari produk di toko ini..."
+            placeholder={t("searchPlaceholder", "Cari produk di toko ini...")}
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
             className="w-full rounded-full border border-slate-200 bg-white py-2 pl-4 pr-10 text-sm outline-none ring-emerald-500 focus:ring-1"
@@ -88,16 +92,16 @@ export default function BusinessProductTab({
       <div className="flex flex-col gap-6 lg:flex-row">
         <aside className="w-full shrink-0 lg:w-[240px]">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <h3 className="mb-4 text-sm font-bold text-slate-900">Etalase Toko ({categories.length})</h3>
+            <h3 className="mb-4 text-sm font-bold text-slate-900">{t("allProducts", "Etalase Toko")} ({categories.length})</h3>
             <ul className="space-y-1">
               <li className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-emerald-600">
-                Semua Produk
+                {t("allProducts", "Semua Produk")}
               </li>
               <li className="cursor-pointer px-3 py-2 text-sm text-slate-600 hover:text-emerald-600">
-                Produk Terjual
+                {t("soldProducts", "Produk Terjual")}
               </li>
               <li className="cursor-pointer px-3 py-2 text-sm text-slate-600 hover:text-emerald-600">
-                Spesial Diskon
+                {t("specialDiscount", "Spesial Diskon")}
               </li>
               {categories.map((cat) => (
                 <li key={cat} className="cursor-pointer px-3 py-2 text-sm text-slate-600 hover:text-emerald-600">
@@ -111,15 +115,15 @@ export default function BusinessProductTab({
         <main className="flex-1">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">
-              {searchQuery ? `Hasil pencarian: "${searchQuery}"` : "Semua Produk"}
+              {searchQuery ? `${t("searchResults", "Hasil pencarian")} : "${searchQuery}"` : t("allProducts", "Semua Produk")}
             </h2>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">Urutkan</span>
+              <span className="text-sm text-slate-500">{t("sort", "Urutkan")}</span>
               <select className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium outline-none ring-emerald-500 focus:ring-1">
-                <option>Terbaru</option>
-                <option>Harga Tertinggi</option>
-                <option>Harga Terendah</option>
-                <option>Paling Populer</option>
+                <option>{t("latest", "Terbaru")}</option>
+                <option>{t("highestPrice", "Harga Tertinggi")}</option>
+                <option>{t("lowestPrice", "Harga Terendah")}</option>
+                <option>{t("mostPopular", "Paling Populer")}</option>
               </select>
             </div>
           </div>
@@ -128,12 +132,12 @@ export default function BusinessProductTab({
             renderSkeletonGrid()
           ) : error ? (
             <div className="mt-20 flex flex-col items-center justify-center text-center text-rose-600">
-              <p className="mb-3">Gagal memuat produk: {error}</p>
+              <p className="mb-3">{t("failedLoadProducts", "Gagal memuat produk:")} {error}</p>
               <button
                 onClick={() => window.location.reload()}
                 className="mt-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white"
               >
-                Muat Ulang
+                {t("reload", "Muat Ulang")}
               </button>
             </div>
           ) : filteredProducts.length > 0 ? (
@@ -185,7 +189,7 @@ export default function BusinessProductTab({
                         )}
                       </div>
                       {hasDiscount && percentSave !== null && (
-                        <div className="mt-1 text-[12px] font-semibold text-emerald-600">Hemat {percentSave}%</div>
+                        <div className="mt-1 text-[12px] font-semibold text-emerald-600">{t("savePercent", "Hemat")} {percentSave}%</div>
                       )}
                     </div>
                   </a>
@@ -194,13 +198,13 @@ export default function BusinessProductTab({
             </div>
           ) : (
             <div className="mt-20 flex flex-col items-center justify-center text-center">
-              <div className="mb-4 text-4xl">🔍</div>
-              <p className="text-slate-500">Produk "{searchQuery}" tidak ditemukan.</p>
+              <Search className="mb-4 h-10 w-10 text-slate-400" aria-hidden="true" />
+              <p className="text-slate-500">{t("noResults", "Produk tidak ditemukan.")} {searchQuery ? `"${searchQuery}"` : ""}</p>
               <button
                 onClick={() => onSearchQueryChange("")}
                 className="mt-4 text-sm font-bold text-emerald-600 hover:underline"
               >
-                Hapus Pencarian
+                {t("clearSearch", "Hapus Pencarian")}
               </button>
             </div>
           )}

@@ -1,12 +1,14 @@
 /** @jsxRuntime classic */
 import React, { useState } from "react";
 import { ShieldCheck, User, Mail, Lock } from "lucide-react";
+import { useTranslations } from "../../i18n";
 
 interface ProfileSettingsProps {
   className?: string;
 }
 
 export default function ProfileSettings({ className = "" }: ProfileSettingsProps) {
+  const t = useTranslations();
   const [name, setName] = useState("Budi Santoso");
   const [email, setEmail] = useState("budi@email.com");
   const [phone, setPhone] = useState("+62 812 9988 7766");
@@ -24,8 +26,8 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
             <User className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-slate-900">Update Profile</p>
-            <p className="text-sm text-slate-500">Perbarui nama, email, dan nomor telepon kamu.</p>
+            <p className="text-lg font-semibold text-slate-900">{t("updateProfile", "Update Profile")}</p>
+            <p className="text-sm text-slate-500">{t("updateProfileDescription", "Perbarui nama, email, dan nomor telepon kamu.")}</p>
           </div>
         </div>
 
@@ -37,8 +39,8 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
           }}
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="block text-sm font-medium text-slate-600">
-              Nama Lengkap
+              <label className="block text-sm font-medium text-slate-600">
+                {t("fullName", "Nama Lengkap")}
               <input
                 type="text"
                 value={name}
@@ -47,7 +49,7 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
               />
             </label>
             <label className="block text-sm font-medium text-slate-600">
-              Email
+              {t("emailLabel", "Email")}
               <input
                 type="email"
                 value={email}
@@ -57,7 +59,7 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
             </label>
           </div>
           <label className="block text-sm font-medium text-slate-600">
-            Nomor Telepon
+            {t("phoneLabel", "Nomor Telepon")}
             <input
               type="tel"
               value={phone}
@@ -70,7 +72,7 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
             className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
           >
             <Mail className="h-4 w-4" />
-            Simpan perubahan
+            {t("saveChanges", "Simpan perubahan")}
           </button>
         </form>
       </div>
@@ -81,8 +83,8 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
             <Lock className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-slate-900">Update Password</p>
-            <p className="text-sm text-slate-500">Ubah password jika kamu merasa perlu keamanan ekstra.</p>
+            <p className="text-lg font-semibold text-slate-900">{t("updatePassword", "Update Password")}</p>
+            <p className="text-sm text-slate-500">{t("updatePasswordDesc", "Ubah password jika kamu merasa perlu keamanan ekstra.")}</p>
           </div>
         </div>
 
@@ -94,7 +96,7 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
           }}
         >
           <label className="block text-sm font-medium text-slate-600">
-            Password Sekarang
+            {t("currentPassword", "Password Sekarang")}
             <input
               type="password"
               value={currentPassword}
@@ -104,7 +106,7 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
           </label>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-medium text-slate-600">
-              Password Baru
+              {t("newPassword", "Password Baru")}
               <input
                 type="password"
                 value={newPassword}
@@ -113,7 +115,7 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
               />
             </label>
             <label className="block text-sm font-medium text-slate-600">
-              Konfirmasi Password
+              {t("confirmPassword", "Konfirmasi Password")}
               <input
                 type="password"
                 value={confirmPassword}
@@ -127,7 +129,7 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
           >
             <ShieldCheck className="h-4 w-4" />
-            Update password
+            {t("updatePasswordAction", "Update password")}
           </button>
         </form>
       </div>
@@ -138,18 +140,18 @@ export default function ProfileSettings({ className = "" }: ProfileSettingsProps
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-red-700">Nonaktifkan Akun</p>
-            <p className="text-sm text-red-600">Kamu dapat menonaktifkan akun sementara jika sedang tidak aktif.</p>
+            <p className="text-lg font-semibold text-red-700">{t("deactivateAccountTitle", "Nonaktifkan Akun")}</p>
+            <p className="text-sm text-red-600">{t("deactivateAccountDesc", "Kamu dapat menonaktifkan akun sementara jika sedang tidak aktif.")}</p>
           </div>
         </div>
-        <p className="mt-4 text-sm text-red-700">Akun akan dikunci dan kamu harus menghubungi support untuk mengaktifkannya kembali.</p>
+        <p className="mt-4 text-sm text-red-700">{t("accountLockedNotice", "Akun akan dikunci dan kamu harus menghubungi support untuk mengaktifkannya kembali.")}</p>
         <button
           type="button"
           className="mt-4 inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 shadow-sm transition hover:border-red-300 hover:bg-red-100"
           onClick={() => alert("Akun dinonaktifkan (mock)")}
         >
           <ShieldCheck className="h-4 w-4" />
-          Deactivate account
+          {t("deactivateAccountAction", "Deactivate account")}
         </button>
       </div>
     </div>

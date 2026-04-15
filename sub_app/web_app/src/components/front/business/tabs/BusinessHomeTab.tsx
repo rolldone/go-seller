@@ -2,6 +2,8 @@
 import React from "react";
 import LargeCardCarousel from "../../LargeCardCarousel";
 import type { PublicBusinessCarousel, PublicBusinessProduct } from "../types";
+import { buildLocalizedPath } from "../../../../lib/siteLocale";
+import { useTranslations } from "../../../../i18n";
 
 interface BusinessHomeTabProps {
   businessSlug: string;
@@ -14,7 +16,7 @@ interface BusinessHomeTabProps {
 
 function buildProductHref(businessSlug: string, productSlug: string, locale?: string) {
   const path = `/b/${businessSlug}/p/${productSlug}`;
-  return locale ? `${path}?locale=${encodeURIComponent(locale)}` : path;
+  return buildLocalizedPath(path, locale);
 }
 
 export default function BusinessHomeTab({
@@ -25,6 +27,8 @@ export default function BusinessHomeTab({
   products,
   categories,
 }: BusinessHomeTabProps) {
+  const t = useTranslations("business", locale);
+
   return (
     <>
       {carousels.length > 0 ? (
@@ -50,7 +54,7 @@ export default function BusinessHomeTab({
       ) : null}
 
       <section className="mt-7">
-        <h2 className="text-[30px] font-bold tracking-tight text-slate-900">Populer</h2>
+        <h2 className="text-[30px] font-bold tracking-tight text-slate-900">{t("popular", "Populer")}</h2>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           {featuredProducts.map((product) => (
@@ -64,7 +68,7 @@ export default function BusinessHomeTab({
               <p className="mt-1 text-xs text-slate-500">{product.excerpt}</p>
               <p className="mt-2 text-lg font-bold text-rose-500">{product.price}</p>
               <button className="mt-2 w-full rounded-lg border border-emerald-400 py-1.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 focus:outline-none">
-                Detail Produk
+                {t("productDetail", "Detail Produk")}
               </button>
             </a>
           ))}
@@ -72,7 +76,7 @@ export default function BusinessHomeTab({
 
         <div className="mt-8 flex justify-center">
           <button className="rounded-full border border-slate-300 bg-white px-8 py-2 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-emerald-500 hover:text-emerald-600">
-            Lihat Semua Populer
+            {t("viewAllPopular", "Lihat Semua Populer")}
           </button>
         </div>
       </section>
@@ -98,7 +102,7 @@ export default function BusinessHomeTab({
                   <p className="mt-1 text-xs text-slate-500">{product.category}</p>
                   <p className="mt-2 text-lg font-bold text-rose-500">{product.price}</p>
                   <div className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-emerald-400 py-1.5 text-sm font-semibold text-emerald-600 group-hover:bg-emerald-50">
-                    Detail Produk
+                    {t("productDetail", "Detail Produk")}
                   </div>
                 </a>
               ))}
@@ -106,7 +110,7 @@ export default function BusinessHomeTab({
 
           <div className="mt-8 flex justify-center">
             <button className="rounded-full border border-slate-300 bg-white px-8 py-2 text-sm font-bold text-slate-700 shadow-sm transition-colors hover:border-emerald-500 hover:text-emerald-600">
-              Lihat Produk {catName} Lainnya
+              {t("viewAllProducts", "Lihat Produk Lainnya")}
             </button>
           </div>
         </section>

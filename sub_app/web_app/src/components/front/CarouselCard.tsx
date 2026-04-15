@@ -1,3 +1,5 @@
+import { useTranslations } from "../../i18n";
+
 interface CarouselCardProps {
   title?: string;
   subtitle?: string;
@@ -7,11 +9,12 @@ interface CarouselCardProps {
 }
 
 export default function CarouselCard({ title, subtitle, image, href, variant = "large" }: CarouselCardProps) {
+  const t = useTranslations();
   const isLarge = variant === "large";
   const titleText = title?.trim() || "";
   const subtitleText = subtitle?.trim() || "";
   const hasCopy = Boolean(titleText || subtitleText);
-  const ariaLabel = titleText || subtitleText || "Carousel banner";
+  const ariaLabel = titleText || subtitleText || t("carouselBanner", "Carousel banner");
   const content = (
     <div
       className={
@@ -32,12 +35,12 @@ export default function CarouselCard({ title, subtitle, image, href, variant = "
       {hasCopy ? (
         <div className="relative z-10 flex h-full flex-col justify-between p-5 sm:p-7 lg:p-8">
           <div className="flex items-start justify-between gap-4">
-            <div className="inline-flex w-fit rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/90 backdrop-blur-md">
-              Featured Promo
+              <div className="inline-flex w-fit rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/90 backdrop-blur-md">
+              {t("featuredPromo", "Featured Promo")}
             </div>
             {isLarge && (
               <div className="rounded-full border border-white/15 bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90 backdrop-blur-md">
-                GoSeller
+                {t("goSeller", "GoSeller")}
               </div>
             )}
           </div>
@@ -49,15 +52,15 @@ export default function CarouselCard({ title, subtitle, image, href, variant = "
 
               <div className="mt-5 flex flex-wrap items-center gap-3">
                 <span className="rounded-full bg-white px-4 py-2 text-xs font-black uppercase tracking-[0.18em] text-slate-900 shadow-sm">
-                  Lihat Promo Lainnya
+                  {t("seeMorePromos", "Lihat Promo Lainnya")}
                 </span>
-                <span className="text-xs font-medium text-white/70">Klik banner untuk detail</span>
+                <span className="text-xs font-medium text-white/70">{t("clickBannerForDetails", "Klik banner untuk detail")}</span>
               </div>
             </div>
 
-            <div className="flex justify-start lg:justify-end">
+              <div className="flex justify-start lg:justify-end">
               <span className="inline-flex items-center rounded-full bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-950/20 transition hover:-translate-y-0.5 hover:bg-slate-800">
-                Lihat Promo Lainnya
+                {t("seeMorePromos", "Lihat Promo Lainnya")}
               </span>
             </div>
           </div>

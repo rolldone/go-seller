@@ -6,7 +6,9 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "i18n:lint": "i18next-cli lint",
+    "i18n:extract": "i18next-cli extract --quiet && node scripts/i18n-fill-empty.mjs"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.8",
@@ -33,6 +35,7 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0"
+    "@types/node": "^25.5.0",
+    "i18next-cli": "^1.53.2"
   }
 }

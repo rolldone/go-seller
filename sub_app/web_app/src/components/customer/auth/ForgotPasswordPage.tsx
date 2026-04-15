@@ -3,29 +3,37 @@ import React, { useState } from "react";
 import { ShoppingBag, ArrowLeft } from "lucide-react";
 import { customerAuthRequest } from "./authApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
+import { buildLocalizedPath } from "../../../lib/siteLocale";
+import { useTranslations } from "../../../i18n";
 
-const getCustomerResetPageUrl = () => {
+const getCustomerResetPageUrl = (locale?: string) => {
   const baseUrl = import.meta.env.PUBLIC_APP_URL?.replace(/\/+$/, "") || "";
-  if (!baseUrl) return "/customer/auth/reset-password";
-  return `${baseUrl}/customer/auth/reset-password`;
+  const path = buildLocalizedPath("/customer/auth/reset-password", locale);
+  if (!baseUrl) return path;
+  return `${baseUrl}${path}`;
 };
 
-export default function ForgotPasswordPage() {
+interface ForgotPasswordPageProps {
+  locale?: string;
+}
+
+export default function ForgotPasswordPage({ locale }: ForgotPasswordPageProps) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const t = useTranslations("auth", locale);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#f7f7f5] px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <a href="/" className="mb-8 flex items-center justify-center gap-2">
+        <a href={buildLocalizedPath("/", locale)} className="mb-8 flex items-center justify-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-200">
             <ShoppingBag className="h-5 w-5 text-white" />
           </div>
           <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-xl font-bold text-transparent">
-            GoSeller
+            {t("goSeller", "GoSeller")}
           </span>
         </a>
 
@@ -33,10 +41,8 @@ export default function ForgotPasswordPage() {
         <div className="rounded-2xl border border-slate-200 bg-white px-8 py-10 shadow-sm">
           {!submitted ? (
             <>
-              <h1 className="mb-1 text-2xl font-bold text-slate-900">Lupa Password</h1>
-              <p className="mb-8 text-sm text-slate-500">
-                Masukkan email Anda dan kami akan mengirimkan link untuk mereset password.
-              </p>
+              <h1 className="mb-1 text-2xl font-bold text-slate-900">{t("forgotTitle", "Lupa Password")}</h1>
+              <p className="mb-8 text-sm text-slate-500">{t("forgotSubtitle", "Masukkan email Anda dan kami akan mengirimkan link untuk mereset password.")}</p>
 
               <form
                 className="space-y-5"
@@ -47,7 +53,7 @@ export default function ForgotPasswordPage() {
                   try {
                     await customerAuthRequest("/forgot-password", {
                       email,
-                      reset_url: getCustomerResetPageUrl(),
+                      reset_url: getCustomerResetPageUrl(locale),
                     });
                     setSubmitted(true);
                     notifySuccess("Jika akun ditemukan, email reset akan dikirim");
@@ -61,7 +67,7 @@ export default function ForgotPasswordPage() {
                 }}
               >
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">Email</label>
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("email", "Email")}</label>
                   <input
                     type="email"
                     autoComplete="email"
@@ -77,7 +83,7 @@ export default function ForgotPasswordPage() {
                   disabled={loading}
                   className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {loading ? "Mengirim..." : "Kirim Link Reset"}
+                    {loading ? "Mengirim..." : t("sendResetLink", "Kirim Link Reset")}
                 </button>
               </form>
               {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
@@ -90,20 +96,20 @@ export default function ForgotPasswordPage() {
                   <polyline points="22,6 12,13 2,6" />
                 </svg>
               </div>
-              <h2 className="mb-2 text-lg font-bold text-slate-900">Cek Email Anda</h2>
+              <h2 className="mb-2 text-lg font-bold text-slate-900">{t("checkEmailTitle", "Cek Email Anda")}</h2>
               <p className="text-sm text-slate-500">
-                Kami telah mengirimkan link reset password ke <strong className="text-slate-700">{email}</strong>.
+                {t("checkEmailBody", "Kami telah mengirimkan link reset password ke")} <strong className="text-slate-700">{email}</strong>.
               </p>
             </div>
           )}
         </div>
 
         <a
-          href="/customer/auth/login"
+          href={buildLocalizedPath("/customer/auth/login", locale)}
           className="mt-5 flex items-center justify-center gap-1.5 text-sm text-slate-500 hover:text-emerald-600 transition"
         >
           <ArrowLeft className="h-4 w-4" />
-          Kembali ke halaman masuk
+          {t("backToLogin", "Kembali ke halaman masuk")}
         </a>
       </div>
     </div>

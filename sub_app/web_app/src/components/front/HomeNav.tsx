@@ -2,15 +2,20 @@
 import React, { useEffect, useState } from "react";
 import type { CustomerSession } from "../../lib/customerSession";
 import { getCustomerAuthToken, getCustomerProfile } from "../customer/auth/authApi";
+import { buildLocalizedPath, getLocaleFromPathname } from "../../lib/siteLocale";
+import { useTranslations } from "../../i18n";
 
 interface HomeNavProps {
   variant?: "dark" | "light";
   customerSession?: CustomerSession | null;
+  locale?: string;
 }
 
-export default function HomeNav({ variant = "dark", customerSession = null }: HomeNavProps) {
+export default function HomeNav({ variant = "dark", customerSession = null, locale }: HomeNavProps) {
   const isLight = variant === "light";
   const [session, setSession] = useState<CustomerSession | null>(customerSession);
+  const resolvedLocale = locale || (typeof window !== "undefined" ? getLocaleFromPathname(window.location.pathname) : undefined);
+  const t = useTranslations("common", resolvedLocale);
 
   useEffect(() => {
     if (session?.authenticated) return;
@@ -25,7 +30,7 @@ export default function HomeNav({ variant = "dark", customerSession = null }: Ho
   }, [session]);
 
   const isAuthenticated = Boolean(session?.authenticated);
-  const customerName = session?.profile?.name || "Akun saya";
+  const customerName = session?.profile?.name || t("myAccount", "Akun saya");
 
   return (
     <header className={[
@@ -35,7 +40,7 @@ export default function HomeNav({ variant = "dark", customerSession = null }: Ho
       <div className="flex items-center gap-3">
         <button
           type="button"
-          aria-label="Toggle menu"
+          aria-label={t("menuToggle", "Toggle menu")}
           className={[
             "inline-flex h-9 w-9 items-center justify-center rounded-lg border transition",
             isLight
@@ -50,14 +55,14 @@ export default function HomeNav({ variant = "dark", customerSession = null }: Ho
           </span>
         </button>
 
-        <a href="/" className="inline-flex items-center gap-2">
+        <a href={buildLocalizedPath("/", resolvedLocale)} className="inline-flex items-center gap-2">
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-orange-500 to-red-600 font-black text-white">
-            GS
+            {t("goSeller", "GoSeller")}
           </span>
           <span className={[
             "text-lg font-semibold tracking-tight",
             isLight ? "text-slate-900" : "text-white",
-          ].join(" ")}>GoSeller</span>
+          ].join(" ")}>{t("goSeller", "GoSeller")}</span>
         </a>
       </div>
 
@@ -65,21 +70,21 @@ export default function HomeNav({ variant = "dark", customerSession = null }: Ho
         "hidden items-center gap-6 text-sm md:flex",
         isLight ? "text-slate-600" : "text-slate-300",
       ].join(" ")}>
-        <a href="#" className={isLight ? "transition hover:text-slate-900" : "transition hover:text-white"}>For Enterprise</a>
-        <a href="#" className={isLight ? "transition hover:text-slate-900" : "transition hover:text-white"}>API</a>
-        <a href={isAuthenticated ? "/customer/dashboard" : "/customer/auth/login"} className={isLight ? "transition hover:text-slate-900" : "transition hover:text-white"}>
-          {isAuthenticated ? customerName : "Sign in"}
+        <a href="#" className={isLight ? "transition hover:text-slate-900" : "transition hover:text-white"}>{t("forEnterprise", "For Enterprise")}</a>
+        <a href="#" className={isLight ? "transition hover:text-slate-900" : "transition hover:text-white"}>{t("api", "API")}</a>
+        <a href={buildLocalizedPath(isAuthenticated ? "/customer/dashboard" : "/customer/auth/login", resolvedLocale)} className={isLight ? "transition hover:text-slate-900" : "transition hover:text-white"}>
+          {isAuthenticated ? customerName : t("signIn", "Sign in")}
         </a>
       </nav>
 
       <a
-        href={isAuthenticated ? "/customer/auth/logout" : "/customer/auth/register"}
+        href={buildLocalizedPath(isAuthenticated ? "/customer/auth/logout" : "/customer/auth/register", resolvedLocale)}
         className={[
           "inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold transition",
           isLight ? "bg-slate-900 text-white hover:bg-slate-800" : "bg-blue-600 text-white hover:bg-blue-500",
         ].join(" ")}
       >
-        {isAuthenticated ? "Logout" : "Get started"}
+        {isAuthenticated ? t("logout", "Logout") : t("getStarted", "Get started")}
       </a>
     </header>
   );

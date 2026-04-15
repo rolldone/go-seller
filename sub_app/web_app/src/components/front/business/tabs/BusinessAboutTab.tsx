@@ -1,12 +1,15 @@
 /** @jsxRuntime classic */
 import React from "react";
 import type { PublicBusiness } from "../types";
+import { useTranslations } from "../../../../i18n";
 
 interface BusinessAboutTabProps {
   business: PublicBusiness;
+  locale?: string;
 }
 
-export default function BusinessAboutTab({ business }: BusinessAboutTabProps) {
+export default function BusinessAboutTab({ business, locale }: BusinessAboutTabProps) {
+  const t = useTranslations("business", locale);
   const ownerName = business.owner_name ?? "-";
   const ownerRole = business.owner_role ?? "-";
   const establishedYear = business.founded_year ?? "-";
@@ -34,7 +37,7 @@ export default function BusinessAboutTab({ business }: BusinessAboutTabProps) {
   return (
     <div className="mt-6 grid gap-5 lg:grid-cols-[1.3fr_1fr]">
       <section className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6">
-        <h2 className="text-lg font-bold text-slate-900">Profil Toko</h2>
+        <h2 className="text-lg font-bold text-slate-900">{t("profileStore", "Profil Toko")}</h2>
         {descriptionHTML ? (
           <div className="mt-3 text-sm leading-relaxed text-slate-700" dangerouslySetInnerHTML={{ __html: descriptionHTML }} />
         ) : (
@@ -45,28 +48,28 @@ export default function BusinessAboutTab({ business }: BusinessAboutTabProps) {
 
       <aside className="space-y-5">
         <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">Informasi Lengkap</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">{t("fullInfo", "Informasi Lengkap")}</h3>
           <div className="mt-4 space-y-3 text-sm text-slate-700">
             <p>
-              <span className="font-semibold text-slate-900">Alamat:</span> {fullAddress}
+              <span className="font-semibold text-slate-900">{t("addressLabel", "Alamat:")}</span> {fullAddress}
             </p>
             <p>
-              <span className="font-semibold text-slate-900">Pemilik:</span> {ownerName}
+              <span className="font-semibold text-slate-900">{t("ownerLabel", "Pemilik:")}</span> {ownerName}
             </p>
             <p>
-              <span className="font-semibold text-slate-900">Peran:</span> {ownerRole}
+              <span className="font-semibold text-slate-900">{t("roleLabel", "Peran:")}</span> {ownerRole}
             </p>
             <p>
-              <span className="font-semibold text-slate-900">Didirikan Tahun:</span> {establishedYear}
+              <span className="font-semibold text-slate-900">{t("foundedYearLabel", "Didirikan Tahun:")}</span> {establishedYear}
             </p>
             <p>
-              <span className="font-semibold text-slate-900">Jam Operasional:</span> {renderOperational(operatingHours)}
+              <span className="font-semibold text-slate-900">{t("operatingHoursLabel", "Jam Operasional:")}</span> {renderOperational(operatingHours)}
             </p>
             <p>
-              <span className="font-semibold text-slate-900">Respon Chat:</span> {responseTime}
+              <span className="font-semibold text-slate-900">{t("chatResponseLabel", "Respon Chat:")}</span> {responseTime}
             </p>
             <p>
-              <span className="font-semibold text-slate-900">Email:</span>{' '}
+              <span className="font-semibold text-slate-900">{t("emailLabel", "Email:")}</span>{' '}
               {!canShowEmail || !contactEmail || contactEmail === '-' ? (
                 '-'
               ) : (
@@ -74,7 +77,7 @@ export default function BusinessAboutTab({ business }: BusinessAboutTabProps) {
               )}
             </p>
             <p>
-              <span className="font-semibold text-slate-900">Telepon:</span>{' '}
+              <span className="font-semibold text-slate-900">{t("phoneLabel", "Telepon:")}</span>{' '}
               {!canShowPhone || !contactPhone || contactPhone === '-' ? (
                 '-'
               ) : (

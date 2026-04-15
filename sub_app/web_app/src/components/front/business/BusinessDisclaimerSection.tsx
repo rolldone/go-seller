@@ -2,9 +2,11 @@
 import React, { useMemo, useState } from "react";
 import { ShieldCheck, Truck, Store, Info, X, ChevronRight } from "lucide-react";
 import type { PublicBusinessDisclaimer } from "./types";
+import { useTranslations } from "../../../i18n";
 
 type Props = {
   businessName: string;
+  locale?: string;
   disclaimers?: PublicBusinessDisclaimer[] | null;
 };
 
@@ -31,7 +33,8 @@ function stripHtml(value: string): string {
   return (el.textContent || el.innerText || "").replace(/\s+/g, " ").trim();
 }
 
-export default function BusinessDisclaimerSection({ businessName, disclaimers }: Props) {
+export default function BusinessDisclaimerSection({ businessName, locale, disclaimers }: Props) {
+  const t = useTranslations("business", locale);
   const [activeDisclaimer, setActiveDisclaimer] = useState<PublicBusinessDisclaimer | null>(null);
 
   const items = useMemo(() => {
@@ -55,8 +58,8 @@ export default function BusinessDisclaimerSection({ businessName, disclaimers }:
         <section className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900">Disclaimer</h3>
-              <p className="mt-1 text-xs text-slate-500">Klik item untuk melihat detail.</p>
+              <h3 className="text-sm font-semibold text-slate-900">{t("disclaimer", "Disclaimer")}</h3>
+              <p className="mt-1 text-xs text-slate-500">{t("disclaimerHint", "Klik item untuk melihat detail.")}</p>
             </div>
           </div>
 
@@ -75,11 +78,11 @@ export default function BusinessDisclaimerSection({ businessName, disclaimers }:
                   <div className="flex items-start gap-3">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900">{disclaimer.title || "(Tanpa judul)"}</p>
+                      <p className="text-sm font-semibold text-slate-900">{disclaimer.title || t("untitled", "(Tanpa judul)")}</p>
                       {snippet ? <p className="mt-1 text-xs text-slate-500 line-clamp-2 whitespace-pre-line">{snippet}</p> : null}
                     </div>
                     <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600 transition group-hover:translate-x-0.5">
-                      Detail
+                      {t("detail", "Detail")}
                       <ChevronRight className="h-3.5 w-3.5" />
                     </span>
                   </div>
@@ -90,9 +93,9 @@ export default function BusinessDisclaimerSection({ businessName, disclaimers }:
         </section>
       ) : (
         <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-          <p className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Garansi 7 hari untuk produk digital.</p>
-          <p className="flex items-center gap-2"><Truck className="h-4 w-4 text-emerald-600" /> Akses otomatis dalam hitungan menit.</p>
-          <p className="flex items-center gap-2"><Store className="h-4 w-4 text-emerald-600" /> Dijual oleh {businessName}.</p>
+          <p className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" /> {t("defaultWarrantyDisclaimer", "Garansi 7 hari untuk produk digital.")}</p>
+          <p className="flex items-center gap-2"><Truck className="h-4 w-4 text-emerald-600" /> {t("defaultDeliveryDisclaimer", "Akses otomatis dalam hitungan menit.")}</p>
+          <p className="flex items-center gap-2"><Store className="h-4 w-4 text-emerald-600" /> {t("defaultSoldByDisclaimer", "Dijual oleh")} {businessName}.</p>
         </div>
       )}
 
@@ -101,14 +104,14 @@ export default function BusinessDisclaimerSection({ businessName, disclaimers }:
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Disclaimer Detail</p>
-                <h4 className="mt-1 text-lg font-bold text-slate-900">{activeDisclaimer.title || "Informasi Penting"}</h4>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">{t("disclaimerDetail", "Disclaimer Detail")}</p>
+                <h4 className="mt-1 text-lg font-bold text-slate-900">{activeDisclaimer.title || t("importantInfo", "Informasi Penting")}</h4>
               </div>
               <button
                 type="button"
                 onClick={closeModal}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-600 transition hover:bg-slate-100"
-                aria-label="Tutup detail disclaimer"
+                aria-label={t("closeDisclaimer", "Tutup detail disclaimer")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -130,7 +133,7 @@ export default function BusinessDisclaimerSection({ businessName, disclaimers }:
                 onClick={closeModal}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
               >
-                Tutup
+                {t("close", "Tutup")}
               </button>
             </div>
           </div>

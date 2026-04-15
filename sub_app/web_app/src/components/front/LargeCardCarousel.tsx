@@ -1,5 +1,6 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
 import CarouselCard from "./CarouselCard";
+import { useTranslations } from "../../i18n";
 
 interface Item {
   id: string;
@@ -22,6 +23,7 @@ export interface CarouselHandle {
 
 const LargeCardCarousel = forwardRef<CarouselHandle, LargeCardCarouselProps>(
   ({ items, variant = "large", className = "", hideArrows = false }, ref) => {
+    const t = useTranslations();
     const sc = useRef<HTMLDivElement | null>(null);
     const slideRefs = useRef<Array<HTMLDivElement | null>>([]);
     const [activeIndex, setActiveIndex] = useState(0);
@@ -100,7 +102,7 @@ const LargeCardCarousel = forwardRef<CarouselHandle, LargeCardCarouselProps>(
               <button
                 key={it.id}
                 type="button"
-                aria-label={`Go to slide ${index + 1}`}
+                aria-label={`${t("goToSlide", "Go to slide")} ${index + 1}`}
                 onClick={() => {
                   setActiveIndex(index);
                   const node = slideRefs.current[index];
@@ -117,14 +119,14 @@ const LargeCardCarousel = forwardRef<CarouselHandle, LargeCardCarouselProps>(
         {!hideArrows && (
           <>
             <button
-              aria-label="Prev"
+              aria-label={t("prev", "Prev")}
               onClick={() => scroll(-1)}
               className="absolute left-0 top-1/2 z-20 hidden h-12 w-12 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/30 bg-slate-950/85 text-white shadow-[0_10px_30px_rgba(15,23,42,0.25)] backdrop-blur-md transition duration-200 hover:scale-110 hover:bg-slate-950 active:scale-95 md:flex"
             >
               ‹
             </button>
             <button
-              aria-label="Next"
+              aria-label={t("next", "Next")}
               onClick={() => scroll(1)}
               className="absolute right-0 top-1/2 z-20 hidden h-12 w-12 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-white/30 bg-slate-950/85 text-white shadow-[0_10px_30px_rgba(15,23,42,0.25)] backdrop-blur-md transition duration-200 hover:scale-110 hover:bg-slate-950 active:scale-95 md:flex"
             >

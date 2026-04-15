@@ -1,8 +1,8 @@
 /** @jsxRuntime classic */
 import React, { useMemo, useState } from "react";
 import type { PublicBusinessProduct, PublicBusinessReview, PublicBusinessReviewSummary } from "../types";
-
-const REVIEW_TOPICS = ["Kualitas Barang", "Pelayanan Penjual", "Kemasan Barang", "Kecepatan Pengiriman"] as const;
+import { buildLocalizedPath } from "../../../../lib/siteLocale";
+import { businessReviewTopicKeys, useTranslations } from "../../../../i18n";
 
 interface BusinessReviewTabProps {
   businessSlug: string;
@@ -26,11 +26,27 @@ function getReviewTimestamp(review: PublicBusinessReview, index: number): number
 }
 
 export default function BusinessReviewTab({ businessSlug, locale, products, reviewSummary, reviews, formatNumber }: BusinessReviewTabProps) {
+  const t = useTranslations("business", locale);
+  const tId = useTranslations("business", "id");
+  type ReviewTopicKey = (typeof businessReviewTopicKeys)[number];
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedRatings, setSelectedRatings] = useState<number[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>("latest");
-  const PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="100%" height="100%" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-size="24">No image</text></svg>';
+  const PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600"><rect width="100%" height="100%" fill="%23f3f4f6"/></svg>';
+
+  const getTopicLabel = (topicKey: string) => t(topicKey, tId(topicKey, topicKey));
+  const resolveTopicKey = (topic: string) => {
+    const normalized = topic.trim().toLowerCase();
+    for (const topicKey of businessReviewTopicKeys) {
+      const currentLabel = getTopicLabel(topicKey).trim().toLowerCase();
+      const idLabel = tId(topicKey, topicKey).trim().toLowerCase();
+      if (normalized === currentLabel || normalized === idLabel) {
+        return topicKey;
+      }
+    }
+    return null;
+  };
 
   const sourceReviews = Array.isArray(reviews) ? reviews : [];
   const breakdown = Array.isArray(reviewSummary?.breakdown) ? reviewSummary.breakdown : [];
@@ -52,7 +68,7 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
     const product = productById.get(productId);
     if (!product?.slug) return null;
     const path = `/b/${encodeURIComponent(businessSlug)}/p/${encodeURIComponent(product.slug)}`;
-    return locale ? `${path}?locale=${encodeURIComponent(locale)}` : path;
+    return buildLocalizedPath(path, locale);
   };
 
   const toggleRating = (rating: number) => {
@@ -78,7 +94,8 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
 
       if (selectedTopics.length > 0) {
         const reviewTopics = Array.isArray(review.topics) ? review.topics : [];
-        if (!reviewTopics.some((topic) => selectedTopics.includes(topic))) {
+        const reviewTopicKeys = reviewTopics.map(resolveTopicKey).filter((value): value is ReviewTopicKey => value !== null);
+        if (!reviewTopicKeys.some((topicKey) => selectedTopics.includes(topicKey))) {
           return false;
         }
       }
@@ -111,7 +128,7 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
   if (!reviewSummary) {
     return (
       <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
-        Belum ada data ulasan untuk toko ini.
+        {t("noReviews", "Belum ada data ulasan untuk toko ini.")}
       </div>
     );
   }
@@ -125,8 +142,10 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
               <p className="text-4xl font-extrabold text-slate-900">
                 {reviewSummary.score.toFixed(1)} <span className="text-xl font-semibold text-slate-400">/ {reviewSummary.outOf.toFixed(1)}</span>
               </p>
-              <p className="mt-1 text-lg font-semibold text-slate-800">{reviewSummary.satisfiedPercent}% pembeli merasa puas</p>
-              <p className="mt-1 text-sm text-slate-500">{formatNumber(reviewSummary.ratingCount)} rating · {formatNumber(reviewSummary.reviewCount)} ulasan</p>
+              <p className="mt-1 text-lg font-semibold text-slate-800">{reviewSummary.satisfiedPercent}% {t("satisfiedBuyers", "pembeli merasa puas")}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {formatNumber(reviewSummary.ratingCount)} {t("ratingLabel", "rating")} · {formatNumber(reviewSummary.reviewCount)} {t("reviewLabel", "ulasan")}
+              </p>
             </div>
           </div>
 
@@ -143,19 +162,19 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
           </div>
         </div>
 
-        <div className="mt-4 border-t border-slate-100 pt-3 text-center text-xs text-slate-500">Diambil dari pengalaman pembeli di toko ini</div>
+        <div className="mt-4 border-t border-slate-100 pt-3 text-center text-xs text-slate-500">{t("reviewExperienceLabel", "Diambil dari pengalaman pembeli di toko ini")}</div>
       </section>
 
       <section className="flex flex-col gap-5 lg:flex-row">
         <aside className="w-full shrink-0 lg:w-[240px]">
           <div className="rounded-xl border border-slate-200 bg-white">
             <div className="border-b border-slate-100 px-4 py-3">
-              <h3 className="text-sm font-bold text-slate-900">Filter Ulasan</h3>
+              <h3 className="text-sm font-bold text-slate-900">{t("reviewFilterTitle", "Filter Ulasan")}</h3>
             </div>
 
             <div className="space-y-5 p-4 text-sm">
               <div>
-                <p className="mb-2 font-semibold text-slate-800">Media</p>
+                <p className="mb-2 font-semibold text-slate-800">{t("media", "Media")}</p>
                 <label className="flex items-center gap-2 text-slate-600">
                   <input
                     type="checkbox"
@@ -163,12 +182,12 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
                     onChange={() => setMediaOnly((current) => !current)}
                     className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                   />
-                  Dengan Foto & Video
+                  {t("withPhotoVideo", "Dengan Foto & Video")}
                 </label>
               </div>
 
               <div>
-                <p className="mb-2 font-semibold text-slate-800">Rating</p>
+                <p className="mb-2 font-semibold text-slate-800">{t("ratingLabel", "rating")}</p>
                 <div className="space-y-2">
                   {[5, 4, 3, 2, 1].map((star) => {
                     const checked = selectedRatings.includes(star);
@@ -188,17 +207,17 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
               </div>
 
               <div>
-                <p className="mb-2 font-semibold text-slate-800">Topik Ulasan</p>
+                <p className="mb-2 font-semibold text-slate-800">{t("reviewTopics", "Topik Ulasan")}</p>
                 <div className="space-y-2 text-slate-600">
-                  {REVIEW_TOPICS.map((topic) => (
-                    <label key={topic} className="flex items-center gap-2">
+                  {businessReviewTopicKeys.map((topicKey:any) => (
+                    <label key={topicKey} className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={selectedTopics.includes(topic)}
-                        onChange={() => toggleTopic(topic)}
+                        checked={selectedTopics.includes(topicKey)}
+                        onChange={() => toggleTopic(topicKey)}
                         className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                       />
-                      {topic}
+                      {getTopicLabel(topicKey)}
                     </label>
                   ))}
                 </div>
@@ -210,23 +229,23 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
         <main className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">Ulasan Pilihan</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-900">{t("selectedReviews", "Ulasan Pilihan")}</h3>
               <p className="mt-1 text-xs text-slate-500">
-                Menampilkan {visibleReviews.length} dari {formatNumber(Number(reviewSummary.reviewCount || 0))} ulasan
+                {t("showing", "Menampilkan")} {visibleReviews.length} {t("of", "dari")} {formatNumber(Number(reviewSummary.reviewCount || 0))} {t("reviewLabel", "ulasan")}
               </p>
             </div>
 
             <div className="flex items-center gap-2 text-sm">
-              <span className="font-semibold text-slate-700">Urutkan</span>
+              <span className="font-semibold text-slate-700">{t("sortBy", "Urutkan")}</span>
               <select
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm outline-none ring-emerald-500 focus:ring-1"
                 value={sortMode}
                 onChange={(event) => setSortMode(event.target.value as SortMode)}
               >
-                <option value="latest">Terbaru</option>
-                <option value="oldest">Terlama</option>
-                <option value="rating_desc">Rating Tertinggi</option>
-                <option value="rating_asc">Rating Terendah</option>
+                <option value="latest">{t("latest", "Terbaru")}</option>
+                <option value="oldest">{t("oldest", "Terlama")}</option>
+                <option value="rating_desc">{t("highestRating", "Rating Tertinggi")}</option>
+                <option value="rating_asc">{t("lowestRating", "Rating Terendah")}</option>
               </select>
             </div>
           </div>
@@ -249,7 +268,7 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
                         <div className="h-20 w-20 overflow-hidden rounded-lg bg-slate-100">
                           <img
                             src={heroUrl}
-                            alt={review.productTitle || productRef?.title || "Produk"}
+                            alt={review.productTitle || productRef?.title || t("product", "Produk")}
                             loading="lazy"
                             onError={(event) => {
                               const img = event.currentTarget as HTMLImageElement;
@@ -268,7 +287,7 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
                           ) : (
                             <p className="line-clamp-3 text-sm font-semibold text-slate-900">{review.productTitle || productRef?.title}</p>
                           )}
-                          <p className="mt-1 text-xs text-slate-500">Varian: {review.productVariant}</p>
+                          <p className="mt-1 text-xs text-slate-500">{t("variant", "Varian:")} {review.productVariant}</p>
                         </div>
                       </div>
 
@@ -282,7 +301,7 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
                         
                         <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
                           {review.hasMedia ? (
-                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">Foto/Video</span>
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">{t("photoVideo", "Foto/Video")}</span>
                           ) : null}
                           {Array.isArray(review.topics) && review.topics.length > 0
                             ? review.topics.map((topic) => (
@@ -314,7 +333,7 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
                                       ) : (
                                         <img
                                           src={attachmentUrl}
-                                          alt={attachment.name || review.productTitle || productRef?.title || `Lampiran ${index + 1}`}
+                                          alt={attachment.name || review.productTitle || productRef?.title || `${t("attachment", "Lampiran")} ${index + 1}`}
                                           loading="lazy"
                                           onError={(event) => {
                                             const img = event.currentTarget as HTMLImageElement;
@@ -341,7 +360,7 @@ export default function BusinessReviewTab({ businessSlug, locale, products, revi
               })
             ) : (
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                Belum ada ulasan untuk filter yang dipilih.
+                {t("noFilteredReviews", "Belum ada ulasan untuk filter yang dipilih.")}
               </div>
             )}
           </div>

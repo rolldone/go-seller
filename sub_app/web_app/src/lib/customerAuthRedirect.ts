@@ -10,6 +10,38 @@ function hasBrowserSessionStorage(): boolean {
   return typeof window !== "undefined" && typeof sessionStorage !== "undefined";
 }
 
+function getLocaleFromPathname(pathname?: string | null): string | null {
+  const parts = String(pathname || "").split("/").filter(Boolean);
+  const firstPart = String(parts[0] || "").trim().toLowerCase();
+  return firstPart === "en" ? "en" : "id";
+}
+
+function stripLocalePrefix(pathname: string): string {
+  const normalized = pathname.startsWith("/") ? pathname : `/${pathname}`;
+  const parts = normalized.split("/").filter(Boolean);
+  const firstPart = String(parts[0] || "").trim().toLowerCase();
+  if (firstPart === "id" || firstPart === "en") {
+    const nextPath = `/${parts.slice(1).join("/")}`;
+    return nextPath === "" ? "/" : nextPath;
+  }
+  return normalized;
+}
+
+function buildLocalizedPath(pathname: string, locale?: string | null): string {
+  const normalizedLocale = locale === "en" ? "en" : "id";
+  const normalizedPath = stripLocalePrefix(pathname);
+
+  if (normalizedLocale === "id") {
+    return normalizedPath;
+  }
+
+  if (normalizedPath === "/") {
+    return "/en";
+  }
+
+  return `/en${normalizedPath}`;
+}
+
 export function normalizeCustomerAuthNextPath(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
 
@@ -34,14 +66,18 @@ export function normalizeCustomerAuthNextPath(value: string | null | undefined):
 
 export function buildCustomerAuthLoginUrl(nextPath?: string | null): string {
   const normalized = normalizeCustomerAuthNextPath(nextPath);
-  if (!normalized) return "/customer/auth/login";
-  return `/customer/auth/login?next=${encodeURIComponent(normalized)}`;
+  const locale = getLocaleFromPathname(normalized || (typeof window !== "undefined" ? window.location.pathname : null));
+  const loginPath = buildLocalizedPath("/customer/auth/login", locale);
+  if (!normalized) return loginPath;
+  return `${loginPath}?next=${encodeURIComponent(normalized)}`;
 }
 
 export function buildCustomerAuthRegisterUrl(nextPath?: string | null): string {
   const normalized = normalizeCustomerAuthNextPath(nextPath);
-  if (!normalized) return "/customer/auth/register";
-  return `/customer/auth/register?next=${encodeURIComponent(normalized)}`;
+  const locale = getLocaleFromPathname(normalized || (typeof window !== "undefined" ? window.location.pathname : null));
+  const registerPath = buildLocalizedPath("/customer/auth/register", locale);
+  if (!normalized) return registerPath;
+  return `${registerPath}?next=${encodeURIComponent(normalized)}`;
 }
 
 export function saveCustomerAuthNextPath(nextPath: string): void {

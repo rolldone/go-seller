@@ -8,6 +8,8 @@ import Footer from "../Footer";
 import { getCustomerAuthToken } from "../../customer/auth/authApi";
 import { rememberCustomerAuthNextPath } from "../../../lib/customerAuthRedirect";
 import { getProductReviewStats } from "../../../lib/orderApi";
+import { buildLocalizedPath } from "../../../lib/siteLocale";
+import { useTranslations } from "../../../i18n";
 import type { PublicBusinessProduct, PublicBusinessStore } from "./types";
 import type { CustomerSession } from "../../../lib/customerSession";
 
@@ -140,6 +142,7 @@ function resolveAttachmentUrl(attachment: ReviewAttachmentMeta): string {
 }
 
 export default function ProductDetailPage({ store, product, relatedProducts, locale = "", customerSession = null }: ProductDetailPageProps) {
+  const t = useTranslations("business", locale);
   const [activeImage, setActiveImage] = useState(0);
   const [qty, setQty] = useState(1);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
@@ -161,7 +164,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
         const groupID = attr.attribute_group_id;
         if (!groupID) continue;
         const existing = grouped.get(groupID);
-        const groupName = attr.attribute_group?.name || `Group ${groupID.slice(0, 6)}`;
+        const groupName = attr.attribute_group?.name || `${t("attributeGroupFallback", "Group")} ${groupID.slice(0, 6)}`;
         if (!existing) {
           grouped.set(groupID, { id: groupID, name: groupName, items: [attr] });
           continue;
@@ -406,7 +409,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
   const businessSlug = String((store.business as any)?.slug || "").trim();
 
   const buildCartTarget = (intent: "add_to_cart" | "buy_now") => {
-    const cartPath = businessSlug ? `/b/${encodeURIComponent(businessSlug)}/cart` : "/cart";
+    const cartPath = buildLocalizedPath(businessSlug ? `/b/${encodeURIComponent(businessSlug)}/cart` : "/cart", locale);
     if (typeof window === "undefined") return cartPath;
 
     const target = new URL(`${window.location.origin}${cartPath}`);
@@ -470,14 +473,14 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-slate-900">
       <div className="mx-auto max-w-7xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-        <BusinessPageNav business={store.business} customerSession={customerSession} />
+        <BusinessPageNav business={store.business} customerSession={customerSession} locale={locale} />
 
        
 
         <main className="mt-6 space-y-8">
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
             <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-              <a href={locale ? `/b/${store.business.slug}?locale=${encodeURIComponent(locale)}` : `/b/${store.business.slug}`} className="hover:text-emerald-600">
+              <a href={buildLocalizedPath(`/b/${store.business.slug}`, locale)} className="hover:text-emerald-600">
                 {store.business.name}
               </a>
               <span>/</span>
@@ -495,8 +498,8 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                         <path d="M8 13l2.5 3L14 11l4 6" strokeWidth="1.5" />
                       </svg>
                       <div className="text-center">
-                        <h3 className="mb-1 text-lg font-semibold">Variasi tidak ditemukan</h3>
-                        <p className="text-sm text-amber-800/90">Tidak ada kombinasi atribut yang cocok untuk produk ini.</p>
+                        <h3 className="mb-1 text-lg font-semibold">{t("variationNotFoundTitle", "Variasi tidak ditemukan")}</h3>
+                        <p className="text-sm text-amber-800/90">{t("variationNotFoundDescription", "Tidak ada kombinasi atribut yang cocok untuk produk ini.")}</p>
                       </div>
                       <div>
                         <button
@@ -504,7 +507,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                           onClick={useBaseProduct}
                           className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800"
                         >
-                          Kembali ke Produk Utama
+                          {t("backToMainProduct", "Kembali ke Produk Utama")}
                         </button>
                       </div>
                     </div>
@@ -516,12 +519,12 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                       loading="eager"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">No image</div>
+                    <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">{t("noImage", "No image")}</div>
                   )}
                   <button
                     type="button"
                     onClick={goToPrevSlide}
-                    aria-label="Slide sebelumnya"
+                    aria-label={t("previousSlide", "Slide sebelumnya")}
                     className="absolute left-4 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/35"
                   >
                     <ChevronLeft className="h-5 w-5" />
@@ -529,7 +532,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                   <button
                     type="button"
                     onClick={goToNextSlide}
-                    aria-label="Slide berikutnya"
+                    aria-label={t("nextSlide", "Slide berikutnya")}
                     className="absolute right-4 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-black/20 text-white backdrop-blur-sm transition hover:bg-black/35"
                   >
                     <ChevronRight className="h-5 w-5" />
@@ -539,7 +542,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                 <div className="mt-4 flex items-center gap-2">
                   <button
                     type="button"
-                    aria-label="Geser thumbnail ke kiri"
+                    aria-label={t("scrollThumbLeft", "Geser thumbnail ke kiri")}
                     onClick={() => scrollThumbnails("left")}
                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
                   >
@@ -550,7 +553,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                       <button
                         key={media.key}
                         type="button"
-                        aria-label={`Thumbnail ${idx + 1}`}
+                        aria-label={`${t("thumbnailPrefix", "Thumbnail")} ${idx + 1}`}
                         onClick={() => setActiveImage(idx)}
                         className={`relative aspect-[4/3] w-24 shrink-0 overflow-hidden rounded-xl border transition ${
                           activeImage === idx
@@ -564,7 +567,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                   </div>
                   <button
                     type="button"
-                    aria-label="Geser thumbnail ke kanan"
+                    aria-label={t("scrollThumbRight", "Geser thumbnail ke kanan")}
                     onClick={() => scrollThumbnails("right")}
                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50"
                   >
@@ -579,15 +582,15 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                   <div className="mb-2 flex items-center gap-2 text-sm text-slate-600">
                     <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
                     <span className="font-semibold text-slate-800">{businessRating}</span>
-                    <span>({businessReviewCount} ulasan)</span>
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">Best Seller</span>
+                    <span>({businessReviewCount} {t("reviews", "ulasan")})</span>
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">{t("bestSeller", "Best Seller")}</span>
                   </div>
                   <h2 className="text-2xl font-bold text-slate-900">{product.title}</h2>
                   <p className="mt-2 text-sm text-slate-600">{product.excerpt}</p>
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Harga</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{t("price", "Harga")}</p>
                   <div className="mt-2 flex items-end gap-2">
                     <span className="text-3xl font-bold text-slate-900">{toCurrency(currentPrice)}</span>
                     {comparePrice > currentPrice && (
@@ -600,7 +603,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                   {attributeGroups.length > 0 ? (
                     <div className="flex items-center justify-between gap-2">
                         <p className="text-xs text-slate-500">
-                          Mode: {selectedVariation ? "Variant" : "Produk utama"}
+                          {t("modeLabel", "Mode")}: {selectedVariation ? t("variantMode", "Variant") : t("mainProduct", "Produk utama")}
                         </p>
                         {selectedVariation ? (
                           <button
@@ -608,17 +611,17 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                             onClick={useBaseProduct}
                             className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-400"
                           >
-                            Pilih Produk Utama
+                            {t("selectMainProduct", "Pilih Produk Utama")}
                           </button>
                         ) : null}
                       </div>
                   ) : null}
 
-                  {variationLoading ? <p className="text-sm text-slate-500">Memuat variasi...</p> : null}
-                  {variationError ? <p className="text-sm text-red-600">Error variasi: {variationError}</p> : null}
+                  {variationLoading ? <p className="text-sm text-slate-500">{t("loadingVariations", "Memuat variasi...")}</p> : null}
+                  {variationError ? <p className="text-sm text-red-600">{t("variationErrorPrefix", "Error variasi:")} {variationError}</p> : null}
 
                   {!variationLoading && !variationError && attributeGroups.length === 0 ? (
-                    <p className="text-sm text-slate-500">Variasi belum tersedia untuk produk ini.</p>
+                    <p className="text-sm text-slate-500">{t("variationsNotAvailable", "Variasi belum tersedia untuk produk ini.")}</p>
                   ) : null}
 
                   {!variationLoading && attributeGroups.length > 0 ? (
@@ -649,14 +652,14 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                       ))}
 
                       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                        <p><span className="font-semibold">SKU aktif:</span> {selectedVariation?.sku || "(produk utama)"}</p>
-                        {variationMatching ? <p className="mt-1 text-xs text-slate-500">Menyocokkan variasi...</p> : null}
+                        <p><span className="font-semibold">{t("activeSkuLabel", "SKU aktif:")}</span> {selectedVariation?.sku || t("baseProductPlaceholder", "(produk utama)")}</p>
+                        {variationMatching ? <p className="mt-1 text-xs text-slate-500">{t("matchingVariations", "Menyocokkan variasi...")}</p> : null}
                             {noVariationFound ? (
                               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900">
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <p className="font-semibold">Variasi tidak ditemukan</p>
-                                    <p className="text-xs text-amber-800/90">Kombinasi atribut yang dipilih tidak memiliki produk variasi.</p>
+                                    <p className="font-semibold">{t("variationNotFoundTitle", "Variasi tidak ditemukan")}</p>
+                                    <p className="text-xs text-amber-800/90">{t("variationSelectedMissingDescription", "Kombinasi atribut yang dipilih tidak memiliki produk variasi.")}</p>
                                   </div>
                                   <div>
                                     <button
@@ -664,7 +667,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                                       onClick={useBaseProduct}
                                       className="rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
                                     >
-                                      Kembali ke Produk Utama
+                                      {t("backToMainProduct", "Kembali ke Produk Utama")}
                                     </button>
                                   </div>
                                 </div>
@@ -676,7 +679,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <p className="text-sm font-semibold text-slate-700">Qty</p>
+                  <p className="text-sm font-semibold text-slate-700">{t("quantityLabel", "Qty")}</p>
                   <div className="inline-flex items-center rounded-xl border border-slate-300 bg-white">
                     <button type="button" onClick={() => setQty((prev) => Math.max(1, prev - 1))} className="px-3 py-2 text-slate-600 hover:text-slate-900">
                       <Minus className="h-4 w-4" />
@@ -690,77 +693,76 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <button type="button" onClick={handleBuyNow} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700">
-                    Beli Sekarang
+                    {t("buyNow", "Beli Sekarang")}
                   </button>
                   <button type="button" onClick={handleAddToCart} className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                    Tambah ke Keranjang
+                    {t("addToCart", "Tambah ke Keranjang")}
                   </button>
                 </div>
 
                 <button type="button" className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50">
                   <MessageCircle className="h-4 w-4" />
-                  Chat Penjual
+                  {t("chatSeller", "Chat Penjual")}
                 </button>
 
-                <BusinessDisclaimerSection businessName={store.business.name} disclaimers={store.business.disclaimers} />
+                <BusinessDisclaimerSection businessName={store.business.name} locale={locale} disclaimers={store.business.disclaimers} />
 
               </div>
             </div>
           </section>
 
            <div className="mt-6">
-          <BusinessStoreHeader business={store.business} />
+          <BusinessStoreHeader business={store.business} locale={locale} />
         </div>
 
           <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
             <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900">Deskripsi Produk</h3>
-              <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                {product.excerpt} Paket ini dirancang untuk membantu kamu mendapatkan workflow yang lebih terstruktur
-                dengan insight praktis dan eksekusi cepat.
-              </p>
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-600">
-                <li>Update rutin mengikuti trend terbaru.</li>
-                <li>Template siap pakai agar implementasi lebih cepat.</li>
-                <li>Cocok untuk pemula maupun tim yang sudah berjalan.</li>
-              </ul>
+              <h3 className="text-lg font-bold text-slate-900">{t("productDescription", "Deskripsi Produk")}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                    {product.excerpt} {t("productDescriptionExtra", "Paket ini dirancang untuk membantu kamu mendapatkan workflow yang lebih terstruktur dengan insight praktis dan eksekusi cepat.")}
+                  </p>
+                  <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-600">
+                    <li>{t("productPoint1", "Update rutin mengikuti trend terbaru.")}</li>
+                    <li>{t("productPoint2", "Template siap pakai agar implementasi lebih cepat.")}</li>
+                    <li>{t("productPoint3", "Cocok untuk pemula maupun tim yang sudah berjalan.")}</li>
+                  </ul>
             </article>
 
             <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900">Spesifikasi Singkat</h3>
+                  <h3 className="text-lg font-bold text-slate-900">{t("shortSpecs", "Spesifikasi Singkat")}</h3>
               <div className="mt-4 space-y-3 text-sm">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Kategori</span>
-                  <span className="font-semibold text-slate-800">{product.category}</span>
+                      <span className="text-slate-500">{t("category", "Kategori")}</span>
+                      <span className="font-semibold text-slate-800">{product.category}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Merchant</span>
-                  <span className="font-semibold text-slate-800">{store.business.name}</span>
+                      <span className="text-slate-500">{t("merchant", "Merchant")}</span>
+                      <span className="font-semibold text-slate-800">{store.business.name}</span>
                 </div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="text-slate-500">Rating Toko</span>
-                  <span className="font-semibold text-slate-800">{businessRating}/5</span>
+                      <span className="text-slate-500">{t("storeRating", "Rating Toko")}</span>
+                      <span className="font-semibold text-slate-800">{businessRating}/5</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Terjual</span>
-                  <span className="font-semibold text-slate-800">{businessSoldLabel}</span>
+                      <span className="text-slate-500">{t("sold", "Terjual")}</span>
+                      <span className="font-semibold text-slate-800">{businessSoldLabel}</span>
                 </div>
               </div>
             </aside>
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900">Review Pembeli</h3>
+                <h3 className="text-lg font-bold text-slate-900">{t("buyerReviews", "Review Pembeli")}</h3>
             
-            {productReviewStatsLoading ? (
-              <p className="mt-4 text-sm text-slate-500">Memuat statistik review...</p>
-            ) : productReviewStats && productReviewStats.total_reviews > 0 ? (
+                {productReviewStatsLoading ? (
+                  <p className="mt-4 text-sm text-slate-500">{t("loadingReviewStats", "Memuat statistik review...")}</p>
+                ) : productReviewStats && productReviewStats.total_reviews > 0 ? (
               <div className="mt-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-amber-50 to-orange-50 p-6">
                 <div className="flex items-start gap-8">
                   <div className="flex flex-col items-center">
                     <div className="text-4xl font-bold text-amber-600">{productReviewStats.average_rating.toFixed(1)}</div>
                     <div className="mt-1 text-lg text-amber-500">{"★".repeat(Math.round(productReviewStats.average_rating))}</div>
-                    <div className="mt-2 text-xs text-slate-600">berdasarkan {productReviewStats.total_reviews} review</div>
+                        <div className="mt-2 text-xs text-slate-600">{t("basedOn", "berdasarkan")} {productReviewStats.total_reviews} {t("reviews", "review")}</div>
                   </div>
                   
                   <div className="flex-1 space-y-2">
@@ -787,7 +789,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
             
             <div className="mt-4 space-y-4">
               {productReviewsLoading ? (
-                <p className="text-sm text-slate-500">Memuat review produk...</p>
+                <p className="text-sm text-slate-500">{t("loadingProductReviews", "Memuat review produk...")}</p>
               ) : productReviews.length > 0 ? (
                 productReviews.map((review) => (
                   <article key={review.id} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
@@ -813,13 +815,13 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                                     isVideo ? (
                                       <video src={publicUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
                                     ) : (
-                                      <img src={publicUrl} alt={attachment.name || `Lampiran ${index + 1}`} className="h-full w-full object-cover" />
+                                      <img src={publicUrl} alt={attachment.name || `${t("attachmentLabel", "Lampiran")} ${index + 1}`} className="h-full w-full object-cover" />
                                     )
                                   ) : (
-                                    <div className="px-3 text-center text-xs font-semibold text-slate-500">Lampiran tersedia</div>
+                                    <div className="px-3 text-center text-xs font-semibold text-slate-500">{t("attachmentAvailable", "Lampiran tersedia")}</div>
                                   )}
                                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-900/70 to-transparent px-2 py-1 text-[10px] font-semibold text-white opacity-0 transition group-hover:opacity-100">
-                                    {attachment.name || `Lampiran ${index + 1}`}
+                                    {attachment.name || `${t("attachmentLabel", "Lampiran")} ${index + 1}`}
                                   </div>
                                 </div>
                               </a>
@@ -829,36 +831,36 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                       ) : null;
                     })()}
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-900">Pembeli terverifikasi</p>
+                      <p className="text-sm font-semibold text-slate-900">{t("verifiedBuyer", "Pembeli terverifikasi")}</p>
                       <p className="text-xs text-slate-500">{new Date(review.created_at).toLocaleDateString("id-ID")}</p>
                     </div>
                     <div className="mt-1 text-sm text-amber-500">{"★".repeat(Math.max(0, Math.min(5, Number(review.rating || 0))))}</div>
                     {review.review_text ? <p className="mt-2 text-sm text-slate-600">{review.review_text}</p> : null}
                     {review.question_text ? (
                       <div className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
-                        Pertanyaan pembeli: {review.question_text}
+                        {t("buyerQuestionPrefix", "Pertanyaan pembeli:")} {review.question_text}
                       </div>
                     ) : null}
                     {review.seller_reply ? (
                       <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                        Balasan penjual: {review.seller_reply}
+                        {t("sellerReplyPrefix", "Balasan penjual:")} {review.seller_reply}
                       </div>
                     ) : null}
                   </article>
                 ))
               ) : (
-                <p className="text-sm text-slate-500">Belum ada review untuk produk ini.</p>
+                <p className="text-sm text-slate-500">{t("noProductReviews", "Belum ada review untuk produk ini.")}</p>
               )}
             </div>
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-900">Produk Terkait</h3>
+            <h3 className="text-lg font-bold text-slate-900">{t("relatedProducts", "Produk Terkait")}</h3>
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {relatedProducts.map((item) => (
                 <a
                   key={item.id}
-                  href={locale ? `/b/${store.business.slug}/p/${item.slug}?locale=${encodeURIComponent(locale)}` : `/b/${store.business.slug}/p/${item.slug}`}
+                  href={buildLocalizedPath(`/b/${store.business.slug}/p/${item.slug}`, locale)}
                   className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-white"
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.15em] text-emerald-700">{item.category}</p>

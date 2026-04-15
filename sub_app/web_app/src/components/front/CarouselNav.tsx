@@ -1,9 +1,12 @@
+import { useTranslations } from "../../i18n";
+
 export default function CarouselNav({ onPrev, onNext }: { onPrev: () => void; onNext: () => void }) {
+  const t = useTranslations();
   return (
     <div className="flex items-center gap-1.5">
       <button
         type="button"
-        aria-label="Previous"
+        aria-label={t("previous", "Previous")}
         onClick={onPrev}
         className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-emerald-600"
       >
@@ -13,7 +16,7 @@ export default function CarouselNav({ onPrev, onNext }: { onPrev: () => void; on
       </button>
       <button
         type="button"
-        aria-label="Next"
+        aria-label={t("next", "Next")}
         onClick={onNext}
         className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-emerald-600"
       >

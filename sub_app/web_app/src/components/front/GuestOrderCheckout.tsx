@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import CourierCard from "./CourierCard";
 import type { CustomerAddress } from "../customer/auth/authApi";
 import { notifyError, notifySuccess } from "../../lib/notification";
+import { useTranslations } from "../../i18n";
 
 type OrderItem = {
   id: string;
@@ -251,13 +252,15 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
     is_primary: false,
   });
 
+  const t = useTranslations();
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError("");
       try {
         if (!resolvedToken) {
-          throw new Error("Token checkout tidak ditemukan");
+          throw new Error(t("guestOrder.tokenNotFound", "Token checkout tidak ditemukan"));
         }
         const res = await guestGet<GuestDetailResponse>(`/api/order/guest-checkout/${encodeURIComponent(resolvedToken)}`);
         const data = res.data;
@@ -280,7 +283,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
               return;
             } catch (e) {}
           }
-          setError(err instanceof Error ? err.message : "Gagal memuat detail order");
+          setError(err instanceof Error ? err.message : t("guestOrder.loadFailed", "Gagal memuat detail order"));
       } finally {
         setLoading(false);
         }
@@ -294,7 +297,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       const res = await guestGet<{ data: CustomerAddress[] }>(`/api/order/guest-checkout/${encodeURIComponent(resolvedToken)}/addresses`);
       setAddresses(res.data || []);
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : "Gagal memuat alamat";
+      const message = loadError instanceof Error ? loadError.message : t("guestOrder.loadAddressesFailed", "Gagal memuat alamat");
       setShippingAddressError(message);
       setAddresses([]);
     }
@@ -303,7 +306,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
   const applyShippingAddress = async (addressID: string) => {
     if (!resolvedToken || !addressID) return;
     if (shippingAddressLocked) {
-      const message = "Alamat tidak bisa diubah karena ongkir sudah dibuat.";
+      const message = t("guestOrder.addressLocked", "Alamat tidak bisa diubah karena ongkir sudah dibuat.");
       setShippingAddressError(message);
       notifyError(message);
       return;
@@ -323,9 +326,9 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       setExpiresAt(data.expires_at || "");
       setTransferAmount(String((data.order?.grand_total || 0).toFixed(2)));
       setTransferredAt(new Date().toISOString().slice(0, 16));
-      notifySuccess("Alamat pengiriman diperbarui. Menunggu konfirmasi ongkir baru.");
+      notifySuccess(t("guestOrder.addressUpdated", "Alamat pengiriman diperbarui. Menunggu konfirmasi ongkir baru."));
     } catch (updateError) {
-      const message = updateError instanceof Error ? updateError.message : "Gagal memperbarui alamat pengiriman";
+      const message = updateError instanceof Error ? updateError.message : t("guestOrder.updateAddressFailed", "Gagal memperbarui alamat pengiriman");
       setShippingAddressError(message);
       notifyError(message);
     } finally {
@@ -336,7 +339,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
   const createAndApplyAddress = async () => {
     if (!resolvedToken) return;
     if (shippingAddressLocked) {
-      const message = "Alamat tidak bisa ditambahkan dari checkout karena ongkir sudah dibuat.";
+      const message = t("guestOrder.addressAddLocked", "Alamat tidak bisa ditambahkan dari checkout karena ongkir sudah dibuat.");
       setShippingAddressError(message);
       notifyError(message);
       return;
@@ -366,7 +369,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       await applyShippingAddress(created.data.id);
       setSelectedAddressID(created.data.id);
     } catch (createError) {
-      const message = createError instanceof Error ? createError.message : "Gagal menambah alamat";
+      const message = createError instanceof Error ? createError.message : t("guestOrder.addAddressFailed", "Gagal menambah alamat");
       setShippingAddressError(message);
       notifyError(message);
     } finally {
@@ -466,7 +469,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
     try {
       let res: StartPaymentResponse;
       if (isBankTransfer) {
-        if (!proofFiles || proofFiles.length === 0) throw new Error("Bukti transfer wajib diunggah");
+        if (!proofFiles || proofFiles.length === 0) throw new Error(t("guestOrder.proofRequired", "Bukti transfer wajib diunggah"));
         const form = new FormData();
         form.set("provider_id", selectedProviderID);
         form.set("sender_bank_name", senderBankName.trim());
@@ -498,14 +501,14 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
         setConfirmed(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memulai pembayaran");
+      setError(err instanceof Error ? err.message : t("guestOrder.paymentStartFailed", "Gagal memulai pembayaran"));
     } finally {
       setSubmitting(false);
     }
   };
 
   if (loading) {
-    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Memuat detail order...</div>;
+    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{t("guestOrder.loading", "Memuat detail order...")}</div>;
   }
 
   if (error) {
@@ -513,7 +516,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
   }
 
   if (!order) {
-    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Order tidak ditemukan.</div>;
+    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">{t("guestOrder.notFound", "Order tidak ditemukan.")}</div>;
   }
 
   return (
@@ -521,58 +524,58 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">Detail Order</h1>
-            <p className="text-sm text-slate-600">Order #{order.order_number}</p>
+            <h1 className="text-lg font-semibold text-slate-900">{t("guestOrder.heading", "Detail Order")}</h1>
+            <p className="text-sm text-slate-600">{t("guestOrder.orderNumberPrefix", "Order")} #{order.order_number}</p>
           </div>
           <div className="text-right text-xs text-slate-500">
-            <div>Status: {order.status}</div>
-            <div>Payment: {order.payment_status}</div>
-            {expiresAt ? <div>Token expires: {new Date(expiresAt).toLocaleString()}</div> : null}
+            <div>{t("guestOrder.status", "Status")} : {order.status}</div>
+            <div>{t("guestOrder.payment", "Payment")} : {order.payment_status}</div>
+            {expiresAt ? <div>{t("guestOrder.tokenExpires", "Token expires")} : {new Date(expiresAt).toLocaleString()}</div> : null}
           </div>
         </div>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Informasi Customer</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t("guestOrder.customerInfo", "Informasi Customer")}</h2>
         {customer ? (
           <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
-            <div><span className="text-slate-500">Nama:</span> {customer.name || "-"}</div>
-            <div><span className="text-slate-500">Email:</span> {customer.email || "-"}</div>
-            <div><span className="text-slate-500">Telepon:</span> {customer.phone || "-"}</div>
-            <div><span className="text-slate-500">Customer ID:</span> {customer.id}</div>
+            <div><span className="text-slate-500">{t("guestOrder.customerNameLabel", "Nama:")}</span> {customer.name || "-"}</div>
+            <div><span className="text-slate-500">{t("guestOrder.customerEmailLabel", "Email:")}</span> {customer.email || "-"}</div>
+            <div><span className="text-slate-500">{t("guestOrder.customerPhoneLabel", "Telepon:")}</span> {customer.phone || "-"}</div>
+            <div><span className="text-slate-500">{t("guestOrder.customerIdLabel", "Customer ID:")}</span> {customer.id}</div>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-slate-500">Data customer tidak tersedia.</p>
+          <p className="mt-2 text-sm text-slate-500">{t("guestOrder.customerDataNotAvailable", "Data customer tidak tersedia.")}</p>
         )}
       </section>
 
       {shippingAddress || addresses.length > 0 || showAddressForm ? (
         <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="text-sm font-semibold text-slate-900">Alamat Pengiriman</h2>
+          <h2 className="text-sm font-semibold text-slate-900">{t("shippingAddress", "Alamat Pengiriman")}</h2>
           {addresses.length > 0 && !shippingAddressLocked ? (
             <div className="mt-3 flex items-center justify-between gap-3">
-              <button
+                <button
                 type="button"
                 onClick={() => setShowAddressForm((current) => !current)}
                 className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
               >
-                {showAddressForm ? "Tutup" : "Tambah Baru"}
+                {showAddressForm ? t("guestOrder.close", "Tutup") : t("guestOrder.addNew", "Tambah Baru")}
               </button>
             </div>
           ) : null}
 
           {!shippingAddressLocked && addresses.length > 0 ? (
             <div className="mt-3 space-y-2">
-              <select
+                <select
                 value={selectedAddressID}
                 onChange={(event) => setSelectedAddressID(event.target.value)}
                 disabled={updatingShippingAddress}
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
               >
-                <option value="">Pilih alamat</option>
+                <option value="">{t("guestOrder.selectAddress", "Pilih alamat")}</option>
                 {addresses.map((address) => (
                   <option key={address.id} value={address.id}>
-                    {(address.label || "Alamat") + (address.is_primary ? " (Utama)" : "") + " - " + address.receiver_name}
+                    {(address.label || t("guestOrder.address", "Alamat")) + (address.is_primary ? t("guestOrder.primarySuffix", " (Utama)") : "") + " - " + address.receiver_name}
                   </option>
                 ))}
               </select>
@@ -582,7 +585,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
                 disabled={!selectedAddressID || updatingShippingAddress || selectedAddressID === shippingAddressID}
                 className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {updatingShippingAddress ? "Menyimpan alamat..." : selectedAddressID === shippingAddressID ? "Alamat Aktif" : "Pakai Alamat Ini"}
+                {updatingShippingAddress ? t("guestOrder.savingAddress", "Menyimpan alamat...") : selectedAddressID === shippingAddressID ? t("guestOrder.activeAddress", "Alamat Aktif") : t("guestOrder.useThisAddress", "Pakai Alamat Ini")}
               </button>
             </div>
           ) : null}
@@ -613,14 +616,14 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
               </div>
             </div>
           ) : addresses.length > 0 ? (
-            <p className="mt-3 text-sm text-slate-600">Pilih alamat dari daftar di atas untuk melihat alamat yang aktif.</p>
+            <p className="mt-3 text-sm text-slate-600">{t("guestOrder.selectAddressExplanation", "Pilih alamat dari daftar di atas untuk melihat alamat yang aktif.")}</p>
           ) : null}
 
-          {shippingAddressLocked ? <p className="mt-3 text-xs text-amber-700">Alamat dikunci karena ongkir sudah dibuat. Pilih alamat lain tidak diperbolehkan sampai ongkir direset.</p> : null}
+          {shippingAddressLocked ? <p className="mt-3 text-xs text-amber-700">{t("guestOrder.addressLockedNotice", "Alamat dikunci karena ongkir sudah dibuat. Pilih alamat lain tidak diperbolehkan sampai ongkir direset.")}</p> : null}
 
           {!showAddressForm && addresses.length === 0 ? (
             <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-600">
-              Belum ada alamat tersimpan. Isi alamat baru di bawah untuk lanjut.
+              {t("guestOrder.noSavedAddress", "Belum ada alamat tersimpan. Isi alamat baru di bawah untuk lanjut.")}
             </div>
           ) : null}
 
@@ -634,68 +637,68 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
             >
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Label alamat</span>
-                  <input value={addressForm.label} onChange={(e) => setAddressForm((current) => ({ ...current, label: e.target.value }))} placeholder="Rumah, Kantor, dll" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.addressLabelTitle", "Label alamat")}</span>
+                  <input value={addressForm.label} onChange={(e) => setAddressForm((current) => ({ ...current, label: e.target.value }))} placeholder={t("guestOrder.addressLabelPlaceholder", "Rumah, Kantor, dll")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Nama penerima</span>
-                  <input value={addressForm.receiver_name} onChange={(e) => setAddressForm((current) => ({ ...current, receiver_name: e.target.value }))} placeholder="Nama penerima" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.recipientName", "Nama penerima")}</span>
+                  <input value={addressForm.receiver_name} onChange={(e) => setAddressForm((current) => ({ ...current, receiver_name: e.target.value }))} placeholder={t("guestOrder.recipientNamePlaceholder", "Nama penerima")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Nomor HP</span>
-                  <input value={addressForm.phone_number} onChange={(e) => setAddressForm((current) => ({ ...current, phone_number: e.target.value }))} placeholder="08xxxxxxxxxx" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.phoneNumber", "Nomor HP")}</span>
+                  <input value={addressForm.phone_number} onChange={(e) => setAddressForm((current) => ({ ...current, phone_number: e.target.value }))} placeholder={t("guestOrder.phonePlaceholder", "08xxxxxxxxxx")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kode pos</span>
-                  <input value={addressForm.postal_code} onChange={(e) => setAddressForm((current) => ({ ...current, postal_code: e.target.value }))} placeholder="40123" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.postalCode", "Kode pos")}</span>
+                  <input value={addressForm.postal_code} onChange={(e) => setAddressForm((current) => ({ ...current, postal_code: e.target.value }))} placeholder={t("guestOrder.postalCodePlaceholder", "40123")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900 sm:col-span-2">
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Alamat lengkap</span>
-                  <textarea value={addressForm.address_line_1} onChange={(e) => setAddressForm((current) => ({ ...current, address_line_1: e.target.value }))} placeholder="Jalan, nomor rumah, RT/RW, patokan, gedung, dll" className="min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.fullAddress", "Alamat lengkap")}</span>
+                  <textarea value={addressForm.address_line_1} onChange={(e) => setAddressForm((current) => ({ ...current, address_line_1: e.target.value }))} placeholder={t("guestOrder.fullAddressPlaceholder", "Jalan, nomor rumah, RT/RW, patokan, gedung, dll")} className="min-h-24 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kota / Kabupaten</span>
-                  <input value={addressForm.city} onChange={(e) => setAddressForm((current) => ({ ...current, city: e.target.value }))} placeholder="Contoh: Denpasar" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.city", "Kota / Kabupaten")}</span>
+                  <input value={addressForm.city} onChange={(e) => setAddressForm((current) => ({ ...current, city: e.target.value }))} placeholder={t("guestOrder.cityPlaceholder", "Contoh: Denpasar")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Provinsi</span>
-                  <input value={addressForm.province} onChange={(e) => setAddressForm((current) => ({ ...current, province: e.target.value }))} placeholder="Contoh: Bali" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.province", "Provinsi")}</span>
+                  <input value={addressForm.province} onChange={(e) => setAddressForm((current) => ({ ...current, province: e.target.value }))} placeholder={t("guestOrder.provincePlaceholder", "Contoh: Bali")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" required />
                 </label>
               </div>
 
               <details className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-2">
-                <summary className="cursor-pointer text-sm font-medium text-slate-900">Detail tambahan opsional</summary>
+                <summary className="cursor-pointer text-sm font-medium text-slate-900">{t("guestOrder.optionalDetailsSummary", "Detail tambahan opsional")}</summary>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1 text-sm text-slate-900">
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Alamat tambahan</span>
-                    <input value={addressForm.address_line_2} onChange={(e) => setAddressForm((current) => ({ ...current, address_line_2: e.target.value }))} placeholder="Blok, unit, patokan tambahan" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.additionalAddress", "Alamat tambahan")}</span>
+                    <input value={addressForm.address_line_2} onChange={(e) => setAddressForm((current) => ({ ...current, address_line_2: e.target.value }))} placeholder={t("guestOrder.additionalAddressPlaceholder", "Blok, unit, patokan tambahan")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                   </label>
                   <label className="space-y-1 text-sm text-slate-900">
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kelurahan / Desa</span>
-                    <input value={addressForm.subdistrict} onChange={(e) => setAddressForm((current) => ({ ...current, subdistrict: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.subdistrict", "Kelurahan / Desa")}</span>
+                    <input value={addressForm.subdistrict} onChange={(e) => setAddressForm((current) => ({ ...current, subdistrict: e.target.value }))} placeholder={t("guestOrder.optional", "Opsional")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                   </label>
                   <label className="space-y-1 text-sm text-slate-900">
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Kecamatan</span>
-                    <input value={addressForm.district} onChange={(e) => setAddressForm((current) => ({ ...current, district: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.district", "Kecamatan")}</span>
+                    <input value={addressForm.district} onChange={(e) => setAddressForm((current) => ({ ...current, district: e.target.value }))} placeholder={t("guestOrder.optional", "Opsional")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                   </label>
                   <label className="space-y-1 text-sm text-slate-900">
-                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">Catatan kurir</span>
-                    <input value={addressForm.notes} onChange={(e) => setAddressForm((current) => ({ ...current, notes: e.target.value }))} placeholder="Opsional" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                    <span className="block text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.courierNote", "Catatan kurir")}</span>
+                    <input value={addressForm.notes} onChange={(e) => setAddressForm((current) => ({ ...current, notes: e.target.value }))} placeholder={t("guestOrder.optional", "Opsional")} className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
                   </label>
                 </div>
               </details>
 
               <label className="flex items-center gap-2 text-sm text-slate-900">
                 <input type="checkbox" checked={addressForm.is_primary} onChange={(e) => setAddressForm((current) => ({ ...current, is_primary: e.target.checked }))} />
-                Jadikan alamat utama
+                {t("guestOrder.makePrimary", "Jadikan alamat utama")}
               </label>
 
               <div className="flex items-center justify-end gap-2">
                 <button type="button" onClick={() => setShowAddressForm(false)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                  Batal
+                  {t("guestOrder.cancel", "Batal")}
                 </button>
                 <button type="submit" disabled={submittingAddress} className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60">
-                  {submittingAddress ? "Menyimpan..." : "Simpan & Pakai Alamat"}
+                  {submittingAddress ? t("guestOrder.saving", "Menyimpan...") : t("guestOrder.saveAndUse", "Simpan & Pakai Alamat")}
                 </button>
               </div>
             </form>
@@ -704,19 +707,19 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       ) : null}
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Item Order</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t("guestOrder.itemsHeading", "Item Order")}</h2>
         {(order.order_items || []).length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500">Tidak ada item.</p>
+          <p className="mt-2 text-sm text-slate-500">{t("guestOrder.noItems", "Tidak ada item.")}</p>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
-                  <th className="px-3 py-2 text-left">Produk</th>
-                  <th className="px-3 py-2 text-right">Qty</th>
-                  <th className="px-3 py-2 text-right">Harga</th>
-                  <th className="px-3 py-2 text-right">Pajak</th>
-                  <th className="px-3 py-2 text-right">Total</th>
+                  <th className="px-3 py-2 text-left">{t("guestOrder.colProduct", "Produk")}</th>
+                  <th className="px-3 py-2 text-right">{t("guestOrder.colQty", "Qty")}</th>
+                  <th className="px-3 py-2 text-right">{t("guestOrder.colPrice", "Harga")}</th>
+                  <th className="px-3 py-2 text-right">{t("guestOrder.colTax", "Pajak")}</th>
+                  <th className="px-3 py-2 text-right">{t("guestOrder.colTotal", "Total")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -729,7 +732,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
                           {formatTaxMode(item.tax_type, item.tax_rate)}
                         </span>
                         <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                          Pajak {item.tax_amount.toLocaleString("id-ID")}
+                          {t("tax", "Pajak")} {item.tax_amount.toLocaleString("id-ID")}
                         </span>
                       </div>
                     </td>
@@ -746,50 +749,50 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Ringkasan</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t("guestOrder.summary", "Ringkasan")}</h2>
         <div className="mt-3 space-y-1 text-sm">
-          <div className="flex justify-between"><span className="text-slate-600">Subtotal</span><span>{order.subtotal.toLocaleString("id-ID")}</span></div>
-          <div className="flex justify-between"><span className="text-slate-600">Diskon</span><span>-{order.discount_amount.toLocaleString("id-ID")}</span></div>
-          <div className="flex justify-between"><span className="text-slate-600">Pajak</span><span>{order.tax_amount.toLocaleString("id-ID")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("subtotal", "Subtotal")}</span><span>{order.subtotal.toLocaleString("id-ID")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("discount", "Diskon")}</span><span>-{order.discount_amount.toLocaleString("id-ID")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("tax", "Pajak")}</span><span>{order.tax_amount.toLocaleString("id-ID")}</span></div>
           {taxBreakdown.length > 0 ? (
             <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
               {taxBreakdown.map((group) => (
                 <div key={`${group.taxType}-${group.taxRate}`} className="flex items-center justify-between gap-3">
-                  <span className="text-slate-500">Pajak {formatTaxMode(group.taxType, group.taxRate)}</span>
+                  <span className="text-slate-500">{t("tax", "Pajak")} {formatTaxMode(group.taxType, group.taxRate)}</span>
                   <span className="font-medium text-slate-800">{group.amount.toLocaleString("id-ID")}</span>
                 </div>
               ))}
             </div>
           ) : null}
-          <div className="flex justify-between"><span className="text-slate-600">Ongkir</span><span>{order.shipping_amount.toLocaleString("id-ID")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("guestOrder.shipping", "Ongkir")}</span><span>{order.shipping_amount.toLocaleString("id-ID")}</span></div>
           {shippingQuote ? (
             <CourierCard shippingQuote={shippingQuote} fallbackAmount={order.shipping_amount} currency={order.currency} />
           ) : null}
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
-            <span>Total</span>
+            <span>{t("totalLabel", "Total")}</span>
             <span>{order.grand_total.toLocaleString("id-ID")} {order.currency}</span>
           </div>
         </div>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="text-sm font-semibold text-slate-900">Pilih Metode Pembayaran</h2>
+        <h2 className="text-sm font-semibold text-slate-900">{t("guestOrder.selectPaymentMethod", "Pilih Metode Pembayaran")}</h2>
         {awaitingShippingQuote ? (
           <div className="mt-3 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">
-            Pembayaran belum tersedia. Silakan pilih atau buat alamat pengiriman dulu, lalu tim kami akan menghubungi Anda via WhatsApp setelah ongkir dan total pembayaran dikonfirmasi.
+            {t("guestOrder.paymentUnavailable", "Pembayaran belum tersedia. Silakan pilih atau buat alamat pengiriman dulu, lalu tim kami akan menghubungi Anda via WhatsApp setelah ongkir dan total pembayaran dikonfirmasi.")}
           </div>
         ) : null}
 
         <div className="mt-3 space-y-3">
           <label className="block space-y-1 text-sm text-slate-900">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Provider pembayaran</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.paymentProvider", "Provider pembayaran")}</span>
             <select
               value={selectedProviderID}
               onChange={(event) => setSelectedProviderID(event.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
               disabled={awaitingShippingQuote}
             >
-              <option value="">Pilih provider</option>
+              <option value="">{t("guestOrder.selectProvider", "Pilih provider")}</option>
               {providers.map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {provider.name} ({provider.provider_key})
@@ -802,43 +805,43 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Nama bank pengirim</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.senderBankName", "Nama bank pengirim")}</span>
                   <input
                     value={senderBankName}
                     onChange={(event) => setSenderBankName(event.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                    placeholder="BCA, Mandiri, dll"
+                    placeholder={t("guestOrder.senderBankPlaceholder", "BCA, Mandiri, dll")}
                   />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Nomor rekening</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.accountNumber", "Nomor rekening")}</span>
                   <input
                     value={senderAccountNumber}
                     onChange={(event) => setSenderAccountNumber(event.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                    placeholder="Nomor rekening"
+                    placeholder={t("guestOrder.accountNumberPlaceholder", "Nomor rekening")}
                   />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900 sm:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Atas nama rekening</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.accountHolder", "Atas nama rekening")}</span>
                   <input
                     value={senderAccountHolder}
                     onChange={(event) => setSenderAccountHolder(event.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                    placeholder="Nama pemilik rekening"
+                    placeholder={t("guestOrder.accountHolderPlaceholder", "Nama pemilik rekening")}
                   />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Nominal transfer</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.transferAmount", "Nominal transfer")}</span>
                   <input
                     value={transferAmount}
                     onChange={(event) => setTransferAmount(event.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                    placeholder="0"
+                    placeholder={t("guestOrder.transferAmountPlaceholder", "0")}
                   />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Waktu transfer</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.transferTime", "Waktu transfer")}</span>
                   <input
                     value={transferredAt}
                     onChange={(event) => setTransferredAt(event.target.value)}
@@ -847,19 +850,19 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
                   />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900 sm:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Referensi / catatan</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.transferReference", "Referensi / catatan")}</span>
                   <input
                     value={transferReference}
                     onChange={(event) => setTransferReference(event.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-                    placeholder="Referensi transfer"
+                    placeholder={t("guestOrder.transferReferencePlaceholder", "Referensi transfer")}
                   />
                 </label>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="space-y-1 text-sm text-slate-900 sm:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Bukti transfer</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.proof", "Bukti transfer")}</span>
                   <input
                     type="file"
                     onChange={(event) => setProofFiles(Array.from(event.target.files || []))}
@@ -868,26 +871,26 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
                   />
                 </label>
                 <label className="space-y-1 text-sm text-slate-900 sm:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">Catatan bukti transfer (opsional)</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.proofNotes", "Catatan bukti transfer (opsional)")}</span>
                   <textarea
                     value={proofNotes}
                     onChange={(event) => setProofNotes(event.target.value)}
-                    placeholder="Catatan bukti transfer (opsional)"
+                    placeholder={t("guestOrder.proofNotesPlaceholder", "Catatan bukti transfer (opsional)")}
                     className="rounded border border-slate-300 px-3 py-2 text-sm sm:col-span-2"
                     rows={2}
                   />
                 </label>
               </div>
 
-              <p className="text-xs text-slate-500">Untuk bank transfer, bukti transfer wajib diunggah agar pesanan masuk ke tahap verifikasi.</p>
+              <p className="text-xs text-slate-500">{t("guestOrder.proofNoteRequired", "Untuk bank transfer, bukti transfer wajib diunggah agar pesanan masuk ke tahap verifikasi.")}</p>
             </div>
           ) : null}
 
           <div className="flex justify-end">
             <div className="mr-3 text-xs text-slate-600">
               {isBankTransfer
-                ? "Dengan menekan tombol konfirmasi, Anda menyatakan bukti transfer telah diunggah. Setelah konfirmasi, halaman ini tidak dapat diakses kembali."
-                : "Dengan menekan tombol, Anda melanjutkan proses pembayaran."
+                ? t("guestOrder.confirmNote.bank", "Dengan menekan tombol konfirmasi, Anda menyatakan bukti transfer telah diunggah. Setelah konfirmasi, halaman ini tidak dapat diakses kembali.")
+                : t("guestOrder.confirmNote.other", "Dengan menekan tombol, Anda melanjutkan proses pembayaran.")
               }
             </div>
             <button
@@ -898,7 +901,7 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
               }
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
-              {submitting ? "Memproses..." : isBankTransfer ? "Konfirmasi Pembayaran" : "Mulai Pembayaran"}
+              {submitting ? t("guestOrder.processing", "Memproses...") : isBankTransfer ? t("guestOrder.confirmPayment", "Konfirmasi Pembayaran") : t("guestOrder.startPayment", "Mulai Pembayaran")}
             </button>
           </div>
         </div>
@@ -906,18 +909,18 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
 
       {confirmed ? (
         <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          <div className="font-semibold">Konfirmasi terkirim</div>
-          <div className="mt-2">Terima kasih — bukti pembayaran Anda telah dikirim dan akan diverifikasi oleh tim kami.</div>
+          <div className="font-semibold">{t("guestOrder.confirmationSent", "Konfirmasi terkirim")}</div>
+          <div className="mt-2">{t("guestOrder.thankYouConfirmation", "Terima kasih — bukti pembayaran Anda telah dikirim dan akan diverifikasi oleh tim kami.")}</div>
           {lastPayment ? (
-            <div className="mt-2 text-xs text-emerald-700">Payment ID: <span className="font-medium">{lastPayment.id}</span> ({lastPayment.status}{lastPayment.proof_status ? ` / proof: ${lastPayment.proof_status}` : ""})</div>
+            <div className="mt-2 text-xs text-emerald-700">{t("guestOrder.paymentId", "Payment ID:")} <span className="font-medium">{lastPayment.id}</span> ({lastPayment.status}{lastPayment.proof_status ? ` / proof: ${lastPayment.proof_status}` : ""})</div>
           ) : null}
-          <div className="mt-3 text-xs text-slate-600">Penting: setelah konfirmasi, halaman ini tidak akan bisa dibuka lagi menggunakan token yang sama.</div>
+          <div className="mt-3 text-xs text-slate-600">{t("guestOrder.confirmationImportant", "Penting: setelah konfirmasi, halaman ini tidak akan bisa dibuka lagi menggunakan token yang sama.")}</div>
         </div>
       ) : null}
 
       {lastPayment ? (
         <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          Payment berhasil dibuat: <span className="font-semibold">{lastPayment.id}</span> ({lastPayment.status}{lastPayment.proof_status ? ` / proof: ${lastPayment.proof_status}` : ""})
+          {t("guestOrder.paymentCreated", "Payment berhasil dibuat:")} <span className="font-semibold">{lastPayment.id}</span> ({lastPayment.status}{lastPayment.proof_status ? ` / proof: ${lastPayment.proof_status}` : ""})
         </div>
       ) : null}
     </div>

@@ -8,6 +8,8 @@ import {
   saveCustomerSession,
 } from "./authApi";
 import { buildCustomerAuthLoginUrl, consumeCustomerAuthNextPath, resolveCustomerAuthNextPath } from "../../../lib/customerAuthRedirect";
+import { buildLocalizedPath } from "../../../lib/siteLocale";
+import { useTranslations } from "../../../i18n";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 
 type RegisterResponse = {
@@ -19,7 +21,11 @@ type RegisterResponse = {
   } | null;
 };
 
-export default function RegisterPage() {
+interface RegisterPageProps {
+  locale?: string;
+}
+
+export default function RegisterPage({ locale }: RegisterPageProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +33,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const nextPath = typeof window === "undefined" ? null : resolveCustomerAuthNextPath(window.location.search);
+  const t = useTranslations("auth", locale);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +43,7 @@ export default function RegisterPage() {
       try {
         await getCustomerMe({ redirectOnUnauthorized: false });
         if (cancelled) return;
-        window.location.replace(consumeCustomerAuthNextPath(window.location.search) || "/customer/dashboard");
+        window.location.replace(consumeCustomerAuthNextPath(window.location.search) || buildLocalizedPath("/customer/dashboard", locale));
       } catch {
         // Token exists but invalid/expired, stay on register page.
       }
@@ -72,7 +79,7 @@ export default function RegisterPage() {
       });
       saveCustomerSession(payload);
       notifySuccess("Akun berhasil dibuat");
-      window.location.replace(consumeCustomerAuthNextPath(window.location.search) || "/customer/dashboard");
+      window.location.replace(consumeCustomerAuthNextPath(window.location.search) || buildLocalizedPath("/customer/dashboard", locale));
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "Pendaftaran gagal";
       setError(message);
@@ -86,24 +93,24 @@ export default function RegisterPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-[#f7f7f5] px-4 py-12">
       <div className="w-full max-w-sm">
         {/* Logo */}
-        <a href="/" className="mb-8 flex items-center justify-center gap-2">
+        <a href={buildLocalizedPath("/", locale)} className="mb-8 flex items-center justify-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 shadow-lg shadow-emerald-200">
             <ShoppingBag className="h-5 w-5 text-white" />
           </div>
           <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-xl font-bold text-transparent">
-            GoSeller
+            {t("goSeller", "GoSeller")}
           </span>
         </a>
 
         {/* Card */}
         <div className="rounded-2xl border border-slate-200 bg-white px-8 py-10 shadow-sm">
-          <h1 className="mb-1 text-2xl font-bold text-slate-900">Daftar Akun</h1>
-          <p className="mb-8 text-sm text-slate-500">Mulai berbelanja di ribuan toko terpercaya</p>
+          <h1 className="mb-1 text-2xl font-bold text-slate-900">{t("registerTitle", "Daftar Akun")}</h1>
+          <p className="mb-8 text-sm text-slate-500">{t("registerSubtitle", "Mulai berbelanja di ribuan toko terpercaya")}</p>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Nama Lengkap
+                {t("fullName", "Nama Lengkap")}
               </label>
               <input
                 type="text"
@@ -117,7 +124,7 @@ export default function RegisterPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Email
+                {t("email", "Email")}
               </label>
               <input
                 type="email"
@@ -131,7 +138,7 @@ export default function RegisterPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Password
+                {t("password", "Password")}
               </label>
               <input
                 type="password"
@@ -145,7 +152,7 @@ export default function RegisterPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Konfirmasi Password
+                {t("confirmPassword", "Konfirmasi Password")}
               </label>
               <input
                 type="password"
@@ -162,7 +169,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {loading ? "Memproses..." : "Buat Akun"}
+              {loading ? "Memproses..." : t("createAccount", "Buat Akun")}
             </button>
           </form>
 
@@ -170,9 +177,9 @@ export default function RegisterPage() {
         </div>
 
         <p className="mt-5 text-center text-sm text-slate-500">
-          Sudah punya akun?{" "}
+          {t("haveAccount", "Sudah punya akun?")} {" "}
           <a href={buildCustomerAuthLoginUrl(nextPath)} className="font-semibold text-emerald-600 hover:underline">
-            Masuk
+            {t("loginNow", "Masuk")}
           </a>
         </p>
       </div>

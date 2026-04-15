@@ -11,6 +11,7 @@ import SectionGroup from "./SectionGroup";
 import CarouselNav from "./CarouselNav";
 import Footer from "./Footer";
 import type { CustomerSession } from "../../lib/customerSession";
+import { useTranslations } from "../../i18n";
 
 const categoryItems = [
   "Templates",
@@ -66,16 +67,21 @@ const verifiedBusinesses = Array.from({ length: 8 }).map((_, i) => ({
 
 interface StoreFrontHomeProps {
   customerSession?: CustomerSession | null;
+  locale?: string;
 }
 
-export default function StoreFrontHome({ customerSession = null }: StoreFrontHomeProps) {
+export default function StoreFrontHome({ customerSession = null, locale }: StoreFrontHomeProps) {
   const gsRef = useRef<CarouselHandle>(null);
   const vbRef = useRef<CarouselHandle>(null);
+  const t = useTranslations("common", locale);
+  const totalEarned = 2863128438;
+  const totalUsers = 19548229;
+  const totalBusinesses = 2510523;
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
-        <HomeNav variant="light" customerSession={customerSession} />
+        <HomeNav variant="light" customerSession={customerSession} locale={locale} />
 
         <main className="mt-8 flex-1">
           <SectionGroup
@@ -84,9 +90,9 @@ export default function StoreFrontHome({ customerSession = null }: StoreFrontHom
             contentClassName="grid items-center gap-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[1fr_360px] md:p-8 lg:p-10"
           >
             <section>
-              <HeroIntro />
+              <HeroIntro locale={locale} />
             </section>
-            <AuthCard />
+            <AuthCard locale={locale} />
           </SectionGroup>
 
           <SectionGroup
@@ -95,35 +101,35 @@ export default function StoreFrontHome({ customerSession = null }: StoreFrontHom
             contentClassName="rounded-3xl border border-slate-200 bg-white px-5 py-10 shadow-sm md:px-8 lg:px-10"
           >
             <section>
-              <HeroBranding />
-              <HeroChatComposer />
+              <HeroBranding locale={locale} />
+              <HeroChatComposer locale={locale} />
               <div className="mt-6 flex flex-wrap items-center justify-center gap-3 text-sm text-slate-500 sm:text-base">
-                <span className="font-semibold text-slate-800">$2,863,128,438 earned</span>
+                <span className="font-semibold text-slate-800">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(totalEarned)} {t("earned", "earned")}</span>
                 <span>·</span>
-                <span>19,548,229 users</span>
+                <span>{new Intl.NumberFormat("en-US").format(totalUsers)} {t("users", "users")}</span>
                 <span>·</span>
-                <span>2,510,523 businesses</span>
+                <span>{new Intl.NumberFormat("en-US").format(totalBusinesses)} {t("businesses", "businesses")}</span>
               </div>
             </section>
           </SectionGroup>
 
-          <SectionGroup title="Popular Categories">
+          <SectionGroup title={t("popularCategories", "Popular Categories")}>
             <CategoryStrip items={categoryItems} />
           </SectionGroup>
 
           <SectionGroup 
-            title="Getting started"
+            title={t("gettingStarted", "Getting started")}
             action={<CarouselNav onPrev={() => gsRef.current?.scroll(-1)} onNext={() => gsRef.current?.scroll(1)} />}
           >
             <LargeCardCarousel ref={gsRef} items={gettingStarted} variant="large" hideArrows />
           </SectionGroup>
 
           <SectionGroup
-            title="Verified businesses"
-            subtitle="Top creators and brands"
+            title={t("verifiedBusinesses", "Verified businesses")}
+            subtitle={t("topCreatorsAndBrands", "Top creators and brands")}
             action={
               <div className="flex items-center gap-4">
-                <a href="#" className="hidden text-sm font-semibold text-slate-600 transition hover:text-emerald-600 sm:block">See more</a>
+                <a href="#" className="hidden text-sm font-semibold text-slate-600 transition hover:text-emerald-600 sm:block">{t("seeMore", "See more")}</a>
                 <CarouselNav onPrev={() => vbRef.current?.scroll(-1)} onNext={() => vbRef.current?.scroll(1)} />
               </div>
             }
@@ -132,8 +138,8 @@ export default function StoreFrontHome({ customerSession = null }: StoreFrontHom
           </SectionGroup>
 
           <SectionGroup
-            title="Trending Products"
-            action={<a href="#" className="text-sm font-semibold text-emerald-600 transition hover:text-emerald-500">View all</a>}
+            title={t("trendingProducts", "Trending Products")}
+            action={<a href="#" className="text-sm font-semibold text-emerald-600 transition hover:text-emerald-500">{t("viewAll", "View all")}</a>}
           >
             <ProductGrid items={featuredProducts} />
           </SectionGroup>
