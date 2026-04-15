@@ -303,7 +303,6 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 			ids = append(ids, p.ID)
 		}
 
-		locale := strings.TrimSpace(c.Query("locale"))
 		translationMap, _ := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), ids, locale)
 		categoryMap, _ := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
 		tagMap, _ := h.svc.GetTagIDsByProductIDs(c.Request.Context(), ids)
@@ -423,7 +422,29 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": item, "assets": item.Assets, "products": productsOut})
+	// include active disclaimers for public consumption
+	disclaimers, err := h.svc.GetActiveDisclaimersForBusiness(c.Request.Context(), item.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if len(disclaimers) > 0 {
+		itemIDs := make([]string, 0, len(disclaimers))
+		for _, disclaimer := range disclaimers {
+			itemIDs = append(itemIDs, disclaimer.ID)
+		}
+		translations, err := h.svc.GetBusinessDisclaimerTranslationMapByDisclaimerIDs(c.Request.Context(), itemIDs, locale)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		for index := range disclaimers {
+			if translation, ok := translations[disclaimers[index].ID]; ok {
+				applyBusinessDisclaimerTranslation(&disclaimers[index], translation)
+			}
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item, "assets": item.Assets, "products": productsOut, "disclaimers": disclaimers})
 }
 
 func normalizeRawJSON(raw json.RawMessage) (datatypes.JSON, error) {

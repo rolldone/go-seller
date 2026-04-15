@@ -34,4 +34,6 @@ type Business struct {
 
 	// Assets related to this business (one-to-many)
 	Assets []BusinessAsset `gorm:"foreignKey:BusinessID;constraint:OnDelete:CASCADE" json:"assets,omitempty"`
+	// Disclaimers configured by the business (one-to-many)
+	Disclaimers []BusinessDisclaimer `gorm:"foreignKey:BusinessID;constraint:OnDelete:CASCADE" json:"disclaimers,omitempty"`
 }

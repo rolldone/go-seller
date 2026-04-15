@@ -1,0 +1,2 @@
+-- plugins/catalog/migrations/postgres/000035_create_business_disclaimer_translations.down.sql
+DROP TABLE IF EXISTS business_disclaimer_translations;
