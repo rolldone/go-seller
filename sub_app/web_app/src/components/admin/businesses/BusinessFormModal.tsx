@@ -5,6 +5,7 @@ import type { UploadFile } from "../ui/FileUploadDropzone";
 import AssetBundleField, { type AssetRulesConfig, type ExistingAssetFolder, validateFilesAgainstUsageConfig } from "../ui/AssetBundleField";
 import RichTextEditor, { type RichTextValue } from "../ui/RichTextEditor";
 import type { Business, BusinessPayload } from "./types";
+import BusinessDisclaimersManager from "./BusinessDisclaimersManager";
 import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 
@@ -143,6 +144,10 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
     blocks: { type: "doc", content: [] },
   });
 
+  const activeBusinessID = createdBusiness?.id || initialData?.id || undefined;
+  const showAdvancedSections = mode === "edit" || Boolean(createdBusiness?.id);
+  const isEditMode = mode === "edit" || Boolean(createdBusiness?.id);
+
   useEffect(() => {
     if (!open) return;
     setError("");
@@ -217,10 +222,6 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
     const res = await adminGet<{ data: ExistingAssetFolder[] }>(`/admin/catalog/businesses/${businessID}/asset-folders`);
     setAssetFolders(res.data || []);
   };
-
-  const activeBusinessID = createdBusiness?.id || initialData?.id || undefined;
-  const showAdvancedSections = mode === "edit" || Boolean(createdBusiness?.id);
-  const isEditMode = mode === "edit" || Boolean(createdBusiness?.id);
 
   const uploadSelectedAssets = async (businessID: string) => {
     if (selectedFiles.length === 0) {
@@ -349,6 +350,7 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
   };
 
   return (
+    <>
     <AdminModal
       open={open}
       title={isEditMode ? "Edit Business" : "Create Business"}
@@ -578,6 +580,8 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
           </label>
             </section>
 
+            <BusinessDisclaimersManager businessID={activeBusinessID} />
+
             <RichTextEditor
               value={descriptionValue.html}
               placeholder="Tulis cerita bisnis, keunggulan, atau highlight layanan"
@@ -598,5 +602,6 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
       </div>
 
     </AdminModal>
+    </>
   );
 }

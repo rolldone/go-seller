@@ -14,6 +14,7 @@ import type { CustomerSession } from "../../../lib/customerSession";
 interface BusinessStoreFrontPageProps {
   store: PublicBusinessStore;
   initialTab?: TabKey;
+  locale?: string;
   customerSession?: CustomerSession | null;
 }
 
@@ -32,7 +33,7 @@ function isTabKey(value: string | null): value is TabKey {
   return Boolean(value) && VALID_TAB_KEYS.has(value as TabKey);
 }
 
-export default function BusinessStoreFrontPage({ store, initialTab = "beranda", customerSession = null }: BusinessStoreFrontPageProps) {
+export default function BusinessStoreFrontPage({ store, initialTab = "beranda", locale = "", customerSession = null }: BusinessStoreFrontPageProps) {
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   const [searchQuery, setSearchQuery] = useState("");
   const { business, products = [], reviewSummary = null, reviews = [], carousels = [] } = store;
@@ -100,7 +101,14 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
       setLoadingProducts(true);
       setProductsError(null);
       try {
-        const q = typeof searchQuery === "string" && searchQuery ? `?search=${encodeURIComponent(searchQuery)}` : "";
+        const params = new URLSearchParams();
+        if (searchQuery) {
+          params.set("search", searchQuery);
+        }
+        if (locale) {
+          params.set("locale", locale);
+        }
+        const q = params.toString() ? `?${params.toString()}` : "";
         const apiBase = (import.meta as any)?.env?.PUBLIC_API_URL
           ? String((import.meta as any).env.PUBLIC_API_URL).replace(/\/$/, "")
           : "";
@@ -128,7 +136,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
       cancelled = true;
       controller.abort();
     };
-  }, [activeTab, business.slug, searchQuery]);
+  }, [activeTab, business.slug, searchQuery, locale]);
 
   return (
     <div className="min-h-screen bg-[#f7f7f5] text-slate-900">
@@ -156,6 +164,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
         {activeTab === "beranda" && (
           <BusinessHomeTab
             businessSlug={business.slug}
+            locale={locale}
             carousels={effectiveCarousels}
             featuredProducts={featuredProducts}
             products={effectiveProducts}
@@ -166,6 +175,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
         {activeTab === "produk" && (
           <BusinessProductTab
             businessSlug={business.slug}
+            locale={locale}
             businessName={business.name}
             categories={categories}
             searchQuery={searchQuery}
@@ -179,6 +189,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
         {activeTab === "ulasan" && effectiveReviewSummary && (
           <BusinessReviewTab
             businessSlug={business.slug}
+            locale={locale}
             products={effectiveProducts}
             reviewSummary={effectiveReviewSummary}
             reviews={effectiveReviews}

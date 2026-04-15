@@ -14,8 +14,9 @@ const isTabKey = (value: string | undefined): value is TabKey => TAB_KEYS.some((
 const { slug = "", tab } = Astro.params;
 const requestedTab = typeof tab === "string" ? tab : undefined;
 const initialTab: TabKey = isTabKey(requestedTab) ? requestedTab : "beranda";
+const locale = Astro.url.searchParams.get("locale") || undefined;
 
-const { store, fetchErrorMessage } = await buildBusinessStore(slug);
+const { store, fetchErrorMessage } = await buildBusinessStore(slug, locale);
 
 if ((initialTab === "produk" || initialTab === "beranda") && !store.products?.length) {
   const mockStore = getFallbackBusinessStore(store.business.slug || slug);
@@ -49,6 +50,6 @@ const customerSession = Astro.locals.customerSession ?? null;
     <CustomerSessionBootstrap session={customerSession} />
   </head>
   <body class="bg-[#f7f7f5] text-slate-900 antialiased">
-    <BusinessStoreFrontPage client:only="react" store={store} initialTab={initialTab} customerSession={customerSession} />
+    <BusinessStoreFrontPage client:only="react" store={store} initialTab={initialTab} locale={locale} customerSession={customerSession} />
   </body>
 </html>

@@ -1,8 +1,9 @@
 /** @jsxRuntime classic */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Star, ShieldCheck, Truck, Store, Minus, Plus, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
+import { Star, Minus, Plus, ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
 import BusinessPageNav from "./BusinessPageNav";
 import BusinessStoreHeader from "./BusinessStoreHeader";
+import BusinessDisclaimerSection from "./BusinessDisclaimerSection";
 import Footer from "../Footer";
 import { getCustomerAuthToken } from "../../customer/auth/authApi";
 import { rememberCustomerAuthNextPath } from "../../../lib/customerAuthRedirect";
@@ -14,6 +15,7 @@ interface ProductDetailPageProps {
   store: PublicBusinessStore;
   product: PublicBusinessProduct;
   relatedProducts: PublicBusinessProduct[];
+  locale?: string;
   customerSession?: CustomerSession | null;
 }
 
@@ -137,7 +139,7 @@ function resolveAttachmentUrl(attachment: ReviewAttachmentMeta): string {
   return rawUrl;
 }
 
-export default function ProductDetailPage({ store, product, relatedProducts, customerSession = null }: ProductDetailPageProps) {
+export default function ProductDetailPage({ store, product, relatedProducts, locale = "", customerSession = null }: ProductDetailPageProps) {
   const [activeImage, setActiveImage] = useState(0);
   const [qty, setQty] = useState(1);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
@@ -475,7 +477,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, cus
         <main className="mt-6 space-y-8">
           <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
             <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
-              <a href={`/b/${store.business.slug}`} className="hover:text-emerald-600">
+              <a href={locale ? `/b/${store.business.slug}?locale=${encodeURIComponent(locale)}` : `/b/${store.business.slug}`} className="hover:text-emerald-600">
                 {store.business.name}
               </a>
               <span>/</span>
@@ -700,11 +702,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, cus
                   Chat Penjual
                 </button>
 
-                <div className="grid gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-                  <p className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Garansi 7 hari untuk produk digital.</p>
-                  <p className="flex items-center gap-2"><Truck className="h-4 w-4 text-emerald-600" /> Akses otomatis dalam hitungan menit.</p>
-                  <p className="flex items-center gap-2"><Store className="h-4 w-4 text-emerald-600" /> Dijual oleh {store.business.name}.</p>
-                </div>
+                <BusinessDisclaimerSection businessName={store.business.name} disclaimers={store.business.disclaimers} />
 
               </div>
             </div>
@@ -860,7 +858,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, cus
               {relatedProducts.map((item) => (
                 <a
                   key={item.id}
-                  href={`/b/${store.business.slug}/p/${item.slug}`}
+                  href={locale ? `/b/${store.business.slug}/p/${item.slug}?locale=${encodeURIComponent(locale)}` : `/b/${store.business.slug}/p/${item.slug}`}
                   className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-white"
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.15em] text-emerald-700">{item.category}</p>

@@ -5,14 +5,21 @@ import type { PublicBusinessCarousel, PublicBusinessProduct } from "../types";
 
 interface BusinessHomeTabProps {
   businessSlug: string;
+  locale?: string;
   carousels: PublicBusinessCarousel[];
   featuredProducts: PublicBusinessProduct[];
   products: PublicBusinessProduct[];
   categories: string[];
 }
 
+function buildProductHref(businessSlug: string, productSlug: string, locale?: string) {
+  const path = `/b/${businessSlug}/p/${productSlug}`;
+  return locale ? `${path}?locale=${encodeURIComponent(locale)}` : path;
+}
+
 export default function BusinessHomeTab({
   businessSlug,
+  locale,
   carousels,
   featuredProducts,
   products,
@@ -49,7 +56,7 @@ export default function BusinessHomeTab({
           {featuredProducts.map((product) => (
             <a 
               key={product.id} 
-              href={`/b/${businessSlug}/p/${product.slug}`}
+              href={buildProductHref(businessSlug, product.slug, locale)}
               className="group block rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition hover:border-emerald-500 hover:shadow-md"
             >
               <div className="aspect-[4/5] rounded-lg bg-gradient-to-br from-slate-100 to-slate-200" />
@@ -81,7 +88,7 @@ export default function BusinessHomeTab({
               .map((product, idx) => (
                 <a
                   key={`${product.id}-${idx}`}
-                  href={`/b/${businessSlug}/p/${product.slug}`}
+                  href={buildProductHref(businessSlug, product.slug, locale)}
                   className="group block rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition hover:border-emerald-500 hover:shadow-md"
                 >
                   <div className="aspect-[4/5] rounded-lg bg-gradient-to-br from-slate-100 to-slate-200" />

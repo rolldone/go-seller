@@ -6,6 +6,7 @@ const REVIEW_TOPICS = ["Kualitas Barang", "Pelayanan Penjual", "Kemasan Barang",
 
 interface BusinessReviewTabProps {
   businessSlug: string;
+  locale?: string;
   products: PublicBusinessProduct[];
   reviewSummary: PublicBusinessReviewSummary | null;
   reviews: PublicBusinessReview[] | null;
@@ -24,7 +25,7 @@ function getReviewTimestamp(review: PublicBusinessReview, index: number): number
   return Number.MAX_SAFE_INTEGER - index;
 }
 
-export default function BusinessReviewTab({ businessSlug, products, reviewSummary, reviews, formatNumber }: BusinessReviewTabProps) {
+export default function BusinessReviewTab({ businessSlug, locale, products, reviewSummary, reviews, formatNumber }: BusinessReviewTabProps) {
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedRatings, setSelectedRatings] = useState<number[]>([]);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
@@ -50,7 +51,8 @@ export default function BusinessReviewTab({ businessSlug, products, reviewSummar
   const resolveProductHref = (productId: string) => {
     const product = productById.get(productId);
     if (!product?.slug) return null;
-    return `/b/${encodeURIComponent(businessSlug)}/p/${encodeURIComponent(product.slug)}`;
+    const path = `/b/${encodeURIComponent(businessSlug)}/p/${encodeURIComponent(product.slug)}`;
+    return locale ? `${path}?locale=${encodeURIComponent(locale)}` : path;
   };
 
   const toggleRating = (rating: number) => {

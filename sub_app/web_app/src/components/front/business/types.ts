@@ -30,6 +30,22 @@ export interface PublicBusiness {
   created_at?: string;
   updated_at?: string;
   assets?: PublicBusinessAsset[];
+  disclaimers?: PublicBusinessDisclaimer[];
+}
+
+export interface PublicBusinessDisclaimer {
+  id: string;
+  business_id: string;
+  title?: string | null;
+  content_html?: string | null;
+  content_plain?: string | null;
+  icon_key?: string | null;
+  sort_order?: number | null;
+  is_active?: boolean;
+  metadata?: unknown;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
 }
 
 export interface PublicBusinessCarouselItem {

@@ -4,6 +4,7 @@ import type { PublicBusinessProduct } from "../types";
 
 interface BusinessProductTabProps {
   businessSlug: string;
+  locale?: string;
   businessName: string;
   categories: string[];
   searchQuery: string;
@@ -15,6 +16,7 @@ interface BusinessProductTabProps {
 
 export default function BusinessProductTab({
   businessSlug,
+  locale,
   businessName,
   categories,
   searchQuery,
@@ -56,6 +58,11 @@ export default function BusinessProductTab({
       return apiBase ? `${apiBase}${url}` : url;
     }
     return url;
+  };
+
+  const buildProductHref = (productSlug: string) => {
+    const path = `/b/${businessSlug}/p/${productSlug}`;
+    return locale ? `${path}?locale=${encodeURIComponent(locale)}` : path;
   };
   return (
     <div className="mt-6">
@@ -145,7 +152,7 @@ export default function BusinessProductTab({
                 return (
                   <a
                     key={product.id}
-                    href={`/b/${businessSlug}/p/${product.slug}`}
+                    href={buildProductHref(product.slug)}
                     className="group block overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-emerald-500 hover:shadow-md"
                   >
                     <div className="relative aspect-square bg-slate-100">

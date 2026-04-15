@@ -7,10 +7,11 @@ import { buildBusinessStore } from "../../store";
 import CustomerSessionBootstrap from "../../../../components/customer/CustomerSessionBootstrap.astro";
 
 const { merchant = "", slug = "" } = Astro.params;
-const { store } = await buildBusinessStore(merchant);
+const locale = Astro.url.searchParams.get("locale") || undefined;
+const { store } = await buildBusinessStore(merchant, locale);
 const product = (store.products || []).find((item) => item.slug === slug);
 
-if (!product) return Astro.redirect(`/b/${merchant}`, 302);
+if (!product) return Astro.redirect(locale ? `/b/${merchant}?locale=${encodeURIComponent(locale)}` : `/b/${merchant}`, 302);
 
 const relatedProducts = (store.products || []).filter((item) => item.slug !== product.slug).slice(0, 4);
 const title = `${product.title} | ${store.business.name} | Go Seller`;
@@ -27,6 +28,6 @@ const customerSession = Astro.locals.customerSession ?? null;
     <CustomerSessionBootstrap session={customerSession} />
   </head>
   <body class="bg-[#f7f7f5] text-slate-900 antialiased">
-    <ProductDetailPage client:only="react" store={store} product={product} relatedProducts={relatedProducts} customerSession={customerSession} />
+    <ProductDetailPage client:only="react" store={store} product={product} relatedProducts={relatedProducts} locale={locale} customerSession={customerSession} />
   </body>
 </html>

@@ -24,10 +24,12 @@ type ToolbarItem = {
 type Props = {
   value?: string;
   placeholder?: string;
+  title?: string;
+  helperText?: string;
   onChange: (value: RichTextValue) => void;
 };
 
-export default function RichTextEditor({ value, placeholder, onChange }: Props) {
+export default function RichTextEditor({ value, placeholder, title = "Story", helperText = "Buat area editor yang terasa seperti workspace, bukan textarea biasa.", onChange }: Props) {
   const editor = useEditor({
     extensions: [StarterKit, Placeholder.configure({ placeholder: placeholder || "Write something..." })],
     content: value || "",
@@ -182,8 +184,8 @@ export default function RichTextEditor({ value, placeholder, onChange }: Props) 
       <div className="border-b border-slate-200 px-4 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Story</p>
-            <p className="mt-1 text-sm text-slate-600">Buat area editor yang terasa seperti workspace, bukan textarea biasa.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{title}</p>
+            <p className="mt-1 text-sm text-slate-600">{helperText}</p>
           </div>
         </div>
       </div>

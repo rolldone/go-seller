@@ -9,12 +9,13 @@ type ReviewBundlePayload = {
 
 const BASE = import.meta.env.PUBLIC_API_URL || "http://localhost:8080";
 
-async function fetchBusinessData(slug: string) {
+async function fetchBusinessData(slug: string, locale?: string) {
   let payload: any = null;
   let fetchErrorMessage = "";
 
   try {
-    const res = await fetch(`${BASE}/b/${encodeURIComponent(slug)}`, { headers: { Accept: "application/json" } });
+    const query = locale ? `?locale=${encodeURIComponent(locale)}` : "";
+    const res = await fetch(`${BASE}/b/${encodeURIComponent(slug)}${query}`, { headers: { Accept: "application/json" } });
     if (!res.ok) {
       fetchErrorMessage = `HTTP ${res.status} ${res.statusText}`;
     } else {
@@ -31,10 +32,12 @@ function normalizeBusinessPayload(slug: string, payload: any) {
   const business = payload ? payload.data || payload : null;
   if (!business) return null;
   const resolvedAssets = business.assets || payload?.assets || [];
+  const resolvedDisclaimers = business.disclaimers || payload?.disclaimers || [];
   return {
     ...business,
     slug: business.slug || slug,
     assets: resolvedAssets,
+    disclaimers: resolvedDisclaimers,
   };
 }
 
@@ -47,6 +50,7 @@ function buildFallbackStore(slug: string): PublicBusinessStore {
       short_description: "",
       description: "",
       assets: [],
+      disclaimers: [],
       show_contact_email: true,
       show_phone: true,
     },
@@ -148,8 +152,8 @@ async function loadBusinessReviews(businessId: string) {
   }
 }
 
-export async function buildBusinessStore(slug: string): Promise<BuildBusinessStoreResult> {
-  const { payload, fetchErrorMessage } = await fetchBusinessData(slug);
+export async function buildBusinessStore(slug: string, locale?: string): Promise<BuildBusinessStoreResult> {
+  const { payload, fetchErrorMessage } = await fetchBusinessData(slug, locale);
   const business = normalizeBusinessPayload(slug, payload);
 
   if (!business) {

@@ -20,6 +20,49 @@ export type Business = {
   show_phone: boolean;
   created_at: string;
   updated_at: string;
+  disclaimers?: BusinessDisclaimer[];
+};
+
+export type BusinessDisclaimer = {
+  id: string;
+  business_id: string;
+  title?: string | null;
+  content_html?: string | null;
+  content_plain?: string | null;
+  icon_key?: string | null;
+  sort_order?: number | null;
+  is_active: boolean;
+  metadata?: unknown;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+};
+
+export type BusinessDisclaimerTranslation = {
+  id: string;
+  business_disclaimer_id: string;
+  locale: "id" | "en";
+  title?: string | null;
+  content_html?: string | null;
+  content_plain?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type BusinessDisclaimerPayload = {
+  title?: string;
+  content_html?: string;
+  content_plain?: string;
+  icon_key?: string;
+  sort_order?: number;
+  is_active?: boolean;
+  metadata?: unknown;
+};
+
+export type BusinessDisclaimerTranslationPayload = {
+  title?: string;
+  content_html?: string;
+  content_plain?: string;
 };
 
 export type BusinessPayload = {
