@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"go_framework/internal/uuid"
 	authmodels "go_framework/plugins/auth/models"
@@ -35,6 +36,7 @@ func (s *AuthService) SeedDefaultRBAC(ctx context.Context) error {
 			"products.view", "products.manage", "businesses.view", "businesses.manage",
 			"categories.view", "categories.manage", "tags.view", "tags.manage",
 			"coupons.view", "coupons.manage", "discounts.view", "discounts.manage",
+			"subscriptions.view", "subscriptions.manage",
 			"assets.view", "assets.manage", "roles.view", "roles.manage", "audit.view",
 		},
 		"admin": {
@@ -42,12 +44,14 @@ func (s *AuthService) SeedDefaultRBAC(ctx context.Context) error {
 			"products.view", "products.manage", "businesses.view", "businesses.manage",
 			"categories.view", "categories.manage", "tags.view", "tags.manage",
 			"coupons.view", "coupons.manage", "discounts.view", "discounts.manage",
+			"subscriptions.view", "subscriptions.manage",
 			"assets.view", "assets.manage", "roles.view",
 		},
 		"manager": {
 			"customers.view", "products.view", "products.manage", "businesses.view", "businesses.manage",
 			"categories.view", "categories.manage", "tags.view", "tags.manage",
 			"coupons.view", "coupons.manage", "discounts.view", "discounts.manage",
+			"subscriptions.view",
 			"assets.view", "assets.manage",
 		},
 		"editor": {
@@ -100,7 +104,7 @@ func ensureRole(tx *gorm.DB, seed roleSeed) (string, error) {
 		}
 		return row.ID, nil
 	}
-	if err != nil && err != gorm.ErrRecordNotFound {
+	if !strings.Contains(strings.ToLower(err.Error()), "record not found") {
 		return "", err
 	}
 
@@ -128,7 +132,7 @@ func ensureRolePermission(tx *gorm.DB, roleID, permissionID string) error {
 	if err == nil {
 		return nil
 	}
-	if err != nil && err != gorm.ErrRecordNotFound {
+	if !strings.Contains(strings.ToLower(err.Error()), "record not found") {
 		return err
 	}
 	return tx.Create(&authmodels.RolePermission{RoleID: roleID, PermissionKey: permissionID}).Error

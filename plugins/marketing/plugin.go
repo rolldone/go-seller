@@ -6,6 +6,7 @@ import (
 	"go_framework/internal/plugins"
 	marketinghandlers "go_framework/plugins/marketing/handlers"
 	marketingservices "go_framework/plugins/marketing/services"
+	pluginregistry "go_framework/plugins/plugin_registry"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
@@ -45,10 +46,11 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminMarketing.PUT("/business-carousels/:id", handler.Update)
 	adminMarketing.DELETE("/business-carousels/:id", handler.Delete)
 	// Subscriptions (admin)
-	adminMarketing.GET("/subscriptions", subsHandler.List)
-	adminMarketing.GET("/subscriptions/:id", subsHandler.GetByID)
-	adminMarketing.DELETE("/subscriptions/:id", subsHandler.Delete)
-	adminMarketing.POST("/subscriptions/:id/resend", subsHandler.AdminResend)
+	adminMarketing.GET("/subscriptions", pluginregistry.RequirePermission("subscriptions.view"), subsHandler.List)
+	adminMarketing.GET("/subscriptions/:id", pluginregistry.RequirePermission("subscriptions.view"), subsHandler.GetByID)
+	adminMarketing.POST("/subscriptions/export", pluginregistry.RequirePermission("subscriptions.manage"), subsHandler.Export)
+	adminMarketing.DELETE("/subscriptions/:id", pluginregistry.RequirePermission("subscriptions.manage"), subsHandler.Delete)
+	adminMarketing.POST("/subscriptions/:id/resend", pluginregistry.RequirePermission("subscriptions.manage"), subsHandler.AdminResend)
 
 	apiMarketing := api.Group("/marketing")
 	apiMarketing.GET("/business-carousels", handler.PublicList)

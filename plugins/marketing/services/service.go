@@ -2,9 +2,12 @@ package services
 
 import (
 	"context"
+	"database/sql"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -451,18 +454,19 @@ func (s *Service) SendSubscriptionConfirmation(ctx context.Context, subscription
 	return s.queueSubscriptionConfirmation(ctx, sub)
 }
 
-// GetSubscriptionByID returns a subscription by id.
-func (s *Service) GetSubscriptionByID(ctx context.Context, id string) (*marketingmodels.ProductSubscription, error) {
-	var row marketingmodels.ProductSubscription
-	if err := s.DB.WithContext(ctx).Where("id = ?", strings.TrimSpace(id)).First(&row).Error; err != nil {
-		return nil, err
-	}
-	return &row, nil
-}
-
-// ListSubscriptions returns subscriptions filtered by business/product/email and status with pagination.
-func (s *Service) ListSubscriptions(ctx context.Context, businessID, productID, email, status string, page, limit int) ([]marketingmodels.ProductSubscription, int64, error) {
+func (s *Service) buildSubscriptionQuery(ctx context.Context, businessID, productID, email, status string, ids []string) *gorm.DB {
 	q := s.DB.WithContext(ctx).Model(&marketingmodels.ProductSubscription{})
+	if len(ids) > 0 {
+		cleaned := make([]string, 0, len(ids))
+		for _, id := range ids {
+			if trimmed := strings.TrimSpace(id); trimmed != "" {
+				cleaned = append(cleaned, trimmed)
+			}
+		}
+		if len(cleaned) > 0 {
+			q = q.Where("id IN ?", cleaned)
+		}
+	}
 	if strings.TrimSpace(businessID) != "" {
 		q = q.Where("business_id = ?", strings.TrimSpace(businessID))
 	}
@@ -482,6 +486,144 @@ func (s *Service) ListSubscriptions(ctx context.Context, businessID, productID, 
 	case "unconfirmed", "pending":
 		q = q.Where("is_confirmed = ?", false)
 	}
+	return q
+}
+
+// GetSubscriptionByID returns a subscription by id.
+func (s *Service) GetSubscriptionByID(ctx context.Context, id string) (*marketingmodels.ProductSubscription, error) {
+	var row marketingmodels.ProductSubscription
+	if err := s.DB.WithContext(ctx).Where("id = ?", strings.TrimSpace(id)).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+type subscriptionExportRow struct {
+	ID             string         `gorm:"column:id"`
+	BusinessID     string         `gorm:"column:business_id"`
+	BusinessName   string         `gorm:"column:business_name"`
+	ProductID      sql.NullString `gorm:"column:product_id"`
+	ProductName    sql.NullString `gorm:"column:product_name"`
+	CustomerID     sql.NullString `gorm:"column:customer_id"`
+	Email          string         `gorm:"column:email"`
+	Consent        bool           `gorm:"column:consent"`
+	IsConfirmed    bool           `gorm:"column:is_confirmed"`
+	SubscribedAt   time.Time      `gorm:"column:subscribed_at"`
+	UnsubscribedAt sql.NullTime   `gorm:"column:unsubscribed_at"`
+	Metadata       datatypes.JSON `gorm:"column:metadata"`
+	CreatedAt      time.Time      `gorm:"column:created_at"`
+	UpdatedAt      time.Time      `gorm:"column:updated_at"`
+	ConfirmedAt    sql.NullTime   `gorm:"column:confirmed_at"`
+}
+
+// ExportSubscriptionsCSV streams filtered subscriptions as CSV.
+func (s *Service) ExportSubscriptionsCSV(ctx context.Context, w io.Writer, businessID, productID, email, status string, ids []string) (int64, error) {
+	q := s.buildSubscriptionQuery(ctx, businessID, productID, email, status, ids)
+	q = q.
+		Joins("LEFT JOIN businesses ON businesses.id = product_subscriptions.business_id").
+		Joins("LEFT JOIN products ON products.id = product_subscriptions.product_id").
+		Select(`
+			product_subscriptions.id,
+			product_subscriptions.business_id,
+			COALESCE(businesses.name, '') AS business_name,
+			product_subscriptions.product_id,
+			COALESCE(products.name, '') AS product_name,
+			product_subscriptions.customer_id,
+			product_subscriptions.email,
+			product_subscriptions.consent,
+			product_subscriptions.is_confirmed,
+			product_subscriptions.subscribed_at,
+			product_subscriptions.unsubscribed_at,
+			product_subscriptions.metadata,
+			product_subscriptions.created_at,
+			product_subscriptions.updated_at,
+			product_subscriptions.confirmed_at
+		`).
+		Order("product_subscriptions.subscribed_at desc, product_subscriptions.created_at desc")
+
+	rows, err := q.Rows()
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	cw := csv.NewWriter(w)
+	header := []string{"subscription_id", "business_id", "business_name", "product_id", "product_name", "customer_id", "email", "consent", "is_confirmed", "subscribed_at", "confirmed_at", "unsubscribed_at", "created_at", "updated_at", "customer_locale", "metadata_json"}
+	if err := cw.Write(header); err != nil {
+		return 0, err
+	}
+
+	count := int64(0)
+	for rows.Next() {
+		var item subscriptionExportRow
+		if err := s.DB.ScanRows(rows, &item); err != nil {
+			return count, err
+		}
+		locale := s.localeFromMetadata(item.Metadata)
+		record := []string{
+			item.ID,
+			item.BusinessID,
+			item.BusinessName,
+			nullStringValue(item.ProductID),
+			nullStringValue(item.ProductName),
+			nullStringValue(item.CustomerID),
+			item.Email,
+			fmt.Sprintf("%t", item.Consent),
+			fmt.Sprintf("%t", item.IsConfirmed),
+			item.SubscribedAt.UTC().Format(time.RFC3339),
+			nullTimeValue(item.ConfirmedAt),
+			nullTimeValue(item.UnsubscribedAt),
+			item.CreatedAt.UTC().Format(time.RFC3339),
+			item.UpdatedAt.UTC().Format(time.RFC3339),
+			locale,
+			string(item.Metadata),
+		}
+		if err := cw.Write(record); err != nil {
+			return count, err
+		}
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		return count, err
+	}
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		return count, err
+	}
+	return count, nil
+}
+
+func (s *Service) localeFromMetadata(metadata datatypes.JSON) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(metadata, &parsed); err != nil {
+		return ""
+	}
+	if value, ok := parsed["customer_locale"].(string); ok {
+		return normalizeLocale(value)
+	}
+	return ""
+}
+
+func nullStringValue(value sql.NullString) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.String
+}
+
+func nullTimeValue(value sql.NullTime) string {
+	if !value.Valid {
+		return ""
+	}
+	return value.Time.UTC().Format(time.RFC3339)
+}
+
+// ListSubscriptions returns subscriptions filtered by business/product/email and status with pagination.
+func (s *Service) ListSubscriptions(ctx context.Context, businessID, productID, email, status string, page, limit int) ([]marketingmodels.ProductSubscription, int64, error) {
+	q := s.buildSubscriptionQuery(ctx, businessID, productID, email, status, nil)
 
 	if limit <= 0 {
 		limit = 20

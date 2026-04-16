@@ -48,6 +48,18 @@ type publicResendRequest struct {
 	Email      *string `json:"email,omitempty"`
 }
 
+type exportSubscriptionsRequest struct {
+	IDs        []string `json:"ids,omitempty"`
+	BusinessID string   `json:"businessId,omitempty"`
+	ProductID  string   `json:"productId,omitempty"`
+	Email      string   `json:"email,omitempty"`
+	Status     string   `json:"status,omitempty"`
+	SelectAll  bool     `json:"selectAll,omitempty"`
+	SelectPage bool     `json:"selectPage,omitempty"`
+	Page       int      `json:"page,omitempty"`
+	Limit      int      `json:"limit,omitempty"`
+}
+
 func parsePositiveIntQuery(value string, fallback int) int {
 	parsed, err := strconv.Atoi(strings.TrimSpace(value))
 	if err != nil || parsed <= 0 {
@@ -157,6 +169,43 @@ func (h *SubscriptionHandler) List(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": rows, "total": total, "page": page, "limit": limit})
+}
+
+func (h *SubscriptionHandler) Export(c *gin.Context) {
+	var req exportSubscriptionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	status := resolveSubscriptionStatusQuery("", req.Status)
+	ids := make([]string, 0, len(req.IDs))
+	for _, id := range req.IDs {
+		if trimmed := strings.TrimSpace(id); trimmed != "" {
+			ids = append(ids, trimmed)
+		}
+	}
+	if req.SelectAll {
+		ids = nil
+	}
+
+	filename := fmt.Sprintf("subscribers-%s.csv", time.Now().UTC().Format("2006-01-02"))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	c.Header("Cache-Control", "no-store")
+	if _, err := c.Writer.Write([]byte{0xEF, 0xBB, 0xBF}); err != nil {
+		return
+	}
+
+	count, err := h.svc.ExportSubscriptionsCSV(c.Request.Context(), c.Writer, strings.TrimSpace(req.BusinessID), strings.TrimSpace(req.ProductID), strings.TrimSpace(req.Email), status, ids)
+	if err != nil {
+		if !c.Writer.Written() {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	fmt.Printf("marketing subscriptions export requested by admin=%s count=%d business_id=%s status=%s\n", adminID, count, strings.TrimSpace(req.BusinessID), status)
 }
 
 func (h *SubscriptionHandler) GetByID(c *gin.Context) {

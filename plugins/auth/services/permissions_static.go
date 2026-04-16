@@ -31,6 +31,8 @@ var staticPermissions = []struct {
 	{Key: "coupons.manage", Name: "Manage coupons", Description: strPtrStatic("Create/update/delete coupons"), Group: "Marketing"},
 	{Key: "discounts.view", Name: "View discounts", Description: strPtrStatic("View discounts"), Group: "Marketing"},
 	{Key: "discounts.manage", Name: "Manage discounts", Description: strPtrStatic("Create/update/delete discounts"), Group: "Marketing"},
+	{Key: "subscriptions.view", Name: "View subscribers", Description: strPtrStatic("View and export subscriber lists"), Group: "Marketing"},
+	{Key: "subscriptions.manage", Name: "Manage subscribers", Description: strPtrStatic("Export, resend and delete subscribers"), Group: "Marketing"},
 	{Key: "assets.view", Name: "View assets", Description: strPtrStatic("View assets"), Group: "Assets"},
 	{Key: "assets.manage", Name: "Manage assets", Description: strPtrStatic("Upload/update/delete assets"), Group: "Assets"},
 	{Key: "roles.view", Name: "View roles and permissions", Description: strPtrStatic("View roles and permissions"), Group: "Admin"},
