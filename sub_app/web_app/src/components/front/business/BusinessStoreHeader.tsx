@@ -207,12 +207,6 @@ export default function BusinessStoreHeader({ business, locale }: BusinessStoreH
                   </a>
                 ) : null}
 
-              <button aria-label={t("moreActions", "Lainnya")} title={t("moreActions", "Lainnya")} className="rounded-lg border border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-100">
-                <MoreHorizontal className="h-4.5 w-4.5" />
-              </button>
-              <button aria-label={t("share", "Bagikan")} title={t("share", "Bagikan")} className="rounded-lg border border-slate-300 px-3 py-2 text-slate-500 hover:bg-slate-100">
-                <ArrowUpRight className="h-4.5 w-4.5" />
-              </button>
             </div>
           </div>
         </div>
