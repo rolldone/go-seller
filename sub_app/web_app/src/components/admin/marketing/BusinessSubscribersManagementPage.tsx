@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { adminDelete, adminGet, adminPost } from "../entities/adminApi";
+import { adminDelete, adminGet, adminPost, adminPostBlob } from "../entities/adminApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import type { Business, BusinessListResponse } from "../businesses/types";
 
@@ -28,6 +28,15 @@ type SubscriptionListResponse = {
   total: number;
   page: number;
   limit: number;
+};
+
+type SubscriptionExportRequest = {
+  ids?: string[];
+  businessId?: string;
+  productId?: string;
+  email?: string;
+  status?: SubscriptionStatusFilter;
+  selectAll?: boolean;
 };
 
 const DEFAULT_LIMIT = 20;
@@ -90,8 +99,27 @@ export default function BusinessSubscribersManagementPage() {
   const [loadingItems, setLoadingItems] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
+  const selectedCount = selectedIds.length;
+  const currentPageIds = useMemo(() => items.map((item) => item.id), [items]);
+  const allCurrentPageSelected = currentPageIds.length > 0 && currentPageIds.every((id) => selectedIds.includes(id));
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -199,6 +227,10 @@ export default function BusinessSubscribersManagementPage() {
     void loadItems();
   }, [businessId, email, status, page, limit]);
 
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [businessId, email, status, limit]);
+
   const resetFilters = () => {
     setBusinessId("");
     setEmail("");
@@ -233,6 +265,47 @@ export default function BusinessSubscribersManagementPage() {
       notifyError(err instanceof Error ? err.message : "Gagal menghapus subscriber");
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const toggleSubscriptionSelection = (subscriptionId: string) => {
+    setSelectedIds((current) =>
+      current.includes(subscriptionId) ? current.filter((id) => id !== subscriptionId) : [...current, subscriptionId],
+    );
+  };
+
+  const toggleCurrentPageSelection = () => {
+    setSelectedIds((current) => {
+      if (allCurrentPageSelected) {
+        return current.filter((id) => !currentPageIds.includes(id));
+      }
+      const next = new Set(current);
+      for (const id of currentPageIds) {
+        next.add(id);
+      }
+      return Array.from(next);
+    });
+  };
+
+  const exportCsv = async (selectAll = false) => {
+    setExporting(true);
+    try {
+      const payload: SubscriptionExportRequest = {
+        ids: selectAll ? [] : selectedIds,
+        businessId: businessId || undefined,
+        email: email.trim() || undefined,
+        status: status || undefined,
+        selectAll,
+      };
+      const blob = await adminPostBlob("/admin/marketing/subscriptions/export", payload);
+      const date = new Date().toISOString().slice(0, 10);
+      const scope = businessId ? businessNameByID[businessId] || businessId : "all";
+      downloadBlob(blob, `subscribers-${scope}-${date}.csv`);
+      notifySuccess("CSV export started");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal mengekspor CSV");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -331,12 +404,31 @@ export default function BusinessSubscribersManagementPage() {
       {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Error: {error}</div> : null}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h4 className="text-sm font-semibold text-slate-900">Subscriber list</h4>
             <p className="text-xs text-slate-500">Total {total} subscriber untuk filter aktif saat ini.</p>
           </div>
-          {loadingItems ? <span className="text-xs text-slate-500">Loading...</span> : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500">Dipilih: {selectedCount}</span>
+            <button
+              type="button"
+              onClick={() => void exportCsv(false)}
+              disabled={exporting || selectedCount === 0}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Export selected CSV
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportCsv(true)}
+              disabled={exporting || total === 0}
+              className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Export filtered CSV
+            </button>
+            {loadingItems ? <span className="text-xs text-slate-500">Loading...</span> : null}
+          </div>
         </div>
 
         {!loadingItems && items.length === 0 ? (
@@ -350,6 +442,14 @@ export default function BusinessSubscribersManagementPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-slate-700">
                 <tr>
+                  <th className="px-3 py-2">
+                    <input
+                      type="checkbox"
+                      checked={allCurrentPageSelected}
+                      onChange={toggleCurrentPageSelection}
+                      aria-label="Select all current page"
+                    />
+                  </th>
                   <th className="px-3 py-2">Business</th>
                   <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2">Product</th>
@@ -367,9 +467,18 @@ export default function BusinessSubscribersManagementPage() {
                   const locale = typeof metadata?.customer_locale === "string" ? metadata.customer_locale : "-";
                   const businessLabel = subscription.businessId ? businessNameByID[subscription.businessId] || subscription.businessId : "-";
                   const statusLabel = subscription.unsubscribedAt ? "Inactive" : "Active";
+                  const isSelected = selectedIds.includes(subscription.id);
 
                   return (
                     <tr key={subscription.id} className="border-t border-slate-100">
+                      <td className="px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSubscriptionSelection(subscription.id)}
+                          aria-label={`Select subscriber ${subscription.email}`}
+                        />
+                      </td>
                       <td className="px-3 py-2 text-slate-700">
                         <div className="font-medium text-slate-900">{businessLabel}</div>
                         <div className="text-xs text-slate-500">{subscription.businessId}</div>
