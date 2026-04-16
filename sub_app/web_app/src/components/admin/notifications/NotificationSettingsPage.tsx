@@ -69,6 +69,12 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     audience: "admin",
     description: "Notifikasi saat bukti transfer diupload.",
   },
+  {
+    id: "subscription_confirmation_customer",
+    name: "Subscription Confirmation",
+    audience: "customer",
+    description: "Notifikasi saat customer diminta mengonfirmasi langganan email.",
+  },
 ];
 
 const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplate, "enabled" | "recipients" | "subject" | "body">>> = {
@@ -115,6 +121,12 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[Bukti Transfer Baru] {{.order_number}}",
       body: "Bukti transfer baru sudah diupload untuk order {{.order_number}}. Silakan cek panel admin.",
     },
+    subscription_confirmation_customer: {
+      enabled: true,
+      recipients: "{{.email}}",
+      subject: "Konfirmasi langganan - {{.business_name}}",
+      body: "Hai {{.Name}},\n\nTerima kasih telah berlangganan {{.business_name}}{{if .ProductName}} - {{.ProductName}}{{end}}.\nSilakan klik tautan berikut untuk mengonfirmasi langganan Anda:\n{{.ConfirmLink}}\n\nTautan ini akan kedaluwarsa dalam {{.ExpiryMinutes}} menit.\n\nJika Anda tidak meminta ini, abaikan saja.",
+    },
   },
   en: {
     new_order_admin: {
@@ -159,6 +171,12 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[New Transfer Proof] {{.order_number}}",
       body: "A new transfer proof has been uploaded for order {{.order_number}}. Please check the admin panel.",
     },
+    subscription_confirmation_customer: {
+      enabled: true,
+      recipients: "{{.email}}",
+      subject: "Subscription confirmation - {{.business_name}}",
+      body: "Hi {{.Name}},\n\nThanks for subscribing to {{.business_name}}{{if .ProductName}} - {{.ProductName}}{{end}}.\nPlease click the link below to confirm your subscription:\n{{.ConfirmLink}}\n\nThis link will expire in {{.ExpiryMinutes}} minutes.\n\nIf you did not request this, please ignore this email.",
+    },
   },
 };
 
@@ -173,6 +191,11 @@ const placeholders = [
   "{{.order_link}}",
   "{{.reset_url}}",
   "{{.reset_token}}",
+  "{{.ConfirmLink}}",
+  "{{.ExpiryMinutes}}",
+  "{{.Name}}",
+  "{{.business_name}}",
+  "{{.ProductName}}",
 ];
 
 const DEFAULT_TEST_VARS = {
@@ -187,6 +210,10 @@ const DEFAULT_TEST_VARS = {
   order_link: "/admin/orders",
   reset_token: "TEST-RESET-TOKEN",
   reset_url: `${(import.meta.env.PUBLIC_APP_URL ?? "https://example.com").replace(/\/+$/, "")}/customer/auth/reset-password?token=TEST-RESET-TOKEN`,
+  ConfirmLink: `${(import.meta.env.PUBLIC_APP_URL ?? "https://example.com").replace(/\/+$/, "")}/subscribe/confirm?token=TEST-CONFIRM-TOKEN`,
+  ExpiryMinutes: "1440",
+  Name: "Test Customer",
+  ProductName: "",
   app_name: "Go Seller",
 };
 const DEFAULT_TEST_VARS_STRING = JSON.stringify(DEFAULT_TEST_VARS, null, 2);

@@ -1,0 +1,19 @@
+---
+export const prerender = false;
+
+import "../../styles/front.css";
+import SubscriptionConfirmPage from "../../components/front/business/SubscriptionConfirmPage";
+
+const locale = "id";
+---
+
+<html lang={locale}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Konfirmasi Langganan | Go Seller</title>
+	</head>
+	<body>
+		<SubscriptionConfirmPage client:only="react" locale={locale} />
+	</body>
+</html>

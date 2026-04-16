@@ -1,0 +1,20 @@
+---
+export const prerender = false;
+
+import "../../../styles/front.css";
+import SubscriptionConfirmPage from "../../../components/front/business/SubscriptionConfirmPage";
+import { normalizeLocale } from "../../../lib/siteLocale";
+
+const locale = normalizeLocale(Astro.params.lang);
+---
+
+<html lang={locale}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>{locale === "en" ? "Subscription Confirmation" : "Konfirmasi Langganan"} | Go Seller</title>
+	</head>
+	<body>
+		<SubscriptionConfirmPage client:only="react" locale={locale} />
+	</body>
+</html>
