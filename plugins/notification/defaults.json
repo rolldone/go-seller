@@ -181,4 +181,31 @@
     },
     "description": "Admin notification template when payment proof is uploaded (English)"
   }
+  ,
+  {
+    "key": "notifications.subscription_confirmation_customer.id",
+    "scope": "global",
+    "value": {
+      "name": "Subscription Confirmation",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.email}}",
+      "subject": "Konfirmasi langganan - {{.business_name}}",
+      "body": "Hai {{.Name}},\n\nTerima kasih telah berlangganan {{.business_name}}{{if .ProductName}} - {{.ProductName}}{{end}}.\nSilakan klik tautan berikut untuk mengonfirmasi langganan Anda:\n{{.ConfirmLink}}\n\nTautan ini akan kedaluwarsa dalam {{.ExpiryMinutes}} menit.\n\nJika Anda tidak meminta ini, abaikan saja."
+    },
+    "description": "Template konfirmasi langganan customer (Indonesia)"
+  },
+  {
+    "key": "notifications.subscription_confirmation_customer.en",
+    "scope": "global",
+    "value": {
+      "name": "Subscription Confirmation",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.email}}",
+      "subject": "Subscription confirmation - {{.business_name}}",
+      "body": "Hi {{.Name}},\n\nThanks for subscribing to {{.business_name}}{{if .ProductName}} - {{.ProductName}}{{end}}.\nPlease click the link below to confirm your subscription:\n{{.ConfirmLink}}\n\nThis link will expire in {{.ExpiryMinutes}} minutes.\n\nIf you did not request this, please ignore this email."
+    },
+    "description": "Subscription confirmation template (English)"
+  }
 ]

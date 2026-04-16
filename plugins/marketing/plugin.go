@@ -34,6 +34,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	}
 
 	handler := marketinghandlers.NewBusinessCarouselHandler(p.service)
+	subsHandler := marketinghandlers.NewSubscriptionHandler(p.service)
 
 	admin.GET("/plugins/marketing/health", marketinghandlers.HealthHandler)
 
@@ -43,9 +44,19 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminMarketing.POST("/business-carousels", handler.Create)
 	adminMarketing.PUT("/business-carousels/:id", handler.Update)
 	adminMarketing.DELETE("/business-carousels/:id", handler.Delete)
+	// Subscriptions (admin)
+	adminMarketing.GET("/subscriptions", subsHandler.List)
+	adminMarketing.GET("/subscriptions/:id", subsHandler.GetByID)
+	adminMarketing.DELETE("/subscriptions/:id", subsHandler.Delete)
+	adminMarketing.POST("/subscriptions/:id/resend", subsHandler.AdminResend)
 
 	apiMarketing := api.Group("/marketing")
 	apiMarketing.GET("/business-carousels", handler.PublicList)
+	// Public subscribe/unsubscribe endpoints
+	apiMarketing.GET("/confirm", subsHandler.Confirm)
+	apiMarketing.POST("/resend", subsHandler.PublicResend)
+	apiMarketing.POST("/subscribe", subsHandler.PublicSubscribe)
+	apiMarketing.POST("/unsubscribe", subsHandler.PublicUnsubscribe)
 
 	_ = router
 	return nil

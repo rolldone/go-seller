@@ -222,7 +222,9 @@ func (s *Service) SendOrderEvent(ctx context.Context, db *gorm.DB, eventKey stri
 
 func (s *Service) SendOrderEventAsync(ctx context.Context, db *gorm.DB, eventKey string, orderID string) {
 	go func() {
-		_ = s.SendOrderEvent(ctx, db, eventKey, orderID)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = s.SendOrderEvent(bgCtx, db, eventKey, orderID)
 	}()
 }
 
@@ -237,7 +239,9 @@ func (s *Service) SendTemplateEvent(ctx context.Context, db *gorm.DB, eventKey s
 // SendTemplateEventAsync dispatches a notification template asynchronously.
 func (s *Service) SendTemplateEventAsync(ctx context.Context, db *gorm.DB, eventKey string, payload map[string]interface{}) {
 	go func() {
-		_ = s.SendTemplateEvent(ctx, db, eventKey, payload)
+		bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = s.SendTemplateEvent(bgCtx, db, eventKey, payload)
 	}()
 }
 
