@@ -15,6 +15,11 @@ export type Business = {
   operational_hours?: Record<string, string> | null;
   chat_response_time?: string | null;
   email?: string | null;
+  whatsapp?: string | null;
+  facebook?: string | null;
+  instagram?: string | null;
+  x_twitter?: string | null;
+  tiktok?: string | null;
   phone?: string | null;
   show_contact_email: boolean;
   show_phone: boolean;
@@ -81,6 +86,11 @@ export type BusinessPayload = {
   operational_hours?: unknown;
   chat_response_time?: string | null;
   email?: string | null;
+  whatsapp?: string | null;
+  facebook?: string | null;
+  instagram?: string | null;
+  x_twitter?: string | null;
+  tiktok?: string | null;
   phone?: string | null;
   show_contact_email?: boolean;
   show_phone?: boolean;

@@ -19,6 +19,11 @@ const defaultForm = {
   address: "",
   chat_response_time: "",
   email: "",
+  whatsapp: "",
+  facebook: "",
+  instagram: "",
+  x_twitter: "",
+  tiktok: "",
   phone: "",
   highlights: "",
   operational_hours: "",
@@ -172,6 +177,11 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
       address: initialData?.address || "",
       chat_response_time: initialData?.chat_response_time || "",
       email: initialData?.email || "",
+      whatsapp: initialData?.whatsapp || "",
+      facebook: initialData?.facebook || "",
+      instagram: initialData?.instagram || "",
+      x_twitter: initialData?.x_twitter || "",
+      tiktok: initialData?.tiktok || "",
       phone: initialData?.phone || "",
       highlights: (initialData?.highlights || []).filter(Boolean).join("\n"),
       operational_hours: initialData?.operational_hours ? JSON.stringify(initialData.operational_hours, null, 2) : "",
@@ -314,6 +324,11 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
       operational_hours: operational,
       chat_response_time: form.chat_response_time.trim() || undefined,
       email: form.email.trim() || undefined,
+      whatsapp: form.whatsapp.trim() || undefined,
+      facebook: form.facebook.trim() || undefined,
+      instagram: form.instagram.trim() || undefined,
+      x_twitter: form.x_twitter.trim() || undefined,
+      tiktok: form.tiktok.trim() || undefined,
       phone: form.phone.trim() || undefined,
       show_contact_email: form.show_contact_email,
       show_phone: form.show_phone,
@@ -546,6 +561,26 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
             <label className="text-sm">
               <span className={labelClass}>Phone</span>
               <input className={inputClass} value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+            </label>
+            <label className="text-sm">
+              <span className={labelClass}>Facebook</span>
+              <input className={inputClass} value={form.facebook} onChange={(e) => setField("facebook", e.target.value)} placeholder="Full URL (https://facebook.com/your-page)" />
+            </label>
+            <label className="text-sm">
+              <span className={labelClass}>Instagram</span>
+              <input className={inputClass} value={form.instagram} onChange={(e) => setField("instagram", e.target.value)} placeholder="Full URL (https://instagram.com/your-handle)" />
+            </label>
+            <label className="text-sm">
+              <span className={labelClass}>X / Twitter</span>
+              <input className={inputClass} value={form.x_twitter} onChange={(e) => setField("x_twitter", e.target.value)} placeholder="Full URL (https://x.com/your-handle)" />
+            </label>
+            <label className="text-sm">
+              <span className={labelClass}>TikTok</span>
+              <input className={inputClass} value={form.tiktok} onChange={(e) => setField("tiktok", e.target.value)} placeholder="Full URL (https://www.tiktok.com/@your-handle)" />
+            </label>
+            <label className="text-sm">
+              <span className={labelClass}>WhatsApp</span>
+              <input className={inputClass} value={form.whatsapp} onChange={(e) => setField("whatsapp", e.target.value)} placeholder="6281234567890" />
             </label>
             <label className="text-sm">
               <span className={labelClass}>Address</span>

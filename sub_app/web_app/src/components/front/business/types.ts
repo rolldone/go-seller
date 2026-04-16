@@ -23,6 +23,11 @@ export interface PublicBusiness {
   operational_hours?: any;
   chat_response_time?: string | null;
   email?: string | null;
+  whatsapp?: string | null;
+  facebook?: string | null;
+  instagram?: string | null;
+  x_twitter?: string | null;
+  tiktok?: string | null;
   phone?: string | null;
   show_contact_email?: boolean;
   show_phone?: boolean;
