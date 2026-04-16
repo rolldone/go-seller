@@ -114,9 +114,6 @@ export default function BusinessPageNav({ business, customerSession = null, cart
       </a>
 
       <div className="flex items-center justify-end gap-2">
-        <NavIcon label={tBusiness("chatSeller", "Chat Penjual")}>
-          <MessageSquare className="h-4.5 w-4.5" />
-        </NavIcon>
         <div className="relative group" onMouseEnter={() => setPreviewOpen(true)} onMouseLeave={() => setPreviewOpen(false)}>
           <NavIcon label={tBusiness("cart", "Keranjang")} href={buildLocalizedPath(business?.slug ? `/b/${encodeURIComponent(business.slug)}/cart` : "/cart", resolvedLocale)}>
             <span className="relative inline-flex">
@@ -179,9 +176,6 @@ export default function BusinessPageNav({ business, customerSession = null, cart
             </div>
           ) : null}
         </div>
-        <NavIcon label={tBusiness("notifications", "Notifikasi")}>
-          <Bell className="h-4.5 w-4.5" />
-        </NavIcon>
 
         <a
           href={buildLocalizedPath(isAuthenticated ? "/customer/dashboard" : "/customer/auth/login", resolvedLocale)}
