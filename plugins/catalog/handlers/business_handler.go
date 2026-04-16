@@ -39,6 +39,11 @@ type businessRequest struct {
 	ChatResponseTime  *string         `json:"chat_response_time"`
 	Email             *string         `json:"email"`
 	Phone             *string         `json:"phone"`
+	Facebook          *string         `json:"facebook"`
+	Instagram         *string         `json:"instagram"`
+	XTwitter          *string         `json:"x_twitter"`
+	Tiktok            *string         `json:"tiktok"`
+	WhatsApp          *string         `json:"whatsapp"`
 	ShowContactEmail  *bool           `json:"show_contact_email"`
 	ShowPhone         *bool           `json:"show_phone"`
 }
@@ -103,6 +108,11 @@ func (h *BusinessHandler) Create(c *gin.Context) {
 		ChatResponseTime:  req.ChatResponseTime,
 		Email:             req.Email,
 		Phone:             req.Phone,
+		Facebook:          req.Facebook,
+		Instagram:         req.Instagram,
+		XTwitter:          req.XTwitter,
+		Tiktok:            req.Tiktok,
+		WhatsApp:          req.WhatsApp,
 		ShowContactEmail:  showEmail,
 		ShowPhone:         showPhone,
 	}
@@ -225,6 +235,21 @@ func (h *BusinessHandler) Update(c *gin.Context) {
 	}
 	if req.Phone != nil {
 		item.Phone = req.Phone
+	}
+	if req.Facebook != nil {
+		item.Facebook = req.Facebook
+	}
+	if req.Instagram != nil {
+		item.Instagram = req.Instagram
+	}
+	if req.XTwitter != nil {
+		item.XTwitter = req.XTwitter
+	}
+	if req.Tiktok != nil {
+		item.Tiktok = req.Tiktok
+	}
+	if req.WhatsApp != nil {
+		item.WhatsApp = req.WhatsApp
 	}
 	if req.ShowContactEmail != nil {
 		item.ShowContactEmail = *req.ShowContactEmail

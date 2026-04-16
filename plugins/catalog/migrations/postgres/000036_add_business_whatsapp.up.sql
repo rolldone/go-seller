@@ -1,0 +1,2 @@
+ALTER TABLE businesses
+    ADD COLUMN IF NOT EXISTS whatsapp VARCHAR(32);

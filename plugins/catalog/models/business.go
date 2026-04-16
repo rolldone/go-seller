@@ -25,6 +25,11 @@ type Business struct {
 	ChatResponseTime  *string        `gorm:"size:100" json:"chat_response_time,omitempty"`
 	Email             *string        `gorm:"size:255" json:"email,omitempty"`
 	Phone             *string        `gorm:"size:32" json:"phone,omitempty"`
+	WhatsApp          *string        `gorm:"column:whatsapp;size:32" json:"whatsapp,omitempty"`
+	Facebook          *string        `gorm:"size:255" json:"facebook,omitempty"`
+	Instagram         *string        `gorm:"size:255" json:"instagram,omitempty"`
+	XTwitter          *string        `gorm:"column:x_twitter;size:255" json:"x_twitter,omitempty"`
+	Tiktok            *string        `gorm:"size:255" json:"tiktok,omitempty"`
 	ShowContactEmail  bool           `gorm:"default:true" json:"show_contact_email"`
 	ShowPhone         bool           `gorm:"default:true" json:"show_phone"`
 	Description       *string        `gorm:"type:text" json:"description,omitempty"`
