@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"go_framework/internal/uuid"
 	catalogmodels "go_framework/plugins/catalog/models"
@@ -54,6 +55,7 @@ func (h *CategoryHandler) Create(c *gin.Context) {
 func (h *CategoryHandler) List(c *gin.Context) {
 	page := parseIntParam(c.Query("page"), 1)
 	limit := parseIntParam(c.Query("limit"), 20)
+	withDeleted := strings.ToLower(strings.TrimSpace(c.Query("with_deleted"))) == "true"
 	parentIDRaw, hasParentFilter := c.GetQuery("parent_id")
 	var parentID *string
 	if hasParentFilter {
@@ -61,12 +63,25 @@ func (h *CategoryHandler) List(c *gin.Context) {
 		parentID = &trimmed
 	}
 
-	items, total, err := h.svc.ListCategories(c.Request.Context(), page, limit, parentID, hasParentFilter)
+	items, total, err := h.svc.ListCategories(c.Request.Context(), page, limit, parentID, hasParentFilter, withDeleted)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
+}
+
+func (h *CategoryHandler) Restore(c *gin.Context) {
+	affected, err := h.svc.RestoreCategoryByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if affected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "category not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "category restored"})
 }
 
 func (h *CategoryHandler) GetByID(c *gin.Context) {

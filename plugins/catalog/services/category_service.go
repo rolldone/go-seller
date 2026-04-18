@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"strings"
+	"time"
 
 	catalogmodels "go_framework/plugins/catalog/models"
 )
@@ -14,7 +15,7 @@ func (s *CatalogService) CreateCategory(ctx context.Context, c *catalogmodels.Ca
 	return s.DB.WithContext(ctx).Create(c).Error
 }
 
-func (s *CatalogService) ListCategories(ctx context.Context, page, limit int, parentID *string, filterByParent bool) ([]catalogmodels.Category, int64, error) {
+func (s *CatalogService) ListCategories(ctx context.Context, page, limit int, parentID *string, filterByParent bool, withDeleted bool) ([]catalogmodels.Category, int64, error) {
 	if page <= 0 {
 		page = 1
 	}
@@ -22,7 +23,11 @@ func (s *CatalogService) ListCategories(ctx context.Context, page, limit int, pa
 		limit = 20
 	}
 
-	q := s.DB.WithContext(ctx).Model(&catalogmodels.Category{})
+	db := s.DB.WithContext(ctx)
+	if withDeleted {
+		db = db.Unscoped()
+	}
+	q := db.Model(&catalogmodels.Category{})
 	if filterByParent {
 		if parentID == nil || strings.TrimSpace(*parentID) == "" {
 			q = q.Where("parent_id IS NULL")
@@ -64,5 +69,13 @@ func (s *CatalogService) UpdateCategory(ctx context.Context, c *catalogmodels.Ca
 
 func (s *CatalogService) DeleteCategoryByID(ctx context.Context, id string) (int64, error) {
 	res := s.DB.WithContext(ctx).Where("id = ?", id).Delete(&catalogmodels.Category{})
+	return res.RowsAffected, res.Error
+}
+
+func (s *CatalogService) RestoreCategoryByID(ctx context.Context, id string) (int64, error) {
+	res := s.DB.WithContext(ctx).Model(&catalogmodels.Category{}).Unscoped().Where("id = ?", id).Updates(map[string]interface{}{
+		"deleted_at": nil,
+		"updated_at": time.Now(),
+	})
 	return res.RowsAffected, res.Error
 }

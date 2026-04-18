@@ -353,6 +353,16 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 				if tr.ShortDescription != nil {
 					p.ShortDescription = tr.ShortDescription
 				}
+				// apply full description translations if available
+				if tr.Description != nil {
+					p.Description = tr.Description
+				}
+				if tr.DescriptionHTML != nil {
+					p.DescriptionHTML = tr.DescriptionHTML
+				}
+				if tr.DescriptionPlain != nil {
+					p.DescriptionPlain = tr.DescriptionPlain
+				}
 			}
 
 			var categoryName string
@@ -407,6 +417,20 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 				}
 			}
 
+			// prepare description payloads
+			rawDesc := ""
+			rawDescHTML := ""
+			rawDescPlain := ""
+			if p.Description != nil {
+				rawDesc = *p.Description
+			}
+			if p.DescriptionHTML != nil {
+				rawDescHTML = *p.DescriptionHTML
+			}
+			if p.DescriptionPlain != nil {
+				rawDescPlain = *p.DescriptionPlain
+			}
+
 			productsOut = append(productsOut, map[string]interface{}{
 				"id":                   p.ID,
 				"title":                p.Name,
@@ -417,6 +441,9 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 				"discount_badge":       badge,
 				"applied_discount_ids": appliedIDs,
 				"excerpt":              excerpt,
+				"description":          rawDesc,
+				"description_html":     rawDescHTML,
+				"description_plain":    rawDescPlain,
 				"tag_ids":              tagMap[p.ID],
 				// gallery: array of product asset objects with public URLs
 				"gallery": func() []map[string]interface{} {

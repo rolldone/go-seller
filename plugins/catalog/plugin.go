@@ -81,6 +81,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminCatalog.GET("/categories/:id", categoryHandler.GetByID)
 	adminCatalog.PUT("/categories/:id", categoryHandler.Update)
 	adminCatalog.DELETE("/categories/:id", categoryHandler.Delete)
+	adminCatalog.POST("/categories/:id/restore", categoryHandler.Restore)
 	adminCatalog.POST("/tags", tagHandler.Create)
 	adminCatalog.GET("/tags", tagHandler.List)
 	adminCatalog.GET("/tags/:id", tagHandler.GetByID)
