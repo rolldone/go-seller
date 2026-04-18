@@ -15,7 +15,7 @@ if (!product) return Astro.redirect(locale ? `/b/${merchant}?locale=${encodeURIC
 
 const relatedProducts = (store.products || []).filter((item) => item.slug !== product.slug).slice(0, 4);
 const title = `${product.title} | ${store.business.name} | Go Seller`;
-const description = product.excerpt;
+const description = product.description_plain || product.description || product.excerpt || "";
 const customerSession = Astro.locals.customerSession ?? null;
 ---
 
@@ -30,4 +30,4 @@ const customerSession = Astro.locals.customerSession ?? null;
   <body class="bg-[#f7f7f5] text-slate-900 antialiased">
     <ProductDetailPage client:only="react" store={store} product={product} relatedProducts={relatedProducts} locale={locale} customerSession={customerSession} />
   </body>
-</html>
+</html>ok

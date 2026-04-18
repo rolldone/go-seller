@@ -4,6 +4,7 @@ import { adminGet, adminPost, adminPostForm, adminDelete, adminGetBlob } from ".
 import AdminModal from "../ui/AdminModal";
 import { downloadOrderInvoice, generateCheckoutLink, listPaymentProofs, getOrderByID, updateShippingQuote } from "./api";
 import type { Order, Payment, PaymentProof } from "./types";
+import { formatAmount } from "../../../lib/amountFormat";
 
 type Props = {
   open: boolean;
@@ -24,9 +25,9 @@ const formatDateTime = (value?: string | null) => {
 const money = (currency: string, amount: number) => {
   const safeCurrency = currency || "USD";
   try {
-    return new Intl.NumberFormat("id-ID", { style: "currency", currency: safeCurrency, maximumFractionDigits: 2 }).format(amount || 0);
+    return `${safeCurrency} ${formatAmount(amount || 0, { fractionDigits: 2 })}`;
   } catch {
-    return `${safeCurrency} ${Number(amount || 0).toFixed(2)}`;
+    return `${safeCurrency} ${formatAmount(amount || 0, { fractionDigits: 2 })}`;
   }
 };
 

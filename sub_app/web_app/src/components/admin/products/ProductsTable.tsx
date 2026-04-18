@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Product } from "./types";
 import { notifyError, notifySuccess } from "../../../lib/notification";
+import { formatAmount } from "../../../lib/amountFormat";
 
 type Props = {
   products: Product[];
@@ -17,13 +20,10 @@ type Props = {
   onTogglePublish: (product: Product) => void;
   onManageDiscounts: (product: Product) => void;
   onManageTranslations: (product: Product) => void;
+  selectedIds?: string[];
+  onToggleSelection?: (id: string) => void;
+  onToggleCurrentPageSelection?: () => void;
 };
-
-const money = new Intl.NumberFormat("id-ID", {
-  style: "currency",
-  currency: "IDR",
-  maximumFractionDigits: 0,
-});
 
 const shortID = (value: string) => value.slice(0, 8);
 const copyID = async (value: string) => {
@@ -35,24 +35,83 @@ const copyID = async (value: string) => {
   }
 };
 
-export default function ProductsTable({ products, businessNameByID, categoryNameByID, tagNameByID, activeCategoryID, activeTagID, onCategoryClick, onTagClick, loading, error, onEdit, onDelete, onTogglePublish, onManageDiscounts, onManageTranslations }: Props) {
+export default function ProductsTable({ products, businessNameByID, categoryNameByID, tagNameByID, activeCategoryID, activeTagID, onCategoryClick, onTagClick, loading, error, onEdit, onDelete, onTogglePublish, onManageDiscounts, onManageTranslations, selectedIds = [], onToggleSelection, onToggleCurrentPageSelection, }: Props) {
   if (loading) {
-    return <div className="text-sm text-slate-500">Loading products...</div>;
+    return <div className="mt-4 text-sm text-slate-500">Loading products...</div>;
   }
 
   if (error) {
-    return <div className="text-sm text-red-600">Error: {error}</div>;
+    return <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">Error: {error}</div>;
   }
 
   if (products.length === 0) {
-    return <div className="text-sm text-slate-500">Belum ada product.</div>;
+    return (
+      <div className="mt-4 rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+        Belum ada product untuk filter ini.
+      </div>
+    );
   }
+  const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onDocClick = () => setOpenMenuFor(null);
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, []);
+
+  const [menuCoords, setMenuCoords] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!openMenuFor) return;
+    const update = () => {
+      const btn = document.querySelector(`[data-menu-button="${openMenuFor}"]`) as HTMLElement | null;
+      if (!btn) {
+        setOpenMenuFor(null);
+        setMenuCoords(null);
+        return;
+      }
+      const rect = btn.getBoundingClientRect();
+      const MENU_WIDTH = 160; // matches w-40
+      const top = rect.bottom + window.scrollY + 8;
+      const left = rect.right + window.scrollX - MENU_WIDTH;
+      setMenuCoords({ top, left });
+    };
+
+    update();
+
+    const onScroll = () => update();
+    const onResize = () => update();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpenMenuFor(null);
+        setMenuCoords(null);
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    document.addEventListener("keydown", onKey);
+
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [openMenuFor]);
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="mt-4 overflow-x-auto">
       <table className="min-w-full text-sm">
         <thead className="bg-slate-50 text-left text-slate-700">
           <tr>
+            <th className="px-3 py-2">
+              <input
+                type="checkbox"
+                checked={products.length > 0 && products.every((p) => selectedIds.includes(p.id))}
+                onChange={() => onToggleCurrentPageSelection && onToggleCurrentPageSelection()}
+                aria-label="Select all current page"
+              />
+            </th>
             <th className="px-3 py-2">ID</th>
             <th className="px-3 py-2">SKU</th>
             <th className="px-3 py-2">Name</th>
@@ -73,6 +132,14 @@ export default function ProductsTable({ products, businessNameByID, categoryName
         <tbody>
           {products.map((item) => (
             <tr key={item.id} className="border-t border-slate-100">
+              <td className="px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(item.id)}
+                  onChange={() => onToggleSelection && onToggleSelection(item.id)}
+                  aria-label={`Select product ${item.name}`}
+                />
+              </td>
               <td className="px-3 py-2 text-slate-700">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-xs text-slate-500">{shortID(item.id)}</span>
@@ -91,9 +158,9 @@ export default function ProductsTable({ products, businessNameByID, categoryName
                 <div className="text-xs text-slate-500">/{item.slug}</div>
               </td>
               <td className="px-3 py-2 text-slate-800">
-                {money.format(item.price)}
+                {formatAmount(item.price, { fractionDigits: 0 })}
                 {typeof item.sale_price === "number" ? (
-                  <span className="ml-1 text-xs text-emerald-600">sale {money.format(item.sale_price)}</span>
+                  <span className="ml-1 text-xs text-emerald-600">sale {formatAmount(item.sale_price, { fractionDigits: 0 })}</span>
                 ) : null}
               </td>
               <td className="px-3 py-2 text-slate-700">
@@ -181,42 +248,98 @@ export default function ProductsTable({ products, businessNameByID, categoryName
 
               <td className="px-3 py-2 text-slate-700">{new Date(item.updated_at).toLocaleString()}</td>
               <td className="px-3 py-2">
-                <div className="flex flex-wrap gap-2">
+                <div className="relative inline-block">
                   <button
+                    data-menu-button={item.id}
                     type="button"
-                    onClick={() => onEdit(item)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const btn = e.currentTarget as HTMLElement;
+                      if (openMenuFor === item.id) {
+                        setOpenMenuFor(null);
+                        setMenuCoords(null);
+                        return;
+                      }
+                      const rect = btn.getBoundingClientRect();
+                      const MENU_WIDTH = 160;
+                      const top = rect.bottom + window.scrollY + 8;
+                      const left = rect.right + window.scrollX - MENU_WIDTH;
+                      setMenuCoords({ top, left });
+                      setOpenMenuFor(item.id);
+                    }}
                     className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                    aria-haspopup="true"
+                    aria-expanded={openMenuFor === item.id}
                   >
-                    Edit
+                    ⋯
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onTogglePublish(item)}
-                    className="rounded bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-200"
-                  >
-                    {item.status === "published" ? "Unpublish" : "Publish"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onDelete(item)}
-                    className="rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-200"
-                  >
-                    Delete
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onManageDiscounts(item)}
-                    className="rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200"
-                  >
-                    Discounts
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onManageTranslations(item)}
-                    className="rounded bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-200"
-                  >
-                    Translation
-                  </button>
+
+                  {openMenuFor === item.id && menuCoords && typeof document !== "undefined"
+                    ? createPortal(
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ position: "absolute", top: menuCoords.top, left: menuCoords.left, width: 160 }}
+                          className="z-50 rounded-lg border border-slate-200 bg-white shadow-sm"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onEdit(item);
+                              setOpenMenuFor(null);
+                              setMenuCoords(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onTogglePublish(item);
+                              setOpenMenuFor(null);
+                              setMenuCoords(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                          >
+                            {item.status === "published" ? "Unpublish" : "Publish"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onDelete(item);
+                              setOpenMenuFor(null);
+                              setMenuCoords(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-rose-700 hover:bg-rose-50"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onManageDiscounts(item);
+                              setOpenMenuFor(null);
+                              setMenuCoords(null);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50"
+                          >
+                            Discounts
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onManageTranslations(item);
+                              setOpenMenuFor(null);
+                              setMenuCoords(null);
+                            }}
+                            className="w-full text-left rounded-b px-3 py-2 text-sm text-sky-700 hover:bg-sky-50"
+                          >
+                            Translation
+                          </button>
+                        </div>,
+                        document.body,
+                      )
+                    : null}
                 </div>
               </td>
             </tr>

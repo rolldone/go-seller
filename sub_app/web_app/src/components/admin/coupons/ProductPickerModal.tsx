@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Product } from "../products/types";
 import { listProducts } from "../products/api";
-
-const formatPrice = (value: number) => new Intl.NumberFormat("id-ID", {
-  style: "currency",
-  currency: "IDR",
-  maximumFractionDigits: 0,
-}).format(value);
+import { formatAmount } from "../../../lib/amountFormat";
 
 type Props = {
   open: boolean;
@@ -117,7 +112,7 @@ const ProductPickerModal = ({ open, selectedIds, onChange, onClose }: Props) => 
                   <tr key={product.id} className="border-t border-slate-100">
                     <td className="px-3 py-2 font-mono text-xs text-slate-500">{product.sku}</td>
                     <td className="px-3 py-2 text-slate-700">{product.name}</td>
-                    <td className="px-3 py-2 text-slate-700">{formatPrice(product.price)}</td>
+                    <td className="px-3 py-2 text-slate-700">{formatAmount(product.price, { fractionDigits: 0 })}</td>
                     <td className="px-3 py-2 text-xs text-slate-500">{product.status}</td>
                     <td className="px-3 py-2 text-xs text-slate-500">{product.stock_status}</td>
                     <td className="px-3 py-2">

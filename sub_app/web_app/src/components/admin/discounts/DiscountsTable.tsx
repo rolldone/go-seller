@@ -1,5 +1,6 @@
 import type { Discount } from "./types";
 import { notifyError, notifySuccess } from "../../../lib/notification";
+import { formatAmount } from "../../../lib/amountFormat";
 
 type Props = {
   discounts: Discount[];
@@ -72,9 +73,9 @@ export default function DiscountsTable({ discounts, loading, error, onEdit, onDe
               </td>
               <td className="px-3 py-2 font-semibold text-slate-700">{d.priority}</td>
               <td className="px-3 py-2 text-slate-700">
-                {d.discount_type === "percentage" ? `${d.discount_value}%` : `Rp ${d.discount_value.toLocaleString()}`}
+                {d.discount_type === "percentage" ? `${d.discount_value}%` : formatAmount(d.discount_value, { fractionDigits: 0 })}
                 {d.max_discount_amount ? (
-                  <div className="text-xs text-slate-400">max Rp {d.max_discount_amount.toLocaleString()}</div>
+                  <div className="text-xs text-slate-400">max {formatAmount(d.max_discount_amount, { fractionDigits: 0 })}</div>
                 ) : null}
               </td>
               <td className="px-3 py-2 text-slate-700 text-xs">

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import AdminModal from "../ui/AdminModal";
 import { listProducts } from "../products/api";
 import type { Product } from "../products/types";
+import { formatAmount } from "../../../lib/amountFormat";
 
 type Props = {
   open: boolean;
@@ -11,18 +12,6 @@ type Props = {
   currentProductID?: string;
   onClose: () => void;
   onSelect: (product: Product) => void;
-};
-
-const money = (amount: number) => {
-  try {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0,
-    }).format(amount || 0);
-  } catch {
-    return Number(amount || 0).toLocaleString("id-ID");
-  }
 };
 
 export default function ProductSelectorModal({ open, businessID, businessNameByID, currentProductID, onClose, onSelect }: Props) {
@@ -141,7 +130,7 @@ export default function ProductSelectorModal({ open, businessID, businessNameByI
                         <div className="text-xs text-slate-500">/{item.slug}</div>
                       </td>
                       <td className="px-3 py-2 text-slate-700">{item.business_id ? businessNameByID[item.business_id] || item.business_id : "-"}</td>
-                      <td className="px-3 py-2 text-right font-medium text-slate-900">{money(item.sale_price ?? item.price)}</td>
+                      <td className="px-3 py-2 text-right font-medium text-slate-900">{formatAmount(item.sale_price ?? item.price, { fractionDigits: 0 })}</td>
                       <td className="px-3 py-2 text-slate-700">{item.status}</td>
                       <td className="px-3 py-2 text-right">
                         <button

@@ -9,6 +9,7 @@ import { buildCustomerAuthLoginUrl } from "../../lib/customerAuthRedirect";
 import { getCustomerAuthToken, listMyCustomerAddresses, type CustomerAddress } from "../customer/auth/authApi";
 import { notifyError, notifySuccess } from "../../lib/notification";
 import { buildLocalizedPath } from "../../lib/siteLocale";
+import { formatAmount } from "../../lib/amountFormat";
 import {
   downloadMyOrderInvoice,
   getMyOrderByID,
@@ -119,11 +120,8 @@ function ReviewAttachmentPreviewStrip({ files, onRemove }: { files: File[]; onRe
 }
 
 function toCurrency(value: number, currency = "IDR"): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(Math.max(0, Math.round(value)));
+  const formatted = formatAmount(Math.max(0, Math.round(value)), { fractionDigits: 0 });
+  return currency ? `${currency} ${formatted}` : formatted;
 }
 
 function formatTaxPercent(rate?: number | null): string {

@@ -1,8 +1,9 @@
 /** @jsxRuntime classic */
 import React, { useMemo, useState } from "react";
-import { ShieldCheck, Truck, Store, Info, X, ChevronRight } from "lucide-react";
+import { ShieldCheck, Truck, Store, Info, ChevronRight } from "lucide-react";
 import type { PublicBusinessDisclaimer } from "./types";
 import { useTranslations } from "../../../i18n";
+import PublicModal from "../ui/PublicModal";
 
 type Props = {
   businessName: string;
@@ -44,13 +45,9 @@ export default function BusinessDisclaimerSection({ businessName, locale, discla
       .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
   }, [disclaimers]);
 
-  const closeModal = () => setActiveDisclaimer(null);
+  
 
-  const renderSnippet = (disclaimer: PublicBusinessDisclaimer) => {
-    const plain = String(disclaimer.content_plain || "").trim();
-    const html = String(disclaimer.content_html || "").trim();
-    return plain || (html ? stripHtml(html) : "");
-  };
+  const closeModal = () => setActiveDisclaimer(null);
 
   return (
     <>
@@ -66,7 +63,6 @@ export default function BusinessDisclaimerSection({ businessName, locale, discla
           <div className="grid gap-2">
             {items.map((disclaimer) => {
               const Icon = resolveDisclaimerIcon(disclaimer.icon_key);
-              const snippet = renderSnippet(disclaimer);
 
               return (
                 <button
@@ -78,9 +74,8 @@ export default function BusinessDisclaimerSection({ businessName, locale, discla
                   <div className="flex items-start gap-3">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900">{disclaimer.title || t("untitled", "(Tanpa judul)")}</p>
-                      {snippet ? <p className="mt-1 text-xs text-slate-500 line-clamp-2 whitespace-pre-line">{snippet}</p> : null}
-                    </div>
+                        <p className="text-sm font-semibold text-slate-900">{disclaimer.title || t("untitled", "(Tanpa judul)")}</p>
+                      </div>
                     <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-emerald-600 transition group-hover:translate-x-0.5">
                       {t("detail", "Detail")}
                       <ChevronRight className="h-3.5 w-3.5" />
@@ -100,34 +95,18 @@ export default function BusinessDisclaimerSection({ businessName, locale, discla
       )}
 
       {activeDisclaimer ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 pt-[6vh] sm:items-center sm:pt-4">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 p-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">{t("disclaimerDetail", "Disclaimer Detail")}</p>
-                <h4 className="mt-1 text-lg font-bold text-slate-900">{activeDisclaimer.title || t("importantInfo", "Informasi Penting")}</h4>
-              </div>
-              <button
-                type="button"
-                onClick={closeModal}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-600 transition hover:bg-slate-100"
-                aria-label={t("closeDisclaimer", "Tutup detail disclaimer")}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4 p-5">
-              {String(activeDisclaimer.content_html || "").trim() ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700 [&_a]:text-emerald-600 [&_a]:underline" dangerouslySetInnerHTML={{ __html: String(activeDisclaimer.content_html || "") }} />
-              ) : String(activeDisclaimer.content_plain || "").trim() ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-relaxed text-slate-700 whitespace-pre-line">
-                  {activeDisclaimer.content_plain}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex justify-end border-t border-slate-100 p-4">
+        <PublicModal
+          open={true}
+          title={
+            <>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">{t("disclaimerDetail", "Disclaimer Detail")}</p>
+              <h4 className="mt-1 text-lg font-bold text-slate-900">{activeDisclaimer.title || t("importantInfo", "Informasi Penting")}</h4>
+            </>
+          }
+          onClose={closeModal}
+          maxWidth="xl"
+          footer={
+            <div className="flex justify-end">
               <button
                 type="button"
                 onClick={closeModal}
@@ -136,8 +115,16 @@ export default function BusinessDisclaimerSection({ businessName, locale, discla
                 {t("close", "Tutup")}
               </button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          {String(activeDisclaimer.content_html || "").trim() ? (
+            <div className="text-sm leading-relaxed text-slate-700 [&_a]:text-emerald-600 [&_a]:underline" dangerouslySetInnerHTML={{ __html: String(activeDisclaimer.content_html || "") }} />
+          ) : String(activeDisclaimer.content_plain || "").trim() ? (
+            <div className="text-sm leading-relaxed text-slate-700 whitespace-pre-line">{activeDisclaimer.content_plain}</div>
+          ) : null}
+
+          <div className="mt-4" />
+        </PublicModal>
       ) : null}
     </>
   );

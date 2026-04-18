@@ -63,14 +63,28 @@ function buildFallbackStore(slug: string): PublicBusinessStore {
 
 function normalizeProducts(payload: any) {
   const products = Array.isArray(payload?.products) ? payload.products : [];
-  return products.map((p: any) => ({
-    ...p,
-    title: p?.title || p?.name || "",
-    category: p?.category || "",
-    excerpt: p?.excerpt || "",
-    slug: p?.slug || "",
-    id: p?.id || "",
-  }));
+  return products.map((p: any) => {
+    const gallery = Array.isArray(p?.gallery) ? p.gallery : Array.isArray(p?.assets) ? p.assets : [];
+    const rawDescription = p?.description || p?.description_plain || p?.description_html || p?.long_description || "";
+    const descriptionHtml = p?.description_html || (typeof p?.description === "string" && /<[^>]+>/.test(p.description) ? p.description : null) || null;
+    const descriptionPlain = p?.description_plain || (typeof p?.description === "string" ? p.description.replace(/<[^>]+>/g, "") : undefined) || p?.excerpt || "";
+
+    return {
+      ...p,
+      title: p?.title || p?.name || "",
+      category: p?.category || "",
+      excerpt: p?.excerpt || "",
+      slug: p?.slug || "",
+      id: p?.id || "",
+      price: p?.price ?? p?.original_price ?? p?.price,
+      original_price: p?.original_price ?? p?.originalPrice ?? null,
+      discounted_price: p?.discounted_price ?? p?.discountedPrice ?? null,
+      gallery,
+      description: rawDescription,
+      description_html: descriptionHtml,
+      description_plain: descriptionPlain,
+    };
+  });
 }
 
 function normalizeCarouselItems(items: any): Array<{ id: string; title: string; subtitle?: string; image?: string; href?: string }> {

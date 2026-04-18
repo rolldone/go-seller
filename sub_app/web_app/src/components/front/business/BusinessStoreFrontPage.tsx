@@ -12,6 +12,7 @@ import { getFallbackBusinessStore } from "./mockData";
 import type { CustomerSession } from "../../../lib/customerSession";
 import { buildLocalizedPath } from "../../../lib/siteLocale";
 import { useTranslations } from "../../../i18n";
+import { formatAmount } from "../../../lib/amountFormat";
 
 interface BusinessStoreFrontPageProps {
   store: PublicBusinessStore;
@@ -47,7 +48,7 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
   const featuredProducts = effectiveProducts.slice(0, 6);
   const t = useTranslations("business", locale);
 
-  const formatNumber = (value: number) => new Intl.NumberFormat("id-ID").format(value);
+  const formatNumber = (value: number) => formatAmount(value, { fractionDigits: 0 });
   
   // Filter products by search query for the "Produk" tab
   const filteredProducts = effectiveProducts.filter((p) =>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { listSettings, upsertSetting } from "./api";
 import {
@@ -7,6 +7,12 @@ import {
   type SettingGroup,
 } from "./settingsSchema";
 import type { SettingItem } from "./types";
+import {
+  formatAmount,
+  getPresetAmountFormatSettings,
+  setAmountFormatSettings,
+  type AmountFormatPreset,
+} from "../../../lib/amountFormat";
 
 // ─── value helpers ─────────────────────────────────────────────────────────────
 
@@ -29,6 +35,35 @@ function serialize(field: SettingField, raw: string): unknown {
 }
 
 type FormState = Record<string, string>; // `scope:key` → form string
+
+const AMOUNT_FORMAT_KEY = "global:store.amount_format";
+const AMOUNT_THOUSAND_KEY = "global:store.amount_thousand_separator";
+const AMOUNT_DECIMAL_KEY = "global:store.amount_decimal_separator";
+
+const AMOUNT_FORMAT_OPTIONS: Array<{ value: AmountFormatPreset; label: string; preview: string; description: string }> = [
+  {
+    value: "id",
+    label: "Indonesia",
+    preview: "1.234.567,89",
+    description: "Titik untuk ribuan, koma untuk desimal.",
+  },
+  {
+    value: "us",
+    label: "US",
+    preview: "1,234,567.89",
+    description: "Koma untuk ribuan, titik untuk desimal.",
+  },
+  {
+    value: "custom",
+    label: "Custom",
+    preview: "1 234 567,89",
+    description: "Atur separator sendiri sesuai kebutuhan.",
+  },
+];
+
+function normalizeAmountPreset(value: string | undefined | null): AmountFormatPreset {
+  return value === "us" || value === "custom" ? value : "id";
+}
 
 // ─── component ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +94,11 @@ export default function SettingsFormPage() {
       }
       setFormState(initial);
       setSavedState({ ...initial });
+      setAmountFormatSettings({
+        preset: normalizeAmountPreset(initial[AMOUNT_FORMAT_KEY]),
+        thousandSeparator: initial[AMOUNT_THOUSAND_KEY] || ".",
+        decimalSeparator: initial[AMOUNT_DECIMAL_KEY] || ",",
+      });
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Gagal memuat settings");
     } finally {
@@ -86,6 +126,31 @@ export default function SettingsFormPage() {
       const k = `${f.scope}:${f.key}`;
       return formState[k] !== savedState[k];
     });
+
+  const syncAmountFormatCache = (state: FormState) => {
+    const preset = normalizeAmountPreset(state[AMOUNT_FORMAT_KEY]);
+    setAmountFormatSettings({
+      preset,
+      thousandSeparator: state[AMOUNT_THOUSAND_KEY] || getPresetAmountFormatSettings(preset).thousandSeparator,
+      decimalSeparator: state[AMOUNT_DECIMAL_KEY] || getPresetAmountFormatSettings(preset).decimalSeparator,
+    });
+  };
+
+  const setAmountFormatPreset = (preset: AmountFormatPreset) => {
+    const presetSettings = getPresetAmountFormatSettings(preset);
+    setFormState((prev) => ({
+      ...prev,
+      [AMOUNT_FORMAT_KEY]: preset,
+      [AMOUNT_THOUSAND_KEY]:
+        preset === "custom"
+          ? prev[AMOUNT_THOUSAND_KEY] || presetSettings.thousandSeparator
+          : presetSettings.thousandSeparator,
+      [AMOUNT_DECIMAL_KEY]:
+        preset === "custom"
+          ? prev[AMOUNT_DECIMAL_KEY] || presetSettings.decimalSeparator
+          : presetSettings.decimalSeparator,
+    }));
+  };
 
   const resetGroup = (group: SettingGroup) => {
     const reset: FormState = {};
@@ -118,6 +183,9 @@ export default function SettingsFormPage() {
         saved[k] = formState[k] ?? "";
       }
       setSavedState((prev) => ({ ...prev, ...saved }));
+      if (group.id === "store") {
+        syncAmountFormatCache(formState);
+      }
       notifySuccess("Settings tersimpan");
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Gagal menyimpan settings");
@@ -131,8 +199,113 @@ export default function SettingsFormPage() {
   const inputClass =
     "w-full rounded border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400";
 
-  const renderField = (field: SettingField) => {
+  const renderField = (field: SettingField): ReactNode => {
+    if (field.key === "store.amount_thousand_separator" || field.key === "store.amount_decimal_separator") {
+      return null;
+    }
+
     const value = getField(field);
+
+    if (field.key === "store.amount_format") {
+      const thousandField = currentGroup.fields.find((item) => item.key === "store.amount_thousand_separator");
+      const decimalField = currentGroup.fields.find((item) => item.key === "store.amount_decimal_separator");
+      const thousandSeparator = thousandField ? getField(thousandField) || "." : ".";
+      const decimalSeparator = decimalField ? getField(decimalField) || "," : ",";
+      const preset = (value as AmountFormatPreset) || "id";
+      const previewSettings =
+        preset === "custom"
+          ? {
+              preset,
+              thousandSeparator,
+              decimalSeparator,
+            }
+          : getPresetAmountFormatSettings(preset);
+
+      return (
+        <div key={field.key} className="sm:col-span-2 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-700">{field.label}</span>
+            {field.description && <span className="text-xs text-slate-500">{field.description}</span>}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {AMOUNT_FORMAT_OPTIONS.map((option) => {
+              const active = preset === option.value;
+              const cardPreview =
+                option.value === "custom"
+                  ? formatAmount(1234567.89, { fractionDigits: 2, settings: previewSettings })
+                  : option.preview;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setAmountFormatPreset(option.value)}
+                  className={`rounded-2xl border p-4 text-left transition ${
+                    active
+                      ? "border-slate-900 bg-white shadow-sm ring-2 ring-slate-900/10"
+                      : "border-slate-200 bg-white hover:border-slate-300"
+                  }`}
+                  aria-pressed={active}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">{option.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{option.description}</div>
+                    </div>
+                    <div
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                        active ? "border-slate-900 bg-slate-900" : "border-slate-300 bg-white"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {active ? <span className="h-2.5 w-2.5 rounded-full bg-white" /> : null}
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">Preview</div>
+                    <div className="mt-1 text-base font-semibold text-slate-900">{cardPreview}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {preset === "custom" ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-slate-700">Separator Ribuan</span>
+                <input
+                  className={inputClass}
+                  value={thousandSeparator}
+                  onChange={(e) => {
+                    setField(field, "custom");
+                    if (thousandField) setField(thousandField, e.target.value);
+                  }}
+                  placeholder="."
+                />
+              </label>
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium text-slate-700">Separator Desimal</span>
+                <input
+                  className={inputClass}
+                  value={decimalSeparator}
+                  onChange={(e) => {
+                    setField(field, "custom");
+                    if (decimalField) setField(decimalField, e.target.value);
+                  }}
+                  placeholder="," 
+                />
+              </label>
+            </div>
+          ) : null}
+
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            Contoh tampilan: <span className="font-semibold text-slate-900">{formatAmount(1234567.89, { fractionDigits: 2, settings: previewSettings })}</span>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div key={field.key} className="flex flex-col gap-1">

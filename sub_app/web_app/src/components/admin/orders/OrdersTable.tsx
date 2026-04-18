@@ -1,4 +1,5 @@
 import type { Order } from "./types";
+import { formatAmount } from "../../../lib/amountFormat";
 
 type Props = {
   items: Order[];
@@ -17,9 +18,9 @@ const fmt = (v?: string | null) => {
 const money = (currency: string, amount: number) => {
   const c = currency || "USD";
   try {
-    return new Intl.NumberFormat("id-ID", { style: "currency", currency: c, maximumFractionDigits: 2 }).format(amount || 0);
+    return `${c} ${formatAmount(amount || 0, { fractionDigits: 2 })}`;
   } catch {
-    return `${c} ${Number(amount || 0).toFixed(2)}`;
+    return `${c} ${formatAmount(amount || 0, { fractionDigits: 2 })}`;
   }
 };
 

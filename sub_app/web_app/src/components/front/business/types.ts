@@ -88,6 +88,11 @@ export interface PublicBusinessProduct {
   applied_discount_ids?: string[] | null;
   excerpt: string;
 
+  // full description fields (may be HTML or plain text)
+  description?: string | null;
+  description_html?: string | null;
+  description_plain?: string | null;
+
   // gallery assets provided by backend (ordered, is_main preferred)
   gallery?: PublicProductAsset[] | null;
 }

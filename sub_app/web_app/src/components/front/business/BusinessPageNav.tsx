@@ -7,6 +7,7 @@ import { getCustomerAuthToken, getCustomerProfile } from "../../customer/auth/au
 import { getCartPreview, type CartPreview } from "../../../lib/cartApi";
 import { buildLocalizedPath, getLocaleFromPathname } from "../../../lib/siteLocale";
 import { useTranslations } from "../../../i18n";
+import { formatAmount } from "../../../lib/amountFormat";
 
 interface BusinessPageNavProps {
   business: PublicBusiness;
@@ -143,7 +144,7 @@ export default function BusinessPageNav({ business, customerSession = null, cart
                   <div className="text-right text-xs text-slate-500">
                     {tBusiness("total", "Total")}
                     <div className="text-sm font-semibold text-slate-900">
-                      {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Math.max(0, Math.round(preview.grand_total)))}
+                      {formatAmount(Math.max(0, Math.round(preview.grand_total)), { fractionDigits: 0 })}
                     </div>
                   </div>
                 ) : null}
@@ -158,7 +159,7 @@ export default function BusinessPageNav({ business, customerSession = null, cart
                         <div className="text-xs text-slate-500">{tBusiness("quantityShort", "Qty")} {item.qty}</div>
                       </div>
                       <div className="text-xs font-semibold text-slate-700">
-                        {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Math.max(0, Math.round(item.net_total || item.line_total || 0)))}
+                        {formatAmount(Math.max(0, Math.round(item.net_total || item.line_total || 0)), { fractionDigits: 0 })}
                       </div>
                     </div>
                   ))

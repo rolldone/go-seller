@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import EntityDeleteModal from "../entities/EntityDeleteModal";
-import EntityFormModal from "../entities/EntityFormModal";
-import type { EntityField } from "../entities/types";
+import CategoryFormModal from "./CategoryFormModal";
 
 type Category = {
   id: string;
@@ -14,26 +13,88 @@ type Category = {
   sort_priority: number;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 };
 
-const fields: EntityField[] = [
-  { key: "name", label: "Name", type: "text", required: true },
-  { key: "slug", label: "Slug", type: "text" },
-  { key: "icon_url", label: "Icon URL", type: "text" },
-  { key: "sort_priority", label: "Sort Priority", type: "number" },
-];
+type ParentOption = {
+  value: string;
+  label: string;
+};
+
+const ROOT_KEY = "__root__";
+
+const sortCategories = (items: Category[]) =>
+  [...items].sort((a, b) => {
+    if (a.sort_priority !== b.sort_priority) return a.sort_priority - b.sort_priority;
+    return a.name.localeCompare(b.name);
+  });
+
+const collectDescendants = (items: Category[], rootID: string) => {
+  const childrenByParent = new Map<string, Category[]>();
+  for (const item of items) {
+    const key = item.parent_id || ROOT_KEY;
+    const next = childrenByParent.get(key) || [];
+    next.push(item);
+    childrenByParent.set(key, next);
+  }
+
+  const excluded = new Set<string>([rootID]);
+  const stack = [rootID];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) continue;
+    for (const child of childrenByParent.get(current) || []) {
+      if (excluded.has(child.id)) continue;
+      excluded.add(child.id);
+      stack.push(child.id);
+    }
+  }
+
+  return excluded;
+};
+
+const buildParentOptions = (items: Category[], excludeIDs: Set<string>) => {
+  const childrenByParent = new Map<string, Category[]>();
+  for (const item of items) {
+    if (excludeIDs.has(item.id)) continue;
+    const key = item.parent_id || ROOT_KEY;
+    const next = childrenByParent.get(key) || [];
+    next.push(item);
+    childrenByParent.set(key, next);
+  }
+
+  for (const [key, list] of childrenByParent.entries()) {
+    childrenByParent.set(key, sortCategories(list));
+  }
+
+  const options: ParentOption[] = [{ value: "", label: "Root category" }];
+  const visit = (parentKey: string, trail: string[]) => {
+    for (const item of childrenByParent.get(parentKey) || []) {
+      const label = trail.length > 0 ? `${trail.join(" / ")} / ${item.name}` : item.name;
+      options.push({ value: item.id, label });
+      visit(item.id, [...trail, item.name]);
+    }
+  };
+
+  visit(ROOT_KEY, []);
+  return options;
+};
 
 export default function CategoriesPage() {
   const [items, setItems] = useState<Category[]>([]);
   const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [parentOptionsLoading, setParentOptionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [busyCategoryId, setBusyCategoryId] = useState<string | null>(null);
 
   const [page, setPage] = useState<number>(1);
   const [limit, setLimit] = useState<number>(20);
   const [parentID, setParentID] = useState<string>("");
   const [breadcrumbs, setBreadcrumbs] = useState<Category[]>([]);
+  const [withDeleted, setWithDeleted] = useState(false);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
@@ -63,10 +124,14 @@ export default function CategoriesPage() {
     setLoading(true);
     setError(null);
     try {
-      const path = parentID
-        ? `/admin/catalog/categories?page=${page}&limit=${limit}&parent_id=${encodeURIComponent(parentID)}`
-        : `/admin/catalog/categories?page=${page}&limit=${limit}&parent_id=`;
-      const res = await adminGet<{ data: Category[]; total: number }>(path);
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(limit));
+      params.set("parent_id", parentID);
+      if (withDeleted) {
+        params.set("with_deleted", "true");
+      }
+      const res = await adminGet<{ data: Category[]; total: number }>(`/admin/catalog/categories?${params.toString()}`);
       setItems(res.data || []);
       setTotal(res.total || 0);
     } catch (err) {
@@ -74,6 +139,31 @@ export default function CategoriesPage() {
       setError(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadParentOptions = async () => {
+    setParentOptionsLoading(true);
+    try {
+      const collected: Category[] = [];
+      let currentPage = 1;
+      let totalCount = Number.POSITIVE_INFINITY;
+
+      while (collected.length < totalCount && currentPage <= 50) {
+        const res = await adminGet<{ data: Category[]; total: number }>(`/admin/catalog/categories?page=${currentPage}&limit=100`);
+        const batch = res.data || [];
+        collected.push(...batch);
+        totalCount = res.total || 0;
+        if (batch.length === 0) break;
+        currentPage += 1;
+      }
+
+      setAllCategories(collected);
+    } catch (err) {
+      console.error("Failed to load category parents", err);
+      setAllCategories([]);
+    } finally {
+      setParentOptionsLoading(false);
     }
   };
 
@@ -103,21 +193,32 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     loadData();
-  }, [page, limit, parentID]);
+  }, [page, limit, parentID, withDeleted]);
 
   useEffect(() => {
     loadBreadcrumbs();
   }, [parentID]);
 
+  useEffect(() => {
+    loadParentOptions();
+  }, []);
+
   const initialValues = useMemo(
     () => ({
       name: selected?.name || "",
       slug: selected?.slug || "",
+      parent_id: selected?.parent_id || parentID || "",
       icon_url: selected?.icon_url || "",
       sort_priority: selected?.sort_priority ?? 0,
     }),
-    [selected],
+    [selected, parentID],
   );
+
+  const parentOptions = useMemo(() => {
+    const activeCategories = allCategories.filter((item) => !item.deleted_at);
+    const excludedIDs = selected ? collectDescendants(activeCategories, selected.id) : new Set<string>();
+    return buildParentOptions(activeCategories, excludedIDs);
+  }, [allCategories, selected]);
 
   const activeParentName = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1].name : "Root";
 
@@ -136,10 +237,11 @@ export default function CategoriesPage() {
   const handleSave = async (values: Record<string, unknown>) => {
     setSubmitting(true);
     try {
+      const parentValue = String(values.parent_id || "").trim();
       const payload = {
         name: String(values.name || "").trim(),
         slug: String(values.slug || "").trim(),
-        parent_id: formMode === "create" ? parentID || undefined : selected?.parent_id || undefined,
+        parent_id: parentValue || undefined,
         icon_url: String(values.icon_url || "").trim() || undefined,
         sort_priority: Number(values.sort_priority || 0),
       };
@@ -154,6 +256,7 @@ export default function CategoriesPage() {
 
       setFormOpen(false);
       setSelected(null);
+      await loadParentOptions();
       await loadData();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save category";
@@ -166,6 +269,21 @@ export default function CategoriesPage() {
   const handleDelete = (item: Category) => {
     setSelected(item);
     setDeleteOpen(true);
+  };
+
+  const handleRestore = async (item: Category) => {
+    setBusyCategoryId(item.id);
+    try {
+      await adminPost(`/admin/catalog/categories/${item.id}/restore`);
+      notifySuccess("Category restored");
+      await loadParentOptions();
+      await loadData();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to restore category";
+      notifyError(message);
+    } finally {
+      setBusyCategoryId(null);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -191,6 +309,7 @@ export default function CategoriesPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
+  const showingDeleted = withDeleted;
 
   return (
     <div className="space-y-4">
@@ -198,6 +317,17 @@ export default function CategoriesPage() {
         <div>
           <h3 className="text-base font-semibold text-slate-900">Categories</h3>
           <p className="text-sm text-slate-600">Kelola kategori produk per level parent (gaya PrestaShop).</p>
+          <label className="mt-2 inline-flex items-center gap-2 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={withDeleted}
+              onChange={(e) => {
+                setPage(1);
+                setWithDeleted(e.target.checked);
+              }}
+            />
+            Show deleted categories
+          </label>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
             <button
               type="button"
@@ -243,6 +373,7 @@ export default function CategoriesPage() {
 
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
         Active level: <span className="font-medium text-slate-900">{activeParentName}</span>
+        {showingDeleted ? <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 font-medium text-amber-800">Including deleted</span> : null}
       </div>
 
       {loading ? <div className="text-sm text-slate-500">Loading...</div> : null}
@@ -256,6 +387,7 @@ export default function CategoriesPage() {
               <tr>
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Slug</th>
+                <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Priority</th>
                 <th className="px-3 py-2">Updated</th>
                 <th className="px-3 py-2">Actions</th>
@@ -263,9 +395,16 @@ export default function CategoriesPage() {
             </thead>
             <tbody>
               {items.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100">
+                <tr key={item.id} className={`border-t border-slate-100 ${item.deleted_at ? "bg-slate-50 text-slate-500" : ""}`}>
                   <td className="px-3 py-2 text-slate-900">{item.name}</td>
                   <td className="px-3 py-2 text-slate-800">{item.slug || "-"}</td>
+                  <td className="px-3 py-2">
+                    {item.deleted_at ? (
+                      <span className="rounded-full bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700">Deleted</span>
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Active</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-slate-800">{item.sort_priority}</td>
                   <td className="px-3 py-2 text-slate-800">{new Date(item.updated_at).toLocaleString()}</td>
                   <td className="px-3 py-2">
@@ -273,20 +412,34 @@ export default function CategoriesPage() {
                       <button
                         type="button"
                         onClick={() => navigateToParent(item.id)}
-                        className="rounded bg-indigo-100 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-200"
+                        className="rounded bg-indigo-100 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-200 disabled:opacity-50"
+                        disabled={Boolean(item.deleted_at)}
                       >
                         Subcategories
                       </button>
-                      <button type="button" onClick={() => handleEdit(item)} className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(item)}
-                        className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
-                      >
-                        Delete
-                      </button>
+                      {!item.deleted_at ? (
+                        <>
+                          <button type="button" onClick={() => handleEdit(item)} className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">
+                            Edit / Move
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(item)}
+                            className="rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleRestore(item)}
+                          disabled={busyCategoryId === item.id}
+                          className="rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-200 disabled:opacity-50"
+                        >
+                          {busyCategoryId === item.id ? "Restoring..." : "Restore"}
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -335,13 +488,13 @@ export default function CategoriesPage() {
         </div>
       </div>
 
-      <EntityFormModal
+      <CategoryFormModal
         open={formOpen}
         mode={formMode}
-        title="Category"
-        fields={fields}
         initialValues={initialValues}
         item={selected}
+        parentOptions={parentOptions}
+        parentOptionsLoading={parentOptionsLoading}
         submitting={submitting}
         onClose={() => {
           setFormOpen(false);

@@ -22,6 +22,7 @@ import { buildLocalizedPath } from "../../lib/siteLocale";
 import { notifyError, notifySuccess } from "../../lib/notification";
 import type { CustomerSession } from "../../lib/customerSession";
 import { getMyCartBusinesses, type CartBusinessSummary } from "../../lib/cartApi";
+import { formatAmount } from "../../lib/amountFormat";
 import {
   customerUser,
   customerStats,
@@ -64,11 +65,7 @@ interface CustomerDashboardProps {
 
 function formatIDR(amount: number): string {
   if (!Number.isFinite(amount)) return "Rp 0";
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return `Rp ${formatAmount(amount, { fractionDigits: 0 })}`;
 }
 
 export default function CustomerDashboard({ initialTab = "orders", customerSession = null }: CustomerDashboardProps) {

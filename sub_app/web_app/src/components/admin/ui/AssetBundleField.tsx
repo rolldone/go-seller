@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 
@@ -48,6 +48,7 @@ type Props = {
   usageConfig: AssetRulesConfig;
   usageTag: string;
   onUsageTagChange: (value: string) => void;
+  enforceCrop?: boolean;
   selectedFiles: UploadFile[];
   onSelectedFilesChange: (files: UploadFile[]) => void;
   existingAssets?: ExistingAsset[];
@@ -147,10 +148,6 @@ export async function validateFilesAgainstUsageConfig(
     }
 
     const img = await loadImageFromFile(uploadFile.file);
-    if (img.width < rule.minWidth || img.height < rule.minHeight) {
-      return `${uploadFile.file.name}: minimal ${rule.minWidth}x${rule.minHeight}px (sekarang ${img.width}x${img.height}px)`;
-    }
-
     if (rule.aspectRatio) {
       const actual = img.width / img.height;
       const tolerance = 0.02;
@@ -168,6 +165,7 @@ export default function AssetBundleField({
   usageConfig,
   usageTag,
   onUsageTagChange,
+  enforceCrop = false,
   selectedFiles,
   onSelectedFilesChange,
   existingAssets = [],
@@ -188,7 +186,10 @@ export default function AssetBundleField({
   onCopyExistingLink,
   onDuplicateExisting,
 }: Props) {
-  const [cropFile, setCropFile] = useState<UploadFile | null>(null);
+  type CropMode = "add" | "edit";
+  type CropContext = { file: UploadFile; mode: CropMode };
+
+  const [cropContext, setCropContext] = useState<CropContext | null>(null);
   const [cropImageURL, setCropImageURL] = useState("");
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -197,11 +198,17 @@ export default function AssetBundleField({
   const [cropError, setCropError] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const pendingCropQueueRef = useRef<UploadFile[]>([]);
+  const pendingCroppedFilesRef = useRef<UploadFile[]>([]);
 
   const usageTagOptions = useMemo(() => Object.keys(usageConfig.rules), [usageConfig.rules]);
   const activeUsageRule = usageTag ? usageConfig.rules[usageTag] : undefined;
 
-  const handleFilesAdded = (files: UploadFile[]) => {
+  const appendSelectedFiles = (files: UploadFile[]) => {
+    if (files.length === 0) {
+      return;
+    }
+
     const combined = [...selectedFiles, ...files];
     if (!combined.some((f) => f.isMain) && combined.length > 0) {
       combined[0].isMain = true;
@@ -220,6 +227,79 @@ export default function AssetBundleField({
 
   const handleSetMainFile = (id: string) => {
     onSelectedFilesChange(selectedFiles.map((f) => ({ ...f, isMain: f.id === id })));
+  };
+
+  const isCropRequired = (uploadFile: UploadFile) => {
+    if (!enforceCrop || !activeUsageRule?.aspectRatio) {
+      return false;
+    }
+
+    return uploadFile.file.type.startsWith("image/");
+  };
+
+  const revokeCropImageURL = () => {
+    if (cropImageURL) {
+      URL.revokeObjectURL(cropImageURL);
+    }
+  };
+
+  const clearPendingCropQueue = () => {
+    pendingCropQueueRef.current = [];
+    pendingCroppedFilesRef.current = [];
+  };
+
+  const openCropper = (uploadFile: UploadFile, mode: CropMode) => {
+    revokeCropImageURL();
+    setCropError("");
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setCroppedAreaPixels(null);
+    setCropContext({ file: uploadFile, mode });
+    setCropImageURL(URL.createObjectURL(uploadFile.file));
+  };
+
+  const commitQueuedFiles = () => {
+    if (pendingCroppedFilesRef.current.length === 0) {
+      return;
+    }
+
+    const queuedFiles = pendingCroppedFilesRef.current;
+    pendingCroppedFilesRef.current = [];
+    appendSelectedFiles(queuedFiles);
+  };
+
+  const drainCropQueue = () => {
+    while (pendingCropQueueRef.current.length > 0) {
+      const nextFile = pendingCropQueueRef.current[0];
+
+      if (isCropRequired(nextFile)) {
+        openCropper(nextFile, "add");
+        return;
+      }
+
+      pendingCroppedFilesRef.current.push(nextFile);
+      pendingCropQueueRef.current.shift();
+    }
+
+    commitQueuedFiles();
+  };
+
+  const queueFilesForStrictCrop = (files: UploadFile[]) => {
+    pendingCropQueueRef.current = [...pendingCropQueueRef.current, ...files];
+    drainCropQueue();
+  };
+
+  const handleFilesAdded = (files: UploadFile[]) => {
+    if (files.length === 0) {
+      return;
+    }
+
+    if (enforceCrop && activeUsageRule?.aspectRatio) {
+      queueFilesForStrictCrop(files);
+      return;
+    }
+
+    appendSelectedFiles(files);
   };
 
   const filteredExistingAssets = existingAssets.filter((asset) => {
@@ -247,33 +327,23 @@ export default function AssetBundleField({
     }),
   ] as const);
 
-  const openCropper = (uploadFile: UploadFile) => {
-    if (!uploadFile.file.type.startsWith("image/")) {
-      return;
-    }
-    setCropError("");
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setCroppedAreaPixels(null);
-    setCropFile(uploadFile);
-    setCropImageURL(URL.createObjectURL(uploadFile.file));
-  };
-
-  const closeCropper = () => {
-    if (cropImageURL) {
-      URL.revokeObjectURL(cropImageURL);
-    }
+  const closeCropper = (abortQueue = false) => {
+    revokeCropImageURL();
     setCropImageURL("");
-    setCropFile(null);
+    setCropContext(null);
     setCropError("");
     setCropSaving(false);
     setCroppedAreaPixels(null);
     setCrop({ x: 0, y: 0 });
     setZoom(1);
+
+    if (abortQueue) {
+      clearPendingCropQueue();
+    }
   };
 
   const applyCrop = async () => {
-    if (!cropFile || !croppedAreaPixels) {
+    if (!cropContext || !croppedAreaPixels) {
       setCropError("Area crop belum dipilih");
       return;
     }
@@ -282,20 +352,38 @@ export default function AssetBundleField({
     setCropError("");
     try {
       const croppedFile = await createCroppedFile(
-        cropFile.file,
+        cropContext.file.file,
         croppedAreaPixels,
         activeUsageRule?.targetWidth,
         activeUsageRule?.targetHeight
       );
       const previewURL = URL.createObjectURL(croppedFile);
-      onSelectedFilesChange(
-        selectedFiles.map((f) => (f.id === cropFile.id ? { ...f, file: croppedFile, preview: previewURL } : f))
-      );
-      closeCropper();
+      const nextUploadFile = { ...cropContext.file, file: croppedFile, preview: previewURL };
+
+      if (cropContext.mode === "edit") {
+        onSelectedFilesChange(selectedFiles.map((f) => (f.id === cropContext.file.id ? nextUploadFile : f)));
+      } else {
+        pendingCroppedFilesRef.current.push(nextUploadFile);
+        pendingCropQueueRef.current.shift();
+      }
+
+      closeCropper(false);
+
+      if (cropContext.mode === "add") {
+        drainCropQueue();
+      }
     } catch (err) {
       setCropError(err instanceof Error ? err.message : "Gagal crop gambar");
       setCropSaving(false);
     }
+  };
+
+  const openManualCropper = (uploadFile: UploadFile) => {
+    if (!uploadFile.file.type.startsWith("image/")) {
+      return;
+    }
+
+    openCropper(uploadFile, "edit");
   };
 
   return (
@@ -552,18 +640,18 @@ export default function AssetBundleField({
       </div>
 
       <FileUploadDropzone onFilesAdded={handleFilesAdded} maxFiles={maxFiles} maxSizeMB={maxSizeMB} accept={accept} />
-      <FilePreviewGrid files={selectedFiles} onRemove={handleRemoveFile} onSetMain={handleSetMainFile} onEditFile={openCropper} editLabel="Crop" />
+      <FilePreviewGrid files={selectedFiles} onRemove={handleRemoveFile} onSetMain={handleSetMainFile} onEditFile={openManualCropper} editLabel="Crop" />
 
       <AdminModal
-        open={Boolean(cropFile)}
+        open={Boolean(cropContext)}
         title="Crop Image"
-        onClose={closeCropper}
+        onClose={() => closeCropper(true)}
         maxWidth="lg"
         footer={
           <>
             <button
               type="button"
-              onClick={closeCropper}
+              onClick={() => closeCropper(true)}
               className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
               disabled={cropSaving}
             >
@@ -584,6 +672,7 @@ export default function AssetBundleField({
           {activeUsageRule ? (
             <p className="rounded border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
               {activeUsageRule.helper}
+              {enforceCrop && activeUsageRule.aspectRatio ? " Cropping wajib sebelum file masuk ke daftar upload." : ""}
             </p>
           ) : null}
           <div className="relative h-[380px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-900">

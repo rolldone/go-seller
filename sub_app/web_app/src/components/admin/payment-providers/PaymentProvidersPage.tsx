@@ -3,6 +3,7 @@ import { notifyError } from "../../../lib/notification";
 import { getPaymentReconciliationReport, listPaymentProviders } from "./api";
 import type { PaymentProvider, PaymentReconciliationItem, PaymentReconciliationSummary } from "./types";
 import PaymentProviderModal, { PROVIDER_OPTIONS } from "./PaymentProviderForm";
+import { formatAmount } from "../../../lib/amountFormat";
 
 export default function PaymentProvidersPage() {
   const [items, setItems] = useState<PaymentProvider[]>([]);
@@ -212,7 +213,7 @@ export default function PaymentProvidersPage() {
                     <td className="px-2 py-2">{row.provider_key || "-"}</td>
                     <td className="px-2 py-2">{row.status}</td>
                     <td className="px-2 py-2">{row.order_payment_status}</td>
-                    <td className="px-2 py-2 text-right">{row.amount.toLocaleString("id-ID")} {row.currency}</td>
+                    <td className="px-2 py-2 text-right">{formatAmount(row.amount, { fractionDigits: 0 })} {row.currency}</td>
                     <td className="px-2 py-2">{row.is_mismatch ? "Yes" : "No"}</td>
                   </tr>
                 ))}

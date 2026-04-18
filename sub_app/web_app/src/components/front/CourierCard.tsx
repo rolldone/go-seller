@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useTranslations } from "../../i18n";
+import { formatAmount } from "../../lib/amountFormat";
 
 type Props = {
   shippingQuote?: Record<string, any> | null;
@@ -10,11 +11,8 @@ type Props = {
 
 function toCurrency(value: number, currency = "IDR"): string {
   try {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 0,
-    }).format(Math.max(0, Math.round(value)));
+    const formatted = formatAmount(Math.max(0, Math.round(value)), { fractionDigits: 0 });
+    return currency ? `${currency} ${formatted}` : formatted;
   } catch {
     return String(value);
   }

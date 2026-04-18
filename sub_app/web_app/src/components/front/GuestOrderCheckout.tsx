@@ -3,6 +3,7 @@ import CourierCard from "./CourierCard";
 import type { CustomerAddress } from "../customer/auth/authApi";
 import { notifyError, notifySuccess } from "../../lib/notification";
 import { useTranslations } from "../../i18n";
+import { formatAmount } from "../../lib/amountFormat";
 
 type OrderItem = {
   id: string;
@@ -732,14 +733,14 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
                           {formatTaxMode(item.tax_type, item.tax_rate)}
                         </span>
                         <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                          {t("tax", "Pajak")} {item.tax_amount.toLocaleString("id-ID")}
+                          {t("tax", "Pajak")} {formatAmount(item.tax_amount, { fractionDigits: 0 })}
                         </span>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right text-slate-700">{item.qty}</td>
-                    <td className="px-3 py-2 text-right text-slate-700">{item.unit_price.toLocaleString("id-ID")}</td>
-                    <td className="px-3 py-2 text-right text-slate-700">{item.tax_amount.toLocaleString("id-ID")}</td>
-                    <td className="px-3 py-2 text-right font-medium text-slate-900">{item.line_total.toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right text-slate-700">{formatAmount(item.unit_price, { fractionDigits: 0 })}</td>
+                    <td className="px-3 py-2 text-right text-slate-700">{formatAmount(item.tax_amount, { fractionDigits: 0 })}</td>
+                    <td className="px-3 py-2 text-right font-medium text-slate-900">{formatAmount(item.line_total, { fractionDigits: 0 })}</td>
                   </tr>
                 ))}
               </tbody>
@@ -751,26 +752,26 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-900">{t("guestOrder.summary", "Ringkasan")}</h2>
         <div className="mt-3 space-y-1 text-sm">
-          <div className="flex justify-between"><span className="text-slate-600">{t("subtotal", "Subtotal")}</span><span>{order.subtotal.toLocaleString("id-ID")}</span></div>
-          <div className="flex justify-between"><span className="text-slate-600">{t("discount", "Diskon")}</span><span>-{order.discount_amount.toLocaleString("id-ID")}</span></div>
-          <div className="flex justify-between"><span className="text-slate-600">{t("tax", "Pajak")}</span><span>{order.tax_amount.toLocaleString("id-ID")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("subtotal", "Subtotal")}</span><span>{formatAmount(order.subtotal, { fractionDigits: 0 })}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("discount", "Diskon")}</span><span>-{formatAmount(order.discount_amount, { fractionDigits: 0 })}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("tax", "Pajak")}</span><span>{formatAmount(order.tax_amount, { fractionDigits: 0 })}</span></div>
           {taxBreakdown.length > 0 ? (
             <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
               {taxBreakdown.map((group) => (
                 <div key={`${group.taxType}-${group.taxRate}`} className="flex items-center justify-between gap-3">
                   <span className="text-slate-500">{t("tax", "Pajak")} {formatTaxMode(group.taxType, group.taxRate)}</span>
-                  <span className="font-medium text-slate-800">{group.amount.toLocaleString("id-ID")}</span>
+                  <span className="font-medium text-slate-800">{formatAmount(group.amount, { fractionDigits: 0 })}</span>
                 </div>
               ))}
             </div>
           ) : null}
-          <div className="flex justify-between"><span className="text-slate-600">{t("guestOrder.shipping", "Ongkir")}</span><span>{order.shipping_amount.toLocaleString("id-ID")}</span></div>
+          <div className="flex justify-between"><span className="text-slate-600">{t("guestOrder.shipping", "Ongkir")}</span><span>{formatAmount(order.shipping_amount, { fractionDigits: 0 })}</span></div>
           {shippingQuote ? (
             <CourierCard shippingQuote={shippingQuote} fallbackAmount={order.shipping_amount} currency={order.currency} />
           ) : null}
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
             <span>{t("totalLabel", "Total")}</span>
-            <span>{order.grand_total.toLocaleString("id-ID")} {order.currency}</span>
+            <span>{formatAmount(order.grand_total, { fractionDigits: 0 })} {order.currency}</span>
           </div>
         </div>
       </section>

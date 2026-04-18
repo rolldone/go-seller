@@ -10,6 +10,7 @@ import { rememberCustomerAuthNextPath } from "../../../lib/customerAuthRedirect"
 import { getProductReviewStats } from "../../../lib/orderApi";
 import { buildLocalizedPath } from "../../../lib/siteLocale";
 import { useTranslations } from "../../../i18n";
+import { formatAmount } from "../../../lib/amountFormat";
 import type { PublicBusinessProduct, PublicBusinessStore } from "./types";
 import type { CustomerSession } from "../../../lib/customerSession";
 
@@ -101,11 +102,7 @@ function toNumber(price?: string | number | null): number {
 }
 
 function toCurrency(value: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Math.max(0, Math.round(value)));
+  return formatAmount(Math.max(0, Math.round(value)), { fractionDigits: 0 });
 }
 
 function parseMetadata(value: unknown): Record<string, any> | null {
@@ -489,7 +486,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
 
             <div className="grid gap-8 lg:grid-cols-2">
               <div className="min-w-0">
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-slate-100 md:aspect-[16/9]">
+                <div className="relative w-full overflow-hidden rounded-2xl bg-slate-100">
                   {noVariationFound ? (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-amber-50 text-amber-900">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-amber-700" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -515,7 +512,7 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                     <img
                       src={mediaSet[activeImage]?.url}
                       alt={product.title}
-                      className="h-full w-full object-cover"
+                      className="block h-auto w-full max-h-[75vh] object-contain"
                       loading="eager"
                     />
                   ) : (
@@ -574,6 +571,31 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
+
+              <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-slate-900">{t("shortSpecs", "Spesifikasi Singkat")}</h3>
+                </div>
+
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">{t("category", "Kategori")}</span>
+                    <span className="font-semibold text-slate-800">{product.category}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">{t("merchant", "Merchant")}</span>
+                    <span className="font-semibold text-slate-800">{store.business.name}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">{t("storeRating", "Rating Toko")}</span>
+                    <span className="font-semibold text-slate-800">{businessRating}/5</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">{t("sold", "Terjual")}</span>
+                    <span className="font-semibold text-slate-800">{businessSoldLabel}</span>
+                  </div>
+                </div>
+              </section>
 
               </div>
 
@@ -715,40 +737,23 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
           <BusinessStoreHeader business={store.business} locale={locale} />
         </div>
 
-          <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <section className="grid gap-6">
             <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-bold text-slate-900">{t("productDescription", "Deskripsi Produk")}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    {product.excerpt} {t("productDescriptionExtra", "Paket ini dirancang untuk membantu kamu mendapatkan workflow yang lebih terstruktur dengan insight praktis dan eksekusi cepat.")}
-                  </p>
-                  <ul className="mt-4 list-disc space-y-2 pl-5 text-sm text-slate-600">
-                    <li>{t("productPoint1", "Update rutin mengikuti trend terbaru.")}</li>
-                    <li>{t("productPoint2", "Template siap pakai agar implementasi lebih cepat.")}</li>
-                    <li>{t("productPoint3", "Cocok untuk pemula maupun tim yang sudah berjalan.")}</li>
-                  </ul>
+              <div className="mt-3 text-sm leading-relaxed text-slate-600">
+                {product.description_html ? (
+                  <div dangerouslySetInnerHTML={{ __html: product.description_html }} />
+                ) : product.description_plain ? (
+                  <p>{product.description_plain}</p>
+                ) : product.description ? (
+                  <p>{product.description}</p>
+                ) : (
+                  <p>{product.excerpt}</p>
+                )}
+              </div>
             </article>
 
-            <aside className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-900">{t("shortSpecs", "Spesifikasi Singkat")}</h3>
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">{t("category", "Kategori")}</span>
-                      <span className="font-semibold text-slate-800">{product.category}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">{t("merchant", "Merchant")}</span>
-                      <span className="font-semibold text-slate-800">{store.business.name}</span>
-                </div>
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <span className="text-slate-500">{t("storeRating", "Rating Toko")}</span>
-                      <span className="font-semibold text-slate-800">{businessRating}/5</span>
-                </div>
-                <div className="flex items-center justify-between">
-                      <span className="text-slate-500">{t("sold", "Terjual")}</span>
-                      <span className="font-semibold text-slate-800">{businessSoldLabel}</span>
-                </div>
-              </div>
-            </aside>
+            
           </section>
 
           <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">

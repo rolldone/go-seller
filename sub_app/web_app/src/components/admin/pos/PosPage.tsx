@@ -5,6 +5,7 @@ import { adminDelete, adminGet, adminPost, adminPatch } from "../entities/adminA
 import ProductSelectorModal from "./ProductSelectorModal";
 import type { AppliedCoupon, Order } from "../orders/types";
 import DiscountSelector from "../discounts/DiscountSelector";
+import { formatAmount } from "../../../lib/amountFormat";
 
 type CustomerOption = {
   id: string;
@@ -481,15 +482,15 @@ export default function PosPage() {
                       ) : null}
                     </td>
                     <td className="px-3 py-2 text-right text-slate-700">{line.qty}</td>
-                    <td className="px-3 py-2 text-right text-slate-700">{line.unit_price.toLocaleString("id-ID")}</td>
-                    <td className="px-3 py-2 text-right text-rose-600">{line.discount_amount > 0 ? `-${line.discount_amount.toLocaleString("id-ID")}` : "-"}</td>
+                    <td className="px-3 py-2 text-right text-slate-700">{formatAmount(line.unit_price, { fractionDigits: 0 })}</td>
+                    <td className="px-3 py-2 text-right text-rose-600">{line.discount_amount > 0 ? `-${formatAmount(line.discount_amount, { fractionDigits: 0 })}` : "-"}</td>
                     <td className="px-3 py-2 text-right text-slate-500">
-                      <div>{line.tax_amount > 0 ? line.tax_amount.toLocaleString("id-ID") : "-"}</div>
+                      <div>{line.tax_amount > 0 ? formatAmount(line.tax_amount, { fractionDigits: 0 }) : "-"}</div>
                       <div className="mt-1 text-[11px] text-slate-400">
                         {line.tax_amount > 0 ? formatTaxMode(line.tax_type, line.tax_rate) : "-"}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right font-medium text-slate-900">{line.line_total.toLocaleString("id-ID")}</td>
+                    <td className="px-3 py-2 text-right font-medium text-slate-900">{formatAmount(line.line_total, { fractionDigits: 0 })}</td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex justify-end gap-2">
                         <button
@@ -570,32 +571,32 @@ export default function PosPage() {
         <div className="mt-4 border-t border-slate-200 pt-4 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-600">
             <span>Subtotal</span>
-            <span>{subtotal.toLocaleString("id-ID")}</span>
+            <span>{formatAmount(subtotal, { fractionDigits: 0 })}</span>
           </div>
           {(draftOrder?.applied_coupons ?? []).length > 0
             ? (draftOrder!.applied_coupons as AppliedCoupon[]).map((ac) => (
                 <div key={ac.code} className="flex justify-between text-sm text-rose-600">
                   <span className="uppercase">{ac.code} <span className="normal-case text-rose-400 text-xs capitalize">({ac.category})</span></span>
-                  <span>-{ac.discount_amount.toLocaleString("id-ID")}</span>
+                  <span>-{formatAmount(ac.discount_amount, { fractionDigits: 0 })}</span>
                 </div>
               ))
             : discountAmount > 0 && (
                 <div className="flex justify-between text-sm text-rose-600">
                   <span>Diskon</span>
-                  <span>-{discountAmount.toLocaleString("id-ID")}</span>
+                  <span>-{formatAmount(discountAmount, { fractionDigits: 0 })}</span>
                 </div>
               )}
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="flex justify-between text-sm text-slate-600">
               <span>Tax</span>
-              <span>{taxAmount.toLocaleString("id-ID")}</span>
+              <span>{formatAmount(taxAmount, { fractionDigits: 0 })}</span>
             </div>
             {taxBreakdown.length > 0 ? (
               <div className="mt-2 space-y-1 border-t border-slate-200 pt-2 text-xs text-slate-600">
                 {taxBreakdown.map((group) => (
                   <div key={`${group.taxType}-${group.taxRate}`} className="flex justify-between gap-3">
                     <span className="capitalize text-slate-500">Tax {formatTaxMode(group.taxType, group.taxRate)}</span>
-                    <span className="font-medium text-slate-800">{group.amount.toLocaleString("id-ID")}</span>
+                    <span className="font-medium text-slate-800">{formatAmount(group.amount, { fractionDigits: 0 })}</span>
                   </div>
                 ))}
               </div>
@@ -608,12 +609,12 @@ export default function PosPage() {
           {shippingAmount > 0 && (
             <div className="flex justify-between text-sm text-slate-600">
               <span>Shipping</span>
-              <span>{shippingAmount.toLocaleString("id-ID")}</span>
+              <span>{formatAmount(shippingAmount, { fractionDigits: 0 })}</span>
             </div>
           )}
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
             <span>Total</span>
-            <span>{grandTotal.toLocaleString("id-ID")}</span>
+            <span>{formatAmount(grandTotal, { fractionDigits: 0 })}</span>
           </div>
         </div>
 

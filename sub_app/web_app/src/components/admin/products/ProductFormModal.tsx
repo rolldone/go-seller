@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { NumericFormat } from "react-number-format";
 
 import AdminModal from "../ui/AdminModal";
 import type { UploadFile } from "../ui/FileUploadDropzone";
@@ -7,6 +8,7 @@ import RichTextEditor, { type RichTextValue } from "../ui/RichTextEditor";
 import type { Product, ProductPayload } from "./types";
 import { adminDelete, adminGet, adminPut } from "../entities/adminApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
+import { getAmountFormatSettings } from "../../../lib/amountFormat";
 
 type Props = {
   open: boolean;
@@ -54,10 +56,12 @@ type ExistingAsset = {
   usage_tag?: string;
 };
 
-type CategoryOption = {
+type Category = {
   id: string;
+  parent_id?: string | null;
   name: string;
   slug: string;
+  deleted_at?: string | null;
 };
 
 type TagOption = {
@@ -102,7 +106,7 @@ const productAssetUsageConfig: AssetRulesConfig = {
   rules: {
     thumbnail: {
       label: "Thumbnail",
-      helper: "Rasio 1:1. Minimal 600x600 px. Ideal untuk card/listing.",
+      helper: "Crop rasio 1:1. Hasil upload mengikuti proporsi ini untuk card/listing.",
       minWidth: 600,
       minHeight: 600,
       aspectRatio: 1,
@@ -111,13 +115,13 @@ const productAssetUsageConfig: AssetRulesConfig = {
     },
     gallery: {
       label: "Gallery",
-      helper: "Fleksibel. Minimal 1200x1200 px direkomendasikan untuk kualitas feed.",
+      helper: "Fleksibel. Tidak ada crop wajib; gunakan untuk gambar yang bebas rasio.",
       minWidth: 1200,
       minHeight: 1200,
     },
     social_1_1: {
       label: "Social 1:1",
-      helper: "Rasio 1:1. Minimal 1080x1080 px.",
+      helper: "Crop rasio 1:1. Hasil upload mengikuti proporsi ini.",
       minWidth: 1080,
       minHeight: 1080,
       aspectRatio: 1,
@@ -126,7 +130,7 @@ const productAssetUsageConfig: AssetRulesConfig = {
     },
     social_4_5: {
       label: "Social 4:5",
-      helper: "Rasio 4:5. Minimal 1080x1350 px untuk feed portrait.",
+      helper: "Crop rasio 4:5. Hasil upload mengikuti proporsi ini untuk feed portrait.",
       minWidth: 1080,
       minHeight: 1350,
       aspectRatio: 4 / 5,
@@ -135,7 +139,7 @@ const productAssetUsageConfig: AssetRulesConfig = {
     },
     header: {
       label: "Header",
-      helper: "Rasio 16:5. Minimal 1920x600 px untuk area judul halaman.",
+      helper: "Crop rasio 16:5. Hasil upload mengikuti proporsi ini untuk area judul halaman.",
       minWidth: 1920,
       minHeight: 600,
       aspectRatio: 16 / 5,
@@ -144,7 +148,7 @@ const productAssetUsageConfig: AssetRulesConfig = {
     },
     desktop_banner: {
       label: "Desktop Banner",
-      helper: "Rasio 3:1. Minimal 1920x640 px untuk banner desktop.",
+      helper: "Crop rasio 3:1. Hasil upload mengikuti proporsi ini untuk banner desktop.",
       minWidth: 1920,
       minHeight: 640,
       aspectRatio: 3,
@@ -155,6 +159,7 @@ const productAssetUsageConfig: AssetRulesConfig = {
 };
 
 export default function ProductFormModal({ open, mode, initialData, submitting, onClose, onSubmit }: Props) {
+  const amountFormatSettings = getAmountFormatSettings();
   const [form, setForm] = useState<FormState>(defaultForm);
   const [error, setError] = useState<string>("");
   const [selectedFiles, setSelectedFiles] = useState<UploadFile[]>([]);
@@ -163,7 +168,15 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [existingAssets, setExistingAssets] = useState<ExistingAsset[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
-  const [categories, setCategories] = useState<CategoryOption[]>([]);
+
+  // categories drill-down state
+  const [categories, setCategories] = useState<Category[]>([]); // current level
+  const [parentID, setParentID] = useState<string>("");
+  const [breadcrumbs, setBreadcrumbs] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<Record<string, string[]>>({});
+
   const [selectedCategoryIDs, setSelectedCategoryIDs] = useState<string[]>([]);
   const [tags, setTags] = useState<TagOption[]>([]);
   const [selectedTagIDs, setSelectedTagIDs] = useState<string[]>([]);
@@ -175,6 +188,98 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     plain: "",
     blocks: { type: "doc", content: [] },
   });
+
+  // Helper: load children for a parent (lazy)
+  const loadChildren = async (pid: string) => {
+    setLoadingCategories(true);
+    setCategories([]);
+    setCategoriesError(null);
+    try {
+      const params = new URLSearchParams();
+      params.set("page", "1");
+      params.set("limit", "200");
+      params.set("parent_id", pid);
+      const res = await adminGet<{ data: Category[]; total?: number }>(`/admin/catalog/categories?${params.toString()}`);
+      setCategories(res.data || []);
+    } catch (err) {
+      console.error("Failed to load categories", err);
+      setCategoriesError(err instanceof Error ? err.message : "Failed to load categories");
+      setCategories([]);
+    } finally {
+      setLoadingCategories(false);
+    }
+  };
+
+  const loadBreadcrumbs = async (pid: string) => {
+    if (!pid) {
+      setBreadcrumbs([]);
+      return;
+    }
+
+    try {
+      const chain: Category[] = [];
+      let currentID: string | null = pid;
+      let guard = 0;
+      while (currentID && guard < 20) {
+        guard += 1;
+        const current: Category = await adminGet<Category>(`/admin/catalog/categories/${currentID}`);
+        chain.unshift(current);
+        currentID = current.parent_id || null;
+      }
+      setBreadcrumbs(chain);
+    } catch {
+      setBreadcrumbs([]);
+    }
+  };
+
+  const fetchPathForCategory = async (id: string) => {
+    try {
+      const chain: string[] = [];
+      let current: Category = await adminGet<Category>(`/admin/catalog/categories/${id}`);
+      chain.unshift(current.name);
+      let parent = current.parent_id || null;
+      let guard = 0;
+      while (parent && guard < 20) {
+        guard += 1;
+        const p = await adminGet<Category>(`/admin/catalog/categories/${parent}`);
+        chain.unshift(p.name);
+        parent = p.parent_id || null;
+      }
+      setSelectedPaths((prev) => ({ ...prev, [id]: chain }));
+    } catch (err) {
+      setSelectedPaths((prev) => ({ ...prev, [id]: [id] }));
+    }
+  };
+
+  const fetchPathsForSelected = async (ids: string[]) => {
+    for (const id of ids) {
+      if (!id) continue;
+      if (selectedPaths[id]) continue;
+      fetchPathForCategory(id);
+    }
+  };
+
+  const toggleCategory = (id: string, item?: Category) => {
+    setSelectedCategoryIDs((prev) => {
+      if (prev.includes(id)) {
+        setSelectedPaths((p) => {
+          const copy = { ...p };
+          delete copy[id];
+          return copy;
+        });
+        return prev.filter((v) => v !== id);
+      }
+
+      if (item) {
+        const path = [...breadcrumbs.map((b) => b.name), item.name].filter(Boolean);
+        setSelectedPaths((p) => ({ ...p, [id]: path }));
+      } else {
+        fetchPathForCategory(id);
+      }
+
+      return [...prev, id];
+    });
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -204,7 +309,11 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
         dimensions_width: typeof initialData.dimensions_width === "number" ? String(initialData.dimensions_width) : "",
         dimensions_height: typeof initialData.dimensions_height === "number" ? String(initialData.dimensions_height) : "",
       });
+
       setSelectedCategoryIDs(initialData.category_ids || []);
+      // preload selected category paths
+      fetchPathsForSelected(initialData.category_ids || []);
+
       setSelectedTagIDs(initialData.tag_ids || []);
       setDescriptionValue({
         html: initialData.description_html || initialData.description || "",
@@ -246,11 +355,9 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
 
     (async () => {
       try {
-        const res = await adminGet<{ data: CategoryOption[] }>(`/admin/catalog/categories?page=1&limit=200`);
-        setCategories(res.data || []);
+        await loadChildren("");
       } catch (err) {
-        console.error("Failed to load categories", err);
-        setCategories([]);
+        console.error(err);
       }
     })();
 
@@ -275,9 +382,11 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     })();
   }, [open, mode, initialData]);
 
-  const toggleCategory = (id: string) => {
-    setSelectedCategoryIDs((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
-  };
+  // reload children & breadcrumbs when parent changes
+  useEffect(() => {
+    loadChildren(parentID);
+    loadBreadcrumbs(parentID);
+  }, [parentID]);
 
   const toggleTag = (id: string) => {
     setSelectedTagIDs((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
@@ -291,6 +400,19 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
 
   const setField = (key: keyof FormState, value: string | boolean) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toSlug = (input: string) => {
+    if (!input) return "";
+    return input
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/[\s_]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
   };
 
   const refreshExistingAssets = async (productID: string) => {
@@ -492,7 +614,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
 
         <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
           <h4 className="mb-3 text-sm font-semibold text-slate-900">Informasi Dasar</h4>
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-3 grid-cols-1">
             <label className="text-sm">
               <span className={labelClass}>SKU</span>
               <input className={inputClass} value={form.sku} onChange={(e) => setField("sku", e.target.value)} />
@@ -503,7 +625,16 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
             </label>
             <label className="text-sm">
               <span className={labelClass}>Slug</span>
-              <input className={inputClass} value={form.slug} onChange={(e) => setField("slug", e.target.value)} />
+              <div className="flex gap-2">
+                <input className={`${inputClass} flex-1`} value={form.slug} onChange={(e) => setField("slug", e.target.value)} />
+                <button
+                  type="button"
+                  onClick={() => setField("slug", toSlug(form.name || ""))}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+                >
+                  Generate
+                </button>
+              </div>
             </label>
             <label className="text-sm">
               <span className={labelClass}>Business</span>
@@ -518,11 +649,33 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
             </label>
             <label className="text-sm">
               <span className={labelClass}>Price</span>
-              <input type="number" min="0" className={inputClass} value={form.price} onChange={(e) => setField("price", e.target.value)} />
+              <NumericFormat
+                value={form.price}
+                valueIsNumericString
+                onValueChange={(values) => setField("price", values.value)}
+                thousandSeparator={amountFormatSettings.thousandSeparator}
+                decimalSeparator={amountFormatSettings.decimalSeparator}
+                decimalScale={0}
+                allowNegative={false}
+                inputMode="numeric"
+                className={inputClass}
+                placeholder="0"
+              />
             </label>
             <label className="text-sm">
               <span className={labelClass}>Sale Price</span>
-              <input type="number" min="0" className={inputClass} value={form.sale_price} onChange={(e) => setField("sale_price", e.target.value)} />
+              <NumericFormat
+                value={form.sale_price}
+                valueIsNumericString
+                onValueChange={(values) => setField("sale_price", values.value)}
+                thousandSeparator={amountFormatSettings.thousandSeparator}
+                decimalSeparator={amountFormatSettings.decimalSeparator}
+                decimalScale={0}
+                allowNegative={false}
+                inputMode="numeric"
+                className={inputClass}
+                placeholder="0"
+              />
             </label>
             <label className="text-sm">
               <span className={labelClass}>Status</span>
@@ -547,7 +700,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
                 <option value="digital">Digital</option>
               </select>
             </label>
-            <label className="text-sm md:col-span-2">
+            <label className="text-sm">
               <span className={labelClass}>Short Description</span>
               <textarea className={textareaClass} rows={2} value={form.short_description} onChange={(e) => setField("short_description", e.target.value)} />
             </label>
@@ -555,104 +708,96 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-          <h4 className="mb-3 text-sm font-semibold text-slate-900">Shipping Data</h4>
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-            <label className="text-sm">
-              <span className={labelClass}>Weight (kg)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.001"
-                className={inputClass}
-                value={form.weight}
-                onChange={(e) => setField("weight", e.target.value)}
-              />
-            </label>
-            <label className="text-sm">
-              <span className={labelClass}>Length (cm)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className={inputClass}
-                value={form.dimensions_length}
-                onChange={(e) => setField("dimensions_length", e.target.value)}
-              />
-            </label>
-            <label className="text-sm">
-              <span className={labelClass}>Width (cm)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className={inputClass}
-                value={form.dimensions_width}
-                onChange={(e) => setField("dimensions_width", e.target.value)}
-              />
-            </label>
-            <label className="text-sm">
-              <span className={labelClass}>Height (cm)</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className={inputClass}
-                value={form.dimensions_height}
-                onChange={(e) => setField("dimensions_height", e.target.value)}
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">Used as fallback shipping data for products without variations.</p>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
           <h4 className="mb-3 text-sm font-semibold text-slate-900">Klasifikasi</h4>
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+          <div className="grid gap-3 grid-cols-1">
             <div className="text-sm">
               <span className={labelClass}>Categories</span>
-              {categories.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">No categories available</div>
-              ) : (
-                <div className="max-h-36 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-                  {categories.map((cat) => (
-                    <label key={cat.id} className="flex items-center gap-2 text-sm text-slate-700">
-                      <input type="checkbox" checked={selectedCategoryIDs.includes(cat.id)} onChange={() => toggleCategory(cat.id)} />
-                      <span>{cat.name}</span>
-                      <span className="text-xs text-slate-500">({cat.slug})</span>
-                    </label>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                <button
+                  type="button"
+                  className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200"
+                  onClick={() => setParentID("")}
+                >
+                  Categories
+                </button>
+                {breadcrumbs.map((crumb) => (
+                  <button
+                    key={crumb.id}
+                    type="button"
+                    className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200"
+                    onClick={() => setParentID(crumb.id)}
+                  >
+                    / {crumb.name}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3 max-h-48 overflow-y-auto">
+                {loadingCategories ? (
+                  <div className="text-sm text-slate-500">Loading...</div>
+                ) : categories.length === 0 ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">No categories available</div>
+                ) : (
+                  categories.map((cat) => (
+                    <div key={cat.id} className="flex items-center justify-between py-1">
+                      <label className="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" checked={selectedCategoryIDs.includes(cat.id)} onChange={() => toggleCategory(cat.id, cat)} />
+                        <span>{cat.name}</span>
+                        <span className="text-xs text-slate-500">({cat.slug})</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setParentID(cat.id)}
+                        className="rounded bg-indigo-100 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-200 disabled:opacity-50"
+                        disabled={Boolean(cat.deleted_at)}
+                      >
+                        Subcategories
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {selectedCategoryIDs.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {selectedCategoryIDs.map((id) => (
+                    <div key={id} className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm">
+                      <span>{(selectedPaths[id] || [id]).join(" > ")}</span>
+                      <button type="button" onClick={() => toggleCategory(id)} className="ml-2 text-xs text-rose-600">
+                        &times;
+                      </button>
+                    </div>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
 
             <div className="text-sm">
               <span className={labelClass}>Tags</span>
-              {tags.length === 0 ? (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">No tags available</div>
-              ) : (
-                <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-3">
-                  <input
-                    type="text"
-                    className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
-                    placeholder="Search tags..."
-                    value={tagSearch}
-                    onChange={(e) => setTagSearch(e.target.value)}
-                  />
-                  <div className="max-h-32 space-y-2 overflow-y-auto">
-                    {filteredTags.map((tag) => (
-                      <label key={tag.id} className="flex items-center gap-2 text-sm text-slate-700">
-                        <input type="checkbox" checked={selectedTagIDs.includes(tag.id)} onChange={() => toggleTag(tag.id)} />
-                        <span>{tag.name}</span>
-                        <span className="text-xs text-slate-500">({tag.slug})</span>
-                      </label>
-                    ))}
-                    {filteredTags.length === 0 ? <div className="text-xs text-slate-500">Tidak ada tag yang cocok.</div> : null}
-                  </div>
+              <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3">
+                <input
+                  type="text"
+                  className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                  placeholder="Search tags..."
+                  value={tagSearch}
+                  onChange={(e) => setTagSearch(e.target.value)}
+                />
+                <div className="max-h-40 mt-2 space-y-2 overflow-y-auto">
+                  {filteredTags.map((tag) => (
+                    <label key={tag.id} className="flex items-center gap-2 text-sm text-slate-700">
+                      <input type="checkbox" checked={selectedTagIDs.includes(tag.id)} onChange={() => toggleTag(tag.id)} />
+                      <span>{tag.name}</span>
+                      <span className="text-xs text-slate-500">({tag.slug})</span>
+                    </label>
+                  ))}
+                  {filteredTags.length === 0 ? <div className="text-xs text-slate-500">Tidak ada tag yang cocok.</div> : null}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         </section>
+        
 
         {showAdvancedSections ? (
           <>
@@ -661,6 +806,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
               usageConfig={productAssetUsageConfig}
               usageTag={usageTag}
               onUsageTagChange={setUsageTag}
+              enforceCrop
               selectedFiles={selectedFiles}
               onSelectedFilesChange={setSelectedFiles}
               existingAssets={existingAssets}
@@ -703,8 +849,8 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
                             ...(typeof patch.usage_tag !== "undefined" ? { usage_tag: patch.usage_tag } : {}),
                             ...(typeof patch.display_order !== "undefined" ? { display_order: patch.display_order } : {}),
                           }
-                        : it
-                    )
+                        : it,
+                    ),
                   );
                   notifySuccess(typeof patch.display_order !== "undefined" ? "Order updated" : "Tag updated");
                 } catch (err) {

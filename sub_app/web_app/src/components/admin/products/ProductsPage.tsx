@@ -65,6 +65,7 @@ export default function ProductsPage() {
   const [translationProduct, setTranslationProduct] = useState<Product | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -140,6 +141,26 @@ export default function ProductsPage() {
   useEffect(() => {
     loadData();
   }, [page, limit, q, status, stockStatus, businessID, categoryID, tagID, productType, visible]);
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [businessID, categoryID, tagID, productType, q, status, stockStatus, visible, limit]);
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((v) => v !== id) : [...current, id]));
+  };
+
+  const toggleCurrentPageSelection = () => {
+    const currentPageIds = items.map((it) => it.id);
+    setSelectedIds((current) => {
+      if (currentPageIds.length > 0 && currentPageIds.every((id) => current.includes(id))) {
+        return current.filter((id) => !currentPageIds.includes(id));
+      }
+      const next = new Set(current);
+      for (const id of currentPageIds) next.add(id);
+      return Array.from(next);
+    });
+  };
 
   useEffect(() => {
     (async () => {
@@ -292,175 +313,246 @@ export default function ProductsPage() {
     setTagID(id);
   };
 
+  const selectedBusinessLabel = businessID ? businessNameByID[businessID] || businessID : "All businesses";
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h3 className="text-base font-semibold text-slate-900">Products</h3>
           <p className="text-sm text-slate-600">Kelola data products dari API catalog admin.</p>
         </div>
-        <button
-          type="button"
-          onClick={handleCreate}
-          className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          + New Product
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">
+            Target: <span className="font-semibold text-slate-900">{selectedBusinessLabel}</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCreate}
+            className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            + New Product
+          </button>
+        </div>
       </div>
 
-      <div className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-9">
-        <input
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          placeholder="Search q"
-          value={q}
-          onChange={(e) => {
-            setPage(1);
-            setQ(e.target.value);
-          }}
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="grid flex-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Search</span>
+              <input
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                placeholder="Search q"
+                value={q}
+                onChange={(e) => {
+                  setPage(1);
+                  setQ(e.target.value);
+                }}
+              />
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Status</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={status}
+                onChange={(e) => {
+                  setPage(1);
+                  setStatus(e.target.value);
+                }}
+              >
+                <option value="">All status</option>
+                <option value="draft">draft</option>
+                <option value="published">published</option>
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Stock</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={stockStatus}
+                onChange={(e) => {
+                  setPage(1);
+                  setStockStatus(e.target.value);
+                }}
+              >
+                <option value="">All stock</option>
+                <option value="instock">instock</option>
+                <option value="outofstock">outofstock</option>
+                <option value="backorder">backorder</option>
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Business</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={businessID}
+                onChange={(e) => {
+                  setPage(1);
+                  setBusinessID(e.target.value);
+                }}
+              >
+                <option value="">All businesses</option>
+                {businesses.map((business) => (
+                  <option key={business.id} value={business.id}>
+                    {business.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Category</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={categoryID}
+                onChange={(e) => {
+                  setPage(1);
+                  setCategoryID(e.target.value);
+                }}
+              >
+                <option value="">All categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Type</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={productType}
+                onChange={(e) => {
+                  setPage(1);
+                  setProductType(e.target.value);
+                }}
+              >
+                <option value="">All types</option>
+                <option value="product">Product</option>
+                <option value="service">Service</option>
+                <option value="digital">Digital</option>
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Tag</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={tagID}
+                onChange={(e) => {
+                  setPage(1);
+                  setTagID(e.target.value);
+                }}
+              >
+                <option value="">All tags</option>
+                {tags.map((tag) => (
+                  <option key={tag.id} value={tag.id}>
+                    {tag.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Visibility</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={visible}
+                onChange={(e) => {
+                  setPage(1);
+                  setVisible(e.target.value as "" | "true" | "false");
+                }}
+              >
+                <option value="">All visibility</option>
+                <option value="true">Visible</option>
+                <option value="false">Hidden</option>
+              </select>
+            </label>
+
+            <label className="space-y-2 text-sm">
+              <span className="font-medium text-slate-700">Per halaman</span>
+              <select
+                className="w-full rounded-lg border border-slate-300 px-3 py-2"
+                value={limit}
+                onChange={(e) => {
+                  setPage(1);
+                  setLimit(Number(e.target.value));
+                }}
+              >
+                <option value={10}>10 / page</option>
+                <option value={20}>20 / page</option>
+                <option value={50}>50 / page</option>
+              </select>
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setPage(1);
+              setQ("");
+              setStatus("");
+              setStockStatus("");
+              setBusinessID("");
+              setCategoryID("");
+              setTagID("");
+              setProductType("");
+              setVisible("");
+            }}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Reset Filters
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-900">Product list</h4>
+            <p className="text-xs text-slate-500">Total {total} product untuk filter aktif saat ini.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Dipilih: {selectedIds.length}</span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              disabled={selectedIds.length === 0}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              Clear selection
+            </button>
+            {loading ? <span className="text-xs text-slate-500">Loading...</span> : null}
+          </div>
+        </div>
+
+        <ProductsTable
+          products={items}
+          businessNameByID={businessNameByID}
+          categoryNameByID={categoryNameByID}
+          tagNameByID={tagNameByID}
+          activeCategoryID={categoryID}
+          activeTagID={tagID}
+          onCategoryClick={handleCategoryBadgeClick}
+          onTagClick={handleTagBadgeClick}
+          loading={loading}
+          error={error}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onTogglePublish={handleTogglePublish}
+          onManageDiscounts={handleManageDiscounts}
+          onManageTranslations={handleManageTranslations}
+          selectedIds={selectedIds}
+          onToggleSelection={toggleSelection}
+          onToggleCurrentPageSelection={toggleCurrentPageSelection}
         />
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={status}
-          onChange={(e) => {
-            setPage(1);
-            setStatus(e.target.value);
-          }}
-        >
-          <option value="">All status</option>
-          <option value="draft">draft</option>
-          <option value="published">published</option>
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={stockStatus}
-          onChange={(e) => {
-            setPage(1);
-            setStockStatus(e.target.value);
-          }}
-        >
-          <option value="">All stock</option>
-          <option value="instock">instock</option>
-          <option value="outofstock">outofstock</option>
-          <option value="backorder">backorder</option>
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={businessID}
-          onChange={(e) => {
-            setPage(1);
-            setBusinessID(e.target.value);
-          }}
-        >
-          <option value="">All businesses</option>
-          {businesses.map((business) => (
-            <option key={business.id} value={business.id}>
-              {business.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={categoryID}
-          onChange={(e) => {
-            setPage(1);
-            setCategoryID(e.target.value);
-          }}
-        >
-          <option value="">All categories</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={productType}
-          onChange={(e) => {
-            setPage(1);
-            setProductType(e.target.value);
-          }}
-        >
-          <option value="">All types</option>
-          <option value="product">Product</option>
-          <option value="service">Service</option>
-          <option value="digital">Digital</option>
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={tagID}
-          onChange={(e) => {
-            setPage(1);
-            setTagID(e.target.value);
-          }}
-        >
-          <option value="">All tags</option>
-          {tags.map((tag) => (
-            <option key={tag.id} value={tag.id}>
-              {tag.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={visible}
-          onChange={(e) => {
-            setPage(1);
-            setVisible(e.target.value as "" | "true" | "false");
-          }}
-        >
-          <option value="">All visibility</option>
-          <option value="true">Visible</option>
-          <option value="false">Hidden</option>
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
-          value={limit}
-          onChange={(e) => {
-            setPage(1);
-            setLimit(Number(e.target.value));
-          }}
-        >
-          <option value={10}>10 / page</option>
-          <option value={20}>20 / page</option>
-          <option value={50}>50 / page</option>
-        </select>
-        <button
-          type="button"
-          onClick={() => {
-            setPage(1);
-            setQ("");
-            setStatus("");
-            setStockStatus("");
-            setBusinessID("");
-            setCategoryID("");
-            setTagID("");
-            setProductType("");
-            setVisible("");
-          }}
-          className="rounded bg-slate-100 px-2 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200"
-        >
-          Reset
-        </button>
       </div>
-
-      <ProductsTable
-        products={items}
-        businessNameByID={businessNameByID}
-        categoryNameByID={categoryNameByID}
-        tagNameByID={tagNameByID}
-        activeCategoryID={categoryID}
-        activeTagID={tagID}
-        onCategoryClick={handleCategoryBadgeClick}
-        onTagClick={handleTagBadgeClick}
-        loading={loading}
-        error={error}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onTogglePublish={handleTogglePublish}
-        onManageDiscounts={handleManageDiscounts}
-        onManageTranslations={handleManageTranslations}
-      />
 
       <div className="flex items-center justify-between text-sm text-slate-600">
         <div>

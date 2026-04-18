@@ -4,6 +4,7 @@ import { Search } from "lucide-react";
 import type { PublicBusinessProduct } from "../types";
 import { buildLocalizedPath } from "../../../../lib/siteLocale";
 import { useTranslations } from "../../../../i18n";
+import { formatAmount } from "../../../../lib/amountFormat";
 
 interface BusinessProductTabProps {
   businessSlug: string;
@@ -29,15 +30,14 @@ export default function BusinessProductTab({
   error,
 }: BusinessProductTabProps) {
   const t = useTranslations("business", locale);
-  const currency = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
   const formatPrice = (p?: number | string | null) => {
     if (p === null || p === undefined) return "-";
-    if (typeof p === "number") return currency.format(p);
+    if (typeof p === "number") return formatAmount(p, { fractionDigits: 0 });
     // try parse numeric string
     const cleaned = String(p).replace(/[^0-9.-]+/g, "");
     const n = Number(cleaned);
-    return Number.isFinite(n) ? currency.format(n) : String(p);
+    return Number.isFinite(n) ? formatAmount(n, { fractionDigits: 0 }) : String(p);
   };
 
   const renderSkeletonGrid = () => (

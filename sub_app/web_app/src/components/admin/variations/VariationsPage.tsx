@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import AdminModal from "../ui/AdminModal";
+import { formatAmount } from "../../../lib/amountFormat";
 
 type Product = {
   id: string;
@@ -511,7 +512,7 @@ export default function VariationsPage() {
                 <tr key={item.id} className="border-t border-slate-100">
                   <td className="px-3 py-2 font-medium text-slate-900">{item.sku}</td>
                   <td className="px-3 py-2 text-slate-700">{productMap.get(item.product_id)?.name || item.product_id}</td>
-                  <td className="px-3 py-2 text-slate-700">{Number(item.price || 0).toLocaleString("id-ID")}</td>
+                  <td className="px-3 py-2 text-slate-700">{formatAmount(Number(item.price || 0), { fractionDigits: 0 })}</td>
                   <td className="px-3 py-2 text-slate-700">
                     <div className="flex flex-wrap gap-1">
                       {(item.attributes || []).map((attribute) => {

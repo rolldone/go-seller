@@ -20,13 +20,10 @@ import {
 import type { CustomerSession } from "../../lib/customerSession";
 import type { PublicBusiness } from "./business/types";
 import { useTranslations } from "../../i18n";
+import { formatAmount } from "../../lib/amountFormat";
 
 function toCurrency(value: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Math.max(0, Math.round(value)));
+  return formatAmount(Math.max(0, Math.round(value)), { fractionDigits: 0 });
 }
 
 function formatTaxPercent(rate?: number | null): string {
