@@ -23,6 +23,6 @@ const t = useTranslations("common", locale);
 		<CustomerSessionBootstrap session={customerSession} />
 	</head>
 	<body class="bg-[#f7f7f5] text-slate-900 antialiased">
-		<StoreFrontHome customerSession={customerSession} locale={locale} />
+		<StoreFrontHome client:load customerSession={customerSession} locale={locale} />
 	</body>
 </html>

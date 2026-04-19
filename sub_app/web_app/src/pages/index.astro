@@ -17,6 +17,6 @@ const customerSession = Astro.locals.customerSession ?? null;
 		<CustomerSessionBootstrap session={customerSession} />
 	</head>
 	<body class="bg-[#f7f7f5] text-slate-900 antialiased">
-		<StoreFrontHome customerSession={customerSession} />
+		<StoreFrontHome client:load customerSession={customerSession} />
 	</body>
 </html>

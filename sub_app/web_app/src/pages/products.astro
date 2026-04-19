@@ -1,0 +1,19 @@
+---
+import "../styles/front.css";
+import StoreFrontProducts from "../components/front/StoreFrontProducts";
+import CustomerSessionBootstrap from "../components/customer/CustomerSessionBootstrap.astro";
+
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Cari Produk | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <StoreFrontProducts client:only="react" customerSession={customerSession} />
+  </body>
+</html>
