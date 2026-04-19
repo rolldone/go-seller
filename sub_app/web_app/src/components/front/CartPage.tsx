@@ -329,16 +329,21 @@ export default function CartPage({ customerSession = null, business = null, loca
                 return (
                 <article key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                    <div className="flex h-24 w-full items-center justify-center overflow-hidden rounded-xl bg-slate-100 sm:w-36">
+                    <div className="flex w-24 h-24 items-center justify-center self-start overflow-hidden rounded-xl bg-slate-100 sm:w-36 sm:h-36">
                       {item.image_url ? (
-                        <img src={item.image_url} alt={item.product_name || t("product", "Produk")} className="h-full w-full object-cover" loading="lazy" />
+                        <img
+                          src={item.image_url}
+                          alt={item.product_name || t("product", "Produk")}
+                          className="h-full w-full object-contain object-center"
+                          loading="lazy"
+                        />
                       ) : (
                         <span className="text-xs font-medium text-slate-400">{t("noImage", "No image")}</span>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-base font-semibold text-slate-900">{item.product_name || t("product", "Produk")}</h3>
+                      <h3 className="whitespace-normal break-words text-base font-semibold text-slate-900">{item.product_name || t("product", "Produk")}</h3>
                       <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500">
                         <Store className="h-3.5 w-3.5" />
                         {item.business_name || displayMerchant}
