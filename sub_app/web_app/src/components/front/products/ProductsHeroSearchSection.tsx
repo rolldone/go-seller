@@ -57,7 +57,7 @@ export default function ProductsHeroSearchSection({
           <input
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
-            placeholder="Cari toko..."
+            placeholder="Cari toko / produk..."
             className="h-11 w-full rounded-lg border border-slate-200 pl-9 pr-3 text-sm text-slate-700 outline-none transition focus:border-emerald-500"
           />
         </div>
