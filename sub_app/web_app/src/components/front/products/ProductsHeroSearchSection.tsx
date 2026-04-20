@@ -4,23 +4,27 @@ import type { BrowseCategoryItem } from "./types";
 interface ProductsHeroSearchSectionProps {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
+  onSearchSubmit: () => void;
   category: string;
   onCategoryChange: (value: string) => void;
   sortBy: string;
   onSortByChange: (value: string) => void;
   categories: BrowseCategoryItem[];
   sortOptions: string[];
+  isSearching?: boolean;
 }
 
 export default function ProductsHeroSearchSection({
   searchQuery,
   onSearchQueryChange,
+  onSearchSubmit,
   category,
   onCategoryChange,
   sortBy,
   onSortByChange,
   categories,
   sortOptions,
+  isSearching = false,
 }: ProductsHeroSearchSectionProps) {
   return (
     <section className="space-y-4">
@@ -29,7 +33,13 @@ export default function ProductsHeroSearchSection({
         <p className="mt-2 text-base text-slate-500">Temukan toko terbaik dari berbagai kategori.</p>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2 md:flex-row md:items-center">
+      <form
+        className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-2 md:flex-row md:items-center"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSearchSubmit();
+        }}
+      >
         <select
           value={category}
           onChange={(event) => onCategoryChange(event.target.value)}
@@ -63,12 +73,13 @@ export default function ProductsHeroSearchSection({
         </div>
 
         <button
-          type="button"
-          className="h-11 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+          type="submit"
+          disabled={isSearching}
+          className="h-11 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          Cari
+          {isSearching ? "Mencari..." : "Cari"}
         </button>
-      </div>
+      </form>
     </section>
   );
 }

@@ -15,6 +15,9 @@ interface ProductsCatalogSectionProps {
   sortOptions: string[];
   page: number;
   onPageChange: (page: number) => void;
+  searchRelevanceByProductID?: Record<string, number>;
+  loading?: boolean;
+  statusMessage?: string;
 }
 
 const PRODUCT_PER_PAGE = 12;
@@ -39,6 +42,9 @@ export default function ProductsCatalogSection({
   sortOptions,
   page,
   onPageChange,
+  searchRelevanceByProductID = {},
+  loading = false,
+  statusMessage,
 }: ProductsCatalogSectionProps) {
   const filteredProducts = useMemo(() => {
     const base = products.filter((item) => {
@@ -48,12 +54,18 @@ export default function ProductsCatalogSection({
     });
 
     return [...base].sort((left, right) => {
+      const leftRelevance = searchRelevanceByProductID[left.id] || 0;
+      const rightRelevance = searchRelevanceByProductID[right.id] || 0;
+      if (leftRelevance !== rightRelevance) {
+        return rightRelevance - leftRelevance;
+      }
+
       if (sortBy === "Harga Terendah") return left.price - right.price;
       if (sortBy === "Harga Tertinggi") return right.price - left.price;
       if (sortBy === "Terlaris") return left.name.localeCompare(right.name);
       return right.id.localeCompare(left.id);
     });
-  }, [products, selectedCategory, selectedPrice, sortBy]);
+  }, [products, searchRelevanceByProductID, selectedCategory, selectedPrice, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PER_PAGE));
   const safePage = Math.min(page, totalPages);
@@ -105,10 +117,33 @@ export default function ProductsCatalogSection({
         </div>
       </div>
 
+      {statusMessage ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {statusMessage}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={`product-skeleton-${index}`} className="animate-pulse overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="h-40 bg-slate-200" />
+              <div className="space-y-2 p-3">
+                <div className="h-4 w-4/5 rounded bg-slate-200" />
+                <div className="h-5 w-1/3 rounded bg-slate-100" />
+                <div className="h-3 w-2/5 rounded bg-slate-100" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {pagedProducts.map((product) => (
-          <ProductsProductCard key={product.id} product={product} />
-        ))}
+        {!loading
+          ? pagedProducts.map((product) => (
+              <ProductsProductCard key={product.id} product={product} />
+            ))
+          : null}
       </div>
 
       <ProductsPagination page={safePage} totalPages={totalPages} onPageChange={onPageChange} />

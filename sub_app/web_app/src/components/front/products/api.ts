@@ -7,12 +7,22 @@ export type PublicProduct = {
   sale_price?: number | null;
   business_id?: string | null;
   product_type?: string | null;
+  category_ids?: string[];
 };
 
 export type PublicBusiness = {
   id: string;
   name?: string;
   short_description?: string | null;
+};
+
+export type PublicSearchResult = {
+  entityType: string;
+  entityID: string;
+  title: string;
+  slug: string;
+  businessID?: string | null;
+  rank: number;
 };
 
 type ListResponse<T> = {
@@ -69,13 +79,37 @@ function normalizeCategory(productType?: string | null): string {
   return "product";
 }
 
-export async function fetchPublicProducts(locale?: string): Promise<PublicProduct[]> {
+export interface FetchPublicProductsOptions {
+  locale?: string;
+  page?: number;
+  limit?: number;
+  q?: string;
+  sku?: string;
+  slug?: string;
+  stockStatus?: string;
+  productType?: string;
+  ids?: string[];
+  businessIDs?: string[];
+  categoryIDs?: string[];
+  tagIDs?: string[];
+}
+
+export async function fetchPublicProducts(options: FetchPublicProductsOptions = {}): Promise<PublicProduct[]> {
   const query = new URLSearchParams();
-  query.set("page", "1");
-  query.set("limit", "200");
-  if (locale) {
-    query.set("locale", locale);
+  query.set("page", String(Math.max(1, options.page || 1)));
+  query.set("limit", String(Math.min(200, Math.max(1, options.limit || 200))));
+  if (options.locale) {
+    query.set("locale", options.locale);
   }
+  if (options.q) query.set("q", options.q);
+  if (options.sku) query.set("sku", options.sku);
+  if (options.slug) query.set("slug", options.slug);
+  if (options.stockStatus) query.set("stock_status", options.stockStatus);
+  if (options.productType) query.set("product_type", options.productType);
+  if (options.ids?.length) query.set("ids", options.ids.join(","));
+  if (options.businessIDs?.length) query.set("business_ids", options.businessIDs.join(","));
+  if (options.categoryIDs?.length) query.set("category_ids", options.categoryIDs.join(","));
+  if (options.tagIDs?.length) query.set("tag_ids", options.tagIDs.join(","));
 
   const res = await fetch(buildUrl(`/api/catalog/products?${query.toString()}`), {
     headers: { Accept: "application/json" },
@@ -104,6 +138,35 @@ export async function fetchPublicBusinesses(): Promise<PublicBusiness[]> {
 
   const payload = await res.json().catch(() => ({}));
   return parseListResponse<PublicBusiness>(payload);
+}
+
+export async function fetchPublicSearchResults(query: string): Promise<PublicSearchResult[]> {
+  const search = new URLSearchParams();
+  search.set("q", query);
+  search.set("type", "product,business,category");
+  search.set("limit", "200");
+
+  const res = await fetch(buildUrl(`/api/search?${search.toString()}`), {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to search products: HTTP ${res.status}`);
+  }
+
+  const payload = await res.json().catch(() => ({}));
+  const rawItems = parseListResponse<Record<string, unknown>>(payload);
+
+  return rawItems
+    .map((item) => ({
+      entityType: String(item.entity_type || ""),
+      entityID: String(item.entity_id || ""),
+      title: String(item.title || ""),
+      slug: String(item.slug || ""),
+      businessID: item.business_id ? String(item.business_id) : undefined,
+      rank: Number(item.rank || 0),
+    }))
+    .filter((item) => item.entityType && item.entityID);
 }
 
 export function buildBrowseData(products: PublicProduct[], businesses: PublicBusiness[]): {
@@ -135,6 +198,7 @@ export function buildBrowseData(products: PublicProduct[], businesses: PublicBus
         storeId: storeID,
         storeName: String(business?.name || "Toko"),
         category: normalizeCategory(item.product_type),
+        categoryIds: Array.isArray(item.category_ids) ? item.category_ids.filter(Boolean).map(String) : [],
         tone: PRODUCT_TONES[index % PRODUCT_TONES.length],
       };
     });
@@ -145,18 +209,20 @@ export function buildBrowseData(products: PublicProduct[], businesses: PublicBus
     productCountByStore.set(product.storeId, (productCountByStore.get(product.storeId) || 0) + 1);
   }
 
-  const browseStores: BrowseStoreItem[] = Array.from(productCountByStore.entries()).map(([storeID, productCount], index) => {
-    const business = businessByID.get(storeID);
-    return {
-      id: storeID,
-      name: String(business?.name || "Toko"),
-      description: String(business?.short_description || "Produk pilihan dari toko ini"),
-      productCount,
-      code: toStoreCode(storeID),
-      accent: STORE_ACCENTS[index % STORE_ACCENTS.length],
-      verified: true,
-    };
-  });
+  const browseStores: BrowseStoreItem[] = businesses
+    .filter((business) => Boolean(business?.id))
+    .map((business, index) => {
+      const storeID = business.id;
+      return {
+        id: storeID,
+        name: String(business.name || "Toko"),
+        description: String(business.short_description || "Produk pilihan dari toko ini"),
+        productCount: productCountByStore.get(storeID) || 0,
+        code: toStoreCode(storeID),
+        accent: STORE_ACCENTS[index % STORE_ACCENTS.length],
+        verified: true,
+      };
+    });
 
   return {
     products: browseProducts,

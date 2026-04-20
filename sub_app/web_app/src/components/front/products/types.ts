@@ -15,6 +15,7 @@ export interface BrowseProductItem {
   storeId: string;
   storeName: string;
   category: string;
+  categoryIds: string[];
   tone: string;
 }
 
