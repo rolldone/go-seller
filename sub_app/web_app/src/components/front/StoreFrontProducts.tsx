@@ -330,6 +330,7 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
             searchQuery={searchQuery}
             onSearchQueryChange={(value) => {
               setSearchQuery(value);
+              setSelectedStoreIDs([]);
               setCatalogPage(1);
               setStorePage(1);
             }}
