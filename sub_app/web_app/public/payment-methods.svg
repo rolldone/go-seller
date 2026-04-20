@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="40" viewBox="0 0 320 40" role="img" aria-labelledby="title desc">
+  <title id="title">Payment Methods</title>
+  <desc id="desc">Visa, Mastercard, Bank Transfer, and E-Wallet badges.</desc>
+  <defs>
+    <style>
+      .label { font: 600 10px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .chip { fill: #ffffff; stroke: #cbd5e1; }
+    </style>
+  </defs>
+  <rect x="0.5" y="0.5" width="319" height="39" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+
+  <rect class="chip" x="12" y="9" width="66" height="22" rx="6"/>
+  <text class="label" x="45" y="23" text-anchor="middle">VISA</text>
+
+  <rect class="chip" x="86" y="9" width="84" height="22" rx="6"/>
+  <text class="label" x="128" y="23" text-anchor="middle">MASTERCARD</text>
+
+  <rect class="chip" x="178" y="9" width="70" height="22" rx="6"/>
+  <text class="label" x="213" y="23" text-anchor="middle">TRANSFER</text>
+
+  <rect class="chip" x="256" y="9" width="52" height="22" rx="6"/>
+  <text class="label" x="282" y="23" text-anchor="middle">E-WALLET</text>
+</svg>

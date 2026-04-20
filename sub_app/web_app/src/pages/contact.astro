@@ -1,0 +1,34 @@
+---
+import "../styles/front.css";
+import HomeNav from "../components/front/HomeNav";
+import Footer from "../components/front/Footer";
+import ContactPage from "../components/front/contact/ContactPage";
+import CustomerSessionBootstrap from "../components/customer/CustomerSessionBootstrap.astro";
+import { fetchStoreContactInfo } from "../lib/storeContact";
+
+const customerSession = Astro.locals.customerSession ?? null;
+const contact = await fetchStoreContactInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch }).catch(() => ({
+  storeName: "",
+  address: "",
+  phone: "",
+  email: "",
+}));
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Kontak Kami | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <div class="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
+      <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+        <HomeNav client:load variant="light" customerSession={customerSession} />
+        <ContactPage locale="id" contact={contact} />
+      </div>
+      <Footer client:load locale="id" />
+    </div>
+  </body>
+</html>

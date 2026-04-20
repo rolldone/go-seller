@@ -1,0 +1,103 @@
+---
+export const prerender = false;
+
+import "../../styles/front.css";
+import HomeNav from "../../components/front/HomeNav";
+import Footer from "../../components/front/Footer";
+import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
+import { normalizeLocale } from "../../lib/siteLocale";
+
+const locale = normalizeLocale(Astro.params.lang);
+const customerSession = Astro.locals.customerSession ?? null;
+const isEnglish = locale === "en";
+---
+
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{isEnglish ? "Privacy Policy | GoSeller" : "Kebijakan Privasi | GoSeller"}</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <div class="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
+      <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+        <HomeNav client:load variant="light" customerSession={customerSession} locale={locale} />
+
+        <main class="mx-auto w-full max-w-4xl flex-1 pt-10">
+          <section class="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-10">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Legal</p>
+            <h1 class="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">
+              {isEnglish ? "Privacy Policy" : "Kebijakan Privasi"}
+            </h1>
+            <p class="mt-4 text-sm leading-7 text-slate-600">
+              {
+                isEnglish
+                  ? "This policy explains how GoSeller collects, uses, stores, and protects users' personal data."
+                  : "Kebijakan ini menjelaskan bagaimana GoSeller mengumpulkan, menggunakan, menyimpan, dan melindungi data pribadi pengguna."
+              }
+            </p>
+
+            <div class="mt-8 space-y-6 text-sm leading-7 text-slate-700">
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">{isEnglish ? "1. Collected Data" : "1. Data yang Dikumpulkan"}</h2>
+                <p class="mt-2">
+                  {
+                    isEnglish
+                      ? "We may collect account data, transaction data, and technical data for operational and service improvement purposes."
+                      : "Kami dapat mengumpulkan data akun, data transaksi, serta data teknis untuk operasional dan peningkatan layanan."
+                  }
+                </p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">{isEnglish ? "2. Data Usage" : "2. Penggunaan Data"}</h2>
+                <p class="mt-2">
+                  {
+                    isEnglish
+                      ? "Data is used for transaction processing, authentication, customer support, fraud prevention, and legal compliance."
+                      : "Data digunakan untuk memproses transaksi, otentikasi, dukungan pelanggan, pencegahan fraud, dan pemenuhan kewajiban hukum."
+                  }
+                </p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">{isEnglish ? "3. Storage and Security" : "3. Penyimpanan dan Keamanan"}</h2>
+                <p class="mt-2">
+                  {
+                    isEnglish
+                      ? "We apply reasonable security measures to protect data from unauthorized access, alteration, or disclosure."
+                      : "Kami menerapkan langkah keamanan yang wajar untuk melindungi data dari akses tidak sah, perubahan, atau pengungkapan tanpa izin."
+                  }
+                </p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">{isEnglish ? "4. Data Sharing" : "4. Pembagian Data"}</h2>
+                <p class="mt-2">
+                  {
+                    isEnglish
+                      ? "Data is shared only as necessary for service delivery, legal obligations, or with user consent."
+                      : "Data hanya dibagikan sesuai kebutuhan layanan, kewajiban hukum, atau atas persetujuan pengguna."
+                  }
+                </p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">{isEnglish ? "5. User Rights" : "5. Hak Pengguna"}</h2>
+                <p class="mt-2">
+                  {
+                    isEnglish
+                      ? "Users may request data updates or details about personal data handling through official contact channels."
+                      : "Pengguna dapat meminta pembaruan data atau informasi terkait pengelolaan data pribadi melalui kanal kontak resmi."
+                  }
+                </p>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+      <Footer client:load locale={locale} />
+    </div>
+  </body>
+</html>

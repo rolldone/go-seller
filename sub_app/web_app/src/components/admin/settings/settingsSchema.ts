@@ -100,6 +100,14 @@ export const SETTING_GROUPS: SettingGroup[] = [
         defaultValue: "",
       },
       {
+        key: "store.email",
+        scope: "global",
+        label: "Email Kontak",
+        type: "text",
+        placeholder: "support@domain.com",
+        defaultValue: "",
+      },
+      {
         key: "store.address",
         scope: "global",
         label: "Alamat",

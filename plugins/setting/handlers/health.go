@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	pluginservices "go_framework/plugins/setting/services"
 
@@ -27,6 +28,24 @@ type upsertSettingReq struct {
 	Scope       string          `json:"scope"`
 	Value       json.RawMessage `json:"value" binding:"required"`
 	Description *string         `json:"description"`
+}
+
+func readStringSetting(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+
+	parsed, ok := value.(string)
+	if !ok {
+		return ""
+	}
+
+	return strings.TrimSpace(parsed)
 }
 
 func (h *SettingHandler) List(c *gin.Context) {
@@ -98,6 +117,40 @@ func (h *SettingHandler) Get(c *gin.Context) {
 		"description": nil,
 		"created_at":  nil,
 		"updated_at":  nil,
+	}})
+}
+
+func (h *SettingHandler) PublicContact(c *gin.Context) {
+	ctx := c.Request.Context()
+	addressRaw, err := h.svc.GetOrDefault(ctx, "global", "store.address", []byte(`""`))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	phoneRaw, err := h.svc.GetOrDefault(ctx, "global", "store.phone", []byte(`""`))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	emailRaw, err := h.svc.GetOrDefault(ctx, "global", "store.email", []byte(`""`))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	storeNameRaw, err := h.svc.GetOrDefault(ctx, "global", "store.name", []byte(`""`))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{
+		"store_name": readStringSetting(storeNameRaw),
+		"address":    readStringSetting(addressRaw),
+		"phone":      readStringSetting(phoneRaw),
+		"email":      readStringSetting(emailRaw),
 	}})
 }
 

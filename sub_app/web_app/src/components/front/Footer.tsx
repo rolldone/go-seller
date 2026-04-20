@@ -1,12 +1,72 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { ShoppingBag, Mail, Phone, MapPin } from 'lucide-react';
-import { getLocaleFromPathname } from "../../lib/siteLocale";
+import { buildLocalizedPath, getLocaleFromPathname } from "../../lib/siteLocale";
 import { useTranslations } from "../../i18n";
+import { fetchStoreContactInfo, type StoreContactInfo } from "../../lib/storeContact";
 
-const Footer = () => {
+interface FooterProps {
+  locale?: string;
+}
+
+const Footer = ({ locale }: FooterProps) => {
   const currentYear = new Date().getFullYear();
-  const resolvedLocale = typeof window !== "undefined" ? getLocaleFromPathname(window.location.pathname) : undefined;
+  const resolvedLocale = locale || (typeof window !== "undefined" ? getLocaleFromPathname(window.location.pathname) : undefined);
   const t = useTranslations("common", resolvedLocale);
+  const fallbackContact: StoreContactInfo = {
+    storeName: t("goSeller", "GoSeller"),
+    address: t("companyAddress", "Jl. Teknologi No. 42, Jakarta Selatan, Indonesia"),
+    phone: t("companyPhone", "+62 21 1234 5678"),
+    email: t("supportEmail", "support@goseller.com"),
+  };
+  const [contact, setContact] = useState<StoreContactInfo>(fallbackContact);
+
+  useEffect(() => {
+    setContact((current) => ({
+      storeName: current.storeName || fallbackContact.storeName,
+      address: current.address || fallbackContact.address,
+      phone: current.phone || fallbackContact.phone,
+      email: current.email || fallbackContact.email,
+    }));
+  }, [fallbackContact.address, fallbackContact.email, fallbackContact.phone, fallbackContact.storeName]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadContact() {
+      try {
+        const next = await fetchStoreContactInfo();
+        if (cancelled) return;
+        setContact({
+          storeName: next.storeName || fallbackContact.storeName,
+          address: next.address || fallbackContact.address,
+          phone: next.phone || fallbackContact.phone,
+          email: next.email || fallbackContact.email,
+        });
+      } catch {
+        if (cancelled) return;
+        setContact((current) => ({
+          storeName: current.storeName || fallbackContact.storeName,
+          address: current.address || fallbackContact.address,
+          phone: current.phone || fallbackContact.phone,
+          email: current.email || fallbackContact.email,
+        }));
+      }
+    }
+
+    void loadContact();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fallbackContact.address, fallbackContact.email, fallbackContact.phone, fallbackContact.storeName]);
+
+  const contactHref = buildLocalizedPath("/contact", resolvedLocale);
+  const productsHref = buildLocalizedPath("/products", resolvedLocale);
+  const storesHref = buildLocalizedPath("/b", resolvedLocale);
+  const termsHref = buildLocalizedPath("/terms", resolvedLocale);
+  const privacyHref = buildLocalizedPath("/privacy", resolvedLocale);
+  const phoneHref = `tel:${contact.phone.replace(/[^+\d]/g, "")}`;
+  const emailHref = `mailto:${contact.email}`;
 
   return (
     <footer className="bg-white border-t border-slate-200 pt-16 pb-8 mt-20">
@@ -58,7 +118,7 @@ const Footer = () => {
             <h3 className="font-bold text-slate-900 mb-6">{t("shopTitle", "Belanja")}</h3>
             <ul className="space-y-3">
               <li>
-                <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("allProducts", "Semua Produk")}</a>
+                <a href={productsHref} className="text-slate-500 hover:text-emerald-600 transition-colors">{t("allProducts", "Semua Produk")}</a>
               </li>
               <li>
                 <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("popularCategories", "Kategori Populer")}</a>
@@ -67,7 +127,7 @@ const Footer = () => {
                 <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("specialPromos", "Promo Spesial")}</a>
               </li>
               <li>
-                <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("verifiedBusinesses", "Toko Terverifikasi")}</a>
+                <a href={storesHref} className="text-slate-500 hover:text-emerald-600 transition-colors">{t("verifiedBusinesses", "Toko Terverifikasi")}</a>
               </li>
             </ul>
           </div>
@@ -77,35 +137,34 @@ const Footer = () => {
             <h3 className="font-bold text-slate-900 mb-6">{t("support", "Bantuan")}</h3>
             <ul className="space-y-3">
               <li>
-                <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("helpCenter", "Pusat Bantuan")}</a>
+                <a href={contactHref} className="text-slate-500 hover:text-emerald-600 transition-colors">{t("helpCenter", "Pusat Bantuan")}</a>
               </li>
               <li>
-                <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("trackOrder", "Lacak Pesanan")}</a>
+                <a href={termsHref} className="text-slate-500 hover:text-emerald-600 transition-colors">{t("terms", "Syarat & Ketentuan")}</a>
               </li>
               <li>
-                <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("terms", "Syarat & Ketentuan")}</a>
-              </li>
-              <li>
-                <a href="#" className="text-slate-500 hover:text-emerald-600 transition-colors">{t("privacyPolicy", "Kebijakan Privasi")}</a>
+                <a href={privacyHref} className="text-slate-500 hover:text-emerald-600 transition-colors">{t("privacyPolicy", "Kebijakan Privasi")}</a>
               </li>
             </ul>
           </div>
 
           {/* Contact */}
           <div>
-            <h3 className="font-bold text-slate-900 mb-6">{t("contactUs", "Kontak Kami")}</h3>
+            <h3 className="font-bold text-slate-900 mb-6">
+              <a href={contactHref} className="transition hover:text-emerald-600">{t("contactUs", "Kontak Kami")}</a>
+            </h3>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <span className="text-slate-500">{t("companyAddress", "Jl. Teknologi No. 42, Jakarta Selatan, Indonesia")}</span>
+                <span className="text-slate-500">{contact.address}</span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span className="text-slate-500">{t("companyPhone", "+62 21 1234 5678")}</span>
+                <a href={phoneHref} className="text-slate-500 transition hover:text-emerald-600">{contact.phone}</a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span className="text-slate-500">{t("supportEmail", "support@goseller.com")}</span>
+                <a href={emailHref} className="text-slate-500 transition hover:text-emerald-600">{contact.email}</a>
               </li>
             </ul>
           </div>
@@ -116,7 +175,14 @@ const Footer = () => {
             {t("copyrightSymbol", "©")} {currentYear} {t("goSeller", "GoSeller")}. {t("allRightsReserved", "All rights reserved.")}
           </p>
           <div className="flex items-center gap-6">
-             <img src="/payment-methods.png" alt={t("paymentMethodsTitle", "Payment Methods")} className="h-6 opacity-50 grayscale hover:grayscale-0 transition-all cursor-help" title={t("paymentMethodsList", "Visa, Mastercard, Bank Transfer, E-Wallet")} />
+             <img
+               src="/payment-methods.svg"
+               alt={t("paymentMethodsTitle", "Payment Methods")}
+               className="h-6 opacity-50 grayscale hover:grayscale-0 transition-all cursor-help"
+               title={t("paymentMethodsList", "Visa, Mastercard, Bank Transfer, E-Wallet")}
+               loading="lazy"
+               decoding="async"
+             />
           </div>
         </div>
       </div>

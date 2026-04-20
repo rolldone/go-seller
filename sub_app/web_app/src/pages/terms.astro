@@ -1,0 +1,63 @@
+---
+import "../styles/front.css";
+import HomeNav from "../components/front/HomeNav";
+import Footer from "../components/front/Footer";
+import CustomerSessionBootstrap from "../components/customer/CustomerSessionBootstrap.astro";
+
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Syarat & Ketentuan | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <div class="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
+      <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+        <HomeNav client:load variant="light" customerSession={customerSession} locale="id" />
+
+        <main class="mx-auto w-full max-w-4xl flex-1 pt-10">
+          <section class="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-10">
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Legal</p>
+            <h1 class="mt-3 text-3xl font-black tracking-tight text-slate-900 sm:text-4xl">Syarat & Ketentuan</h1>
+            <p class="mt-4 text-sm leading-7 text-slate-600">
+              Dengan menggunakan platform GoSeller, Anda menyetujui ketentuan penggunaan berikut.
+              Dokumen ini mengatur hak, kewajiban, serta batas tanggung jawab antara pengguna dan penyedia platform.
+            </p>
+
+            <div class="mt-8 space-y-6 text-sm leading-7 text-slate-700">
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">1. Akun dan Akses</h2>
+                <p class="mt-2">Pengguna bertanggung jawab menjaga keamanan akun, termasuk kerahasiaan kata sandi dan aktivitas di dalam akun.</p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">2. Transaksi dan Pembayaran</h2>
+                <p class="mt-2">Semua transaksi yang terjadi melalui platform tunduk pada kebijakan pembayaran, verifikasi, dan ketentuan merchant terkait.</p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">3. Konten dan Produk</h2>
+                <p class="mt-2">Penjual bertanggung jawab atas deskripsi, kualitas, dan legalitas produk/jasa yang ditawarkan.</p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">4. Larangan Penggunaan</h2>
+                <p class="mt-2">Dilarang menggunakan platform untuk aktivitas melanggar hukum, penipuan, atau tindakan yang merugikan pihak lain.</p>
+              </section>
+
+              <section>
+                <h2 class="text-lg font-semibold text-slate-900">5. Perubahan Ketentuan</h2>
+                <p class="mt-2">Ketentuan dapat diperbarui sewaktu-waktu. Versi terbaru akan dipublikasikan pada halaman ini.</p>
+              </section>
+            </div>
+          </section>
+        </main>
+      </div>
+      <Footer client:load locale="id" />
+    </div>
+  </body>
+</html>

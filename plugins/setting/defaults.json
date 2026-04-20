@@ -5,6 +5,7 @@
   { "key": "i18n.default_locale", "scope": "global", "value": "\"id\"", "description": "Bahasa default aplikasi (id/en)" },
   { "key": "i18n.supported_locales", "scope": "global", "value": "[\"id\", \"en\"]", "description": "Daftar bahasa aktif" },
   { "key": "store.phone", "scope": "global", "value": "\"\"", "description": "Nomor telepon toko" },
+  { "key": "store.email", "scope": "global", "value": "\"\"", "description": "Email kontak toko" },
   { "key": "store.address", "scope": "global", "value": "\"\"", "description": "Alamat toko" },
 
   { "key": "tax.enabled", "scope": "global", "value": "false", "description": "Aktifkan pajak" },
