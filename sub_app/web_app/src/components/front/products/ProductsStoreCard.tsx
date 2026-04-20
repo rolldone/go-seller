@@ -1,20 +1,31 @@
 import { Check, Leaf } from "lucide-react";
 import type { BrowseStoreItem } from "./types";
+import { buildLocalizedPath } from "../../../lib/siteLocale";
 
 interface ProductsStoreCardProps {
   store: BrowseStoreItem;
   active: boolean;
   onSelect: (id: string) => void;
+  locale?: string;
 }
 
-export default function ProductsStoreCard({ store, active, onSelect }: ProductsStoreCardProps) {
+export default function ProductsStoreCard({ store, active, onSelect, locale }: ProductsStoreCardProps) {
+  const storeHref = store.slug ? buildLocalizedPath(`/b/${encodeURIComponent(store.slug)}`, locale) : buildLocalizedPath("/products", locale);
+
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(store.id)}
+    <div
+      role="button"
       aria-pressed={active}
+      tabIndex={0}
+      onClick={() => onSelect(store.id)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(store.id);
+        }
+      }}
       className={[
-        "flex h-full flex-col rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-emerald-200 hover:shadow-md",
+        "flex h-full flex-col rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-emerald-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-100 cursor-pointer",
         active ? "border-emerald-300 ring-2 ring-emerald-100" : "border-slate-200",
       ].join(" ")}
     >
@@ -38,9 +49,15 @@ export default function ProductsStoreCard({ store, active, onSelect }: ProductsS
         <span className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{store.productCount}+ produk</span>
         <span className="rounded-lg border border-slate-200 px-3 py-1 text-[9px] font-semibold text-slate-400">{store.code}</span>
       </div>
-      <div className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-700">
+      <a
+        href={storeHref}
+        target="_blank"
+        rel="noreferrer noopener"
+        onClick={(event) => event.stopPropagation()}
+        className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
+      >
         Lihat Toko
-      </div>
-    </button>
+      </a>
+    </div>
   );
 }

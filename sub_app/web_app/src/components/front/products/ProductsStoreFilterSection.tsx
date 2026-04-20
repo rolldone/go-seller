@@ -9,6 +9,7 @@ interface ProductsStoreFilterSectionProps {
   onPageChange: (page: number) => void;
   activeStoreIDs: string[];
   onStoreSelect: (id: string) => void;
+  locale?: string;
   loading?: boolean;
   statusMessage?: string;
 }
@@ -21,6 +22,7 @@ export default function ProductsStoreFilterSection({
   onPageChange,
   activeStoreIDs,
   onStoreSelect,
+  locale,
   loading = false,
   statusMessage,
 }: ProductsStoreFilterSectionProps) {
@@ -63,6 +65,7 @@ export default function ProductsStoreFilterSection({
                 store={store}
                 active={activeStoreIDs.includes(store.id)}
                 onSelect={onStoreSelect}
+                locale={locale}
               />
             ))
           : null}

@@ -6,6 +6,7 @@ import ProductsCatalogSection from "./products/ProductsCatalogSection";
 import ProductsHeroSearchSection from "./products/ProductsHeroSearchSection";
 import ProductsStoreFilterSection from "./products/ProductsStoreFilterSection";
 import type { BrowseCategoryItem } from "./products/types";
+import { getLocaleFromPathname } from "../../lib/siteLocale";
 import {
   buildBrowseData,
   fetchPublicBusinesses,
@@ -29,6 +30,7 @@ interface StoreFrontProductsProps {
 }
 
 export default function StoreFrontProducts({ customerSession = null, locale }: StoreFrontProductsProps) {
+  const resolvedLocale = locale || (typeof window !== "undefined" ? getLocaleFromPathname(window.location.pathname) : undefined);
   const [businessesData, setBusinessesData] = useState<PublicBusiness[]>([]);
   const [productsData, setProductsData] = useState<PublicProduct[]>([]);
   const [businessesLoaded, setBusinessesLoaded] = useState(false);
@@ -366,6 +368,7 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
               ));
               setCatalogPage(1);
             }}
+            locale={resolvedLocale}
             loading={storeSectionLoading}
             statusMessage={loadError && !searchError ? loadError : undefined}
           />
@@ -392,6 +395,7 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
             page={catalogPage}
             onPageChange={setCatalogPage}
             searchRelevanceByProductID={searchRelevanceByProductID}
+            locale={resolvedLocale}
             loading={productSectionLoading}
             statusMessage={searchError || (searchLoading && activeSearchQuery ? `Mencari "${activeSearchQuery}"...` : undefined) || (loadError && !searchError ? loadError : undefined)}
           />

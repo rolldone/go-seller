@@ -1,18 +1,22 @@
+import type { PublicProductAsset } from "../business/types";
 import type { BrowseProductItem, BrowseStoreItem } from "./types";
 
 export type PublicProduct = {
   id: string;
   name?: string;
+  slug?: string;
   price?: number;
   sale_price?: number | null;
   business_id?: string | null;
   product_type?: string | null;
   category_ids?: string[];
+  gallery?: PublicProductAsset[] | null;
 };
 
 export type PublicBusiness = {
   id: string;
   name?: string;
+  slug?: string;
   short_description?: string | null;
 };
 
@@ -77,6 +81,18 @@ function normalizeCategory(productType?: string | null): string {
     return value;
   }
   return "product";
+}
+
+function normalizeAssetUrl(asset: PublicProductAsset): string {
+  const apiBase = getPublicApiBase();
+  let url = String(asset.public_url || "").trim();
+  if (!url && asset.file_path) {
+    url = `/assets/${String(asset.file_path).replace(/^\/+/, "")}`;
+  }
+  if (url.startsWith("/")) {
+    return apiBase ? `${apiBase}${url}` : url;
+  }
+  return url;
 }
 
 export interface FetchPublicProductsOptions {
@@ -193,12 +209,28 @@ export function buildBrowseData(products: PublicProduct[], businesses: PublicBus
 
       return {
         id: item.id,
+        slug: String(item.slug || ""),
         name: String(item.name || "Produk"),
         price: Math.max(0, Number(resolvedPrice) || 0),
         storeId: storeID,
+        storeSlug: String(business?.slug || ""),
         storeName: String(business?.name || "Toko"),
         category: normalizeCategory(item.product_type),
         categoryIds: Array.isArray(item.category_ids) ? item.category_ids.filter(Boolean).map(String) : [],
+        gallery: Array.isArray(item.gallery)
+          ? item.gallery
+              .filter((asset) => Boolean(asset?.id))
+              .map((asset) => ({
+                ...asset,
+                id: String(asset.id),
+                product_id: asset.product_id ? String(asset.product_id) : undefined,
+                file_path: asset.file_path ? String(asset.file_path) : undefined,
+                public_url: normalizeAssetUrl(asset) || undefined,
+                is_main: Boolean(asset.is_main),
+                usage_tag: asset.usage_tag ? String(asset.usage_tag) : undefined,
+                display_order: asset.display_order != null ? Number(asset.display_order) : undefined,
+              }))
+          : undefined,
         tone: PRODUCT_TONES[index % PRODUCT_TONES.length],
       };
     });
@@ -215,6 +247,7 @@ export function buildBrowseData(products: PublicProduct[], businesses: PublicBus
       const storeID = business.id;
       return {
         id: storeID,
+        slug: String(business.slug || ""),
         name: String(business.name || "Toko"),
         description: String(business.short_description || "Produk pilihan dari toko ini"),
         productCount: productCountByStore.get(storeID) || 0,

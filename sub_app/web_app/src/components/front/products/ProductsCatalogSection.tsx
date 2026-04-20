@@ -16,6 +16,7 @@ interface ProductsCatalogSectionProps {
   page: number;
   onPageChange: (page: number) => void;
   searchRelevanceByProductID?: Record<string, number>;
+  locale?: string;
   loading?: boolean;
   statusMessage?: string;
 }
@@ -43,6 +44,7 @@ export default function ProductsCatalogSection({
   page,
   onPageChange,
   searchRelevanceByProductID = {},
+  locale,
   loading = false,
   statusMessage,
 }: ProductsCatalogSectionProps) {
@@ -141,7 +143,7 @@ export default function ProductsCatalogSection({
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {!loading
           ? pagedProducts.map((product) => (
-              <ProductsProductCard key={product.id} product={product} />
+              <ProductsProductCard key={product.id} product={product} locale={locale} />
             ))
           : null}
       </div>

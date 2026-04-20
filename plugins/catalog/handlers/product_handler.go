@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -101,8 +102,19 @@ type upsertProductTranslationRequest struct {
 
 type productResponse struct {
 	catalogmodels.Product
-	CategoryIDs []string `json:"category_ids"`
-	TagIDs      []string `json:"tag_ids"`
+	CategoryIDs []string               `json:"category_ids"`
+	TagIDs      []string               `json:"tag_ids"`
+	Gallery     []productAssetResponse `json:"gallery,omitempty"`
+}
+
+type productAssetResponse struct {
+	ID           string `json:"id"`
+	ProductID    string `json:"product_id,omitempty"`
+	FilePath     string `json:"file_path,omitempty"`
+	PublicURL    string `json:"public_url,omitempty"`
+	IsMain       bool   `json:"is_main"`
+	UsageTag     string `json:"usage_tag,omitempty"`
+	DisplayOrder int    `json:"display_order,omitempty"`
 }
 
 func parseBoolParam(v string) (*bool, error) {
@@ -144,6 +156,43 @@ func applyTranslation(product *catalogmodels.Product, tr catalogmodels.ProductTr
 	if tr.ShortDescription != nil {
 		product.ShortDescription = tr.ShortDescription
 	}
+}
+
+func normalizeProductAssetURL(base string, asset catalogmodels.ProductAsset) string {
+	url := strings.TrimSpace(asset.PublicURL)
+	if url == "" && strings.TrimSpace(asset.FilePath) != "" {
+		url = "/assets/" + strings.TrimSpace(asset.FilePath)
+	}
+	if url == "" {
+		return ""
+	}
+	if strings.HasPrefix(url, "/") && base != "" {
+		return base + url
+	}
+	return url
+}
+
+func buildProductAssetResponses(base string, assets []catalogmodels.ProductAsset) []productAssetResponse {
+	if len(assets) == 0 {
+		return nil
+	}
+	out := make([]productAssetResponse, 0, len(assets))
+	for _, asset := range assets {
+		publicURL := normalizeProductAssetURL(base, asset)
+		if publicURL == "" {
+			continue
+		}
+		out = append(out, productAssetResponse{
+			ID:           asset.ID,
+			ProductID:    asset.ProductID,
+			FilePath:     asset.FilePath,
+			PublicURL:    publicURL,
+			IsMain:       asset.IsMain,
+			UsageTag:     asset.UsageTag,
+			DisplayOrder: asset.DisplayOrder,
+		})
+	}
+	return out
 }
 
 func (h *ProductHandler) Create(c *gin.Context) {
@@ -316,6 +365,8 @@ func (h *ProductHandler) PublicList(c *gin.Context) {
 		return out
 	}
 
+	base := strings.TrimRight(os.Getenv("APP_URL"), "/")
+
 	products, total, err := h.svc.ListProducts(c.Request.Context(), catalogservices.ProductListFilter{
 		Query:         c.Query("q"),
 		SKU:           c.Query("sku"),
@@ -354,12 +405,22 @@ func (h *ProductHandler) PublicList(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	assetMap, err := h.svc.GetProductAssetsForProductIDs(c.Request.Context(), ids, "gallery")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 	items := make([]productResponse, 0, len(products))
 	for _, p := range products {
 		if tr, ok := translationMap[p.ID]; ok {
 			applyTranslation(&p, tr)
 		}
-		items = append(items, productResponse{Product: p, CategoryIDs: categoryMap[p.ID], TagIDs: tagMap[p.ID]})
+		items = append(items, productResponse{
+			Product:     p,
+			CategoryIDs: categoryMap[p.ID],
+			TagIDs:      tagMap[p.ID],
+			Gallery:     buildProductAssetResponses(base, assetMap[p.ID]),
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
 }
@@ -397,6 +458,7 @@ func (h *ProductHandler) PublicListByBusinessSlug(c *gin.Context) {
 	}
 
 	locale := strings.TrimSpace(c.Query("locale"))
+	base := strings.TrimRight(os.Getenv("APP_URL"), "/")
 	ids := make([]string, 0, len(products))
 	for _, p := range products {
 		ids = append(ids, p.ID)
@@ -416,13 +478,23 @@ func (h *ProductHandler) PublicListByBusinessSlug(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	assetMap, err := h.svc.GetProductAssetsForProductIDs(c.Request.Context(), ids, "gallery")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	items := make([]productResponse, 0, len(products))
 	for _, p := range products {
 		if tr, ok := translationMap[p.ID]; ok {
 			applyTranslation(&p, tr)
 		}
-		items = append(items, productResponse{Product: p, CategoryIDs: categoryMap[p.ID], TagIDs: tagMap[p.ID]})
+		items = append(items, productResponse{
+			Product:     p,
+			CategoryIDs: categoryMap[p.ID],
+			TagIDs:      tagMap[p.ID],
+			Gallery:     buildProductAssetResponses(base, assetMap[p.ID]),
+		})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
 }
