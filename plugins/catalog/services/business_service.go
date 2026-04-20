@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	catalogmodels "go_framework/plugins/catalog/models"
+	pluginregistry "go_framework/plugins/plugin_registry"
 
 	"gorm.io/gorm"
 )
@@ -13,7 +14,12 @@ func (s *CatalogService) CreateBusiness(ctx context.Context, b *catalogmodels.Bu
 	if strings.TrimSpace(b.Slug) == "" {
 		b.Slug = makeSlug(b.Name)
 	}
-	return s.DB.WithContext(ctx).Create(b).Error
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(b).Error; err != nil {
+			return err
+		}
+		return pluginregistry.SearchIndexUpsertBusiness(ctx, tx, b.ID)
+	})
 }
 
 func (s *CatalogService) ListBusinesses(ctx context.Context, page, limit int) ([]catalogmodels.Business, int64, error) {
@@ -51,12 +57,28 @@ func (s *CatalogService) UpdateBusiness(ctx context.Context, b *catalogmodels.Bu
 	if strings.TrimSpace(b.Slug) == "" {
 		b.Slug = makeSlug(b.Name)
 	}
-	return s.DB.WithContext(ctx).Save(b).Error
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(b).Error; err != nil {
+			return err
+		}
+		return pluginregistry.SearchIndexUpsertBusiness(ctx, tx, b.ID)
+	})
 }
 
 func (s *CatalogService) DeleteBusinessByID(ctx context.Context, id string) (int64, error) {
-	res := s.DB.WithContext(ctx).Where("id = ?", id).Delete(&catalogmodels.Business{})
-	return res.RowsAffected, res.Error
+	var affected int64
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).Delete(&catalogmodels.Business{})
+		if res.Error != nil {
+			return res.Error
+		}
+		affected = res.RowsAffected
+		if affected == 0 {
+			return nil
+		}
+		return pluginregistry.SearchIndexDeleteBusiness(ctx, tx, id)
+	})
+	return affected, err
 }
 
 // GetBusinessBySlug returns a Business by its slug.

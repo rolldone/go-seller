@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	catalogmodels "go_framework/plugins/catalog/models"
+	pluginregistry "go_framework/plugins/plugin_registry"
 
 	"gorm.io/gorm"
 )
@@ -19,9 +20,13 @@ type ProductListFilter struct {
 	Slug          string
 	Status        string
 	StockStatus   string
+	IDs           []string
 	BusinessID    string
+	BusinessIDs   []string
 	CategoryID    string
+	CategoryIDs   []string
 	TagID         string
+	TagIDs        []string
 	ProductType   string
 	IsVisible     *bool
 	OnlyPublished bool
@@ -56,7 +61,10 @@ func (s *CatalogService) CreateProduct(ctx context.Context, p *catalogmodels.Pro
 		if err := s.syncProductCategoriesTx(ctx, tx, p.ID, categoryIDs); err != nil {
 			return err
 		}
-		return s.syncProductTagsTx(ctx, tx, p.ID, tagIDs)
+		if err := s.syncProductTagsTx(ctx, tx, p.ID, tagIDs); err != nil {
+			return err
+		}
+		return pluginregistry.SearchIndexUpsertProduct(ctx, tx, p.ID)
 	})
 }
 
@@ -80,8 +88,19 @@ func (s *CatalogService) GetProductBySKU(ctx context.Context, sku string) (*cata
 
 // DeleteProductByID soft-deletes a product by ID.
 func (s *CatalogService) DeleteProductByID(ctx context.Context, id string) (int64, error) {
-	res := s.DB.WithContext(ctx).Where("id = ?", id).Delete(&catalogmodels.Product{})
-	return res.RowsAffected, res.Error
+	var affected int64
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).Delete(&catalogmodels.Product{})
+		if res.Error != nil {
+			return res.Error
+		}
+		affected = res.RowsAffected
+		if affected == 0 {
+			return nil
+		}
+		return pluginregistry.SearchIndexDeleteProduct(ctx, tx, id)
+	})
+	return affected, err
 }
 
 // GetPublishedProductByID returns a published product by ID.
@@ -163,8 +182,14 @@ func (s *CatalogService) ListProducts(ctx context.Context, f ProductListFilter) 
 	if strings.TrimSpace(f.StockStatus) != "" {
 		q = q.Where("stock_status = ?", strings.TrimSpace(f.StockStatus))
 	}
+	if len(f.IDs) > 0 {
+		q = q.Where("products.id IN ?", normalizeCategoryIDs(f.IDs))
+	}
 	if strings.TrimSpace(f.BusinessID) != "" {
 		q = q.Where("business_id = ?", strings.TrimSpace(f.BusinessID))
+	}
+	if ids := normalizeCategoryIDs(f.BusinessIDs); len(ids) > 0 {
+		q = q.Where("business_id IN ?", ids)
 	}
 	if strings.TrimSpace(f.ProductType) != "" {
 		q = q.Where("product_type = ?", strings.TrimSpace(f.ProductType))
@@ -173,15 +198,23 @@ func (s *CatalogService) ListProducts(ctx context.Context, f ProductListFilter) 
 		q = q.Joins("INNER JOIN product_category_map ON product_category_map.product_id = products.id").
 			Where("product_category_map.category_id = ?", strings.TrimSpace(f.CategoryID))
 	}
+	if ids := normalizeCategoryIDs(f.CategoryIDs); len(ids) > 0 {
+		q = q.Joins("INNER JOIN product_category_map ON product_category_map.product_id = products.id").
+			Where("product_category_map.category_id IN ?", ids)
+	}
 	if strings.TrimSpace(f.TagID) != "" {
 		q = q.Joins("INNER JOIN product_tag_map ON product_tag_map.product_id = products.id").
 			Where("product_tag_map.tag_id = ?", strings.TrimSpace(f.TagID))
+	}
+	if ids := normalizeCategoryIDs(f.TagIDs); len(ids) > 0 {
+		q = q.Joins("INNER JOIN product_tag_map ON product_tag_map.product_id = products.id").
+			Where("product_tag_map.tag_id IN ?", ids)
 	}
 	if f.IsVisible != nil {
 		q = q.Where("is_visible = ?", *f.IsVisible)
 	}
 
-	if strings.TrimSpace(f.CategoryID) != "" || strings.TrimSpace(f.TagID) != "" {
+	if strings.TrimSpace(f.CategoryID) != "" || len(normalizeCategoryIDs(f.CategoryIDs)) > 0 || strings.TrimSpace(f.TagID) != "" || len(normalizeCategoryIDs(f.TagIDs)) > 0 {
 		q = q.Distinct()
 	}
 
@@ -219,7 +252,10 @@ func (s *CatalogService) UpdateProduct(ctx context.Context, p *catalogmodels.Pro
 		if err := s.syncProductCategoriesTx(ctx, tx, p.ID, categoryIDs); err != nil {
 			return err
 		}
-		return s.syncProductTagsTx(ctx, tx, p.ID, tagIDs)
+		if err := s.syncProductTagsTx(ctx, tx, p.ID, tagIDs); err != nil {
+			return err
+		}
+		return pluginregistry.SearchIndexUpsertProduct(ctx, tx, p.ID)
 	})
 }
 

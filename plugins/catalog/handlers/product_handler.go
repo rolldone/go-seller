@@ -302,11 +302,30 @@ func (h *ProductHandler) List(c *gin.Context) {
 }
 
 func (h *ProductHandler) PublicList(c *gin.Context) {
+	parseCSV := func(value string) []string {
+		if strings.TrimSpace(value) == "" {
+			return nil
+		}
+		parts := strings.Split(value, ",")
+		out := make([]string, 0, len(parts))
+		for _, part := range parts {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out
+	}
+
 	products, total, err := h.svc.ListProducts(c.Request.Context(), catalogservices.ProductListFilter{
 		Query:         c.Query("q"),
 		SKU:           c.Query("sku"),
 		Slug:          c.Query("slug"),
 		StockStatus:   c.Query("stock_status"),
+		IDs:           parseCSV(c.Query("ids")),
+		BusinessIDs:   parseCSV(c.Query("business_ids")),
+		CategoryIDs:   parseCSV(c.Query("category_ids")),
+		TagIDs:        parseCSV(c.Query("tag_ids")),
+		ProductType:   c.Query("product_type"),
 		OnlyPublished: true,
 		Page:          parseIntParam(c.Query("page"), 1),
 		Limit:         parseIntParam(c.Query("limit"), 20),
@@ -325,12 +344,24 @@ func (h *ProductHandler) PublicList(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	for i := range products {
-		if tr, ok := translationMap[products[i].ID]; ok {
-			applyTranslation(&products[i], tr)
-		}
+	categoryMap, err := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": products, "total": total})
+	tagMap, err := h.svc.GetTagIDsByProductIDs(c.Request.Context(), ids)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	items := make([]productResponse, 0, len(products))
+	for _, p := range products {
+		if tr, ok := translationMap[p.ID]; ok {
+			applyTranslation(&p, tr)
+		}
+		items = append(items, productResponse{Product: p, CategoryIDs: categoryMap[p.ID], TagIDs: tagMap[p.ID]})
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
 }
 
 // PublicListByBusinessSlug lists published products for a business identified by slug.

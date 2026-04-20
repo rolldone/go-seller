@@ -85,3 +85,71 @@ func SendTemplateEventAsync(ctx context.Context, db *gorm.DB, eventKey string, p
 	}
 	notificationProvider.SendTemplateEventAsync(ctx, db, eventKey, payload)
 }
+
+// ─── Search index provider ───────────────────────────────────────────────────
+
+// SearchIndexerProvider allows plugins to keep the search index in sync from
+// application-level hooks instead of database triggers.
+type SearchIndexerProvider interface {
+	UpsertProduct(ctx context.Context, db *gorm.DB, productID string) error
+	DeleteProduct(ctx context.Context, db *gorm.DB, productID string) error
+	UpsertBusiness(ctx context.Context, db *gorm.DB, businessID string) error
+	DeleteBusiness(ctx context.Context, db *gorm.DB, businessID string) error
+	UpsertCategory(ctx context.Context, db *gorm.DB, categoryID string) error
+	DeleteCategory(ctx context.Context, db *gorm.DB, categoryID string) error
+}
+
+var searchIndexerProvider SearchIndexerProvider
+
+// RegisterSearchIndexerProvider registers a search index provider implementation.
+func RegisterSearchIndexerProvider(p SearchIndexerProvider) {
+	searchIndexerProvider = p
+}
+
+// SearchIndexUpsertProduct delegates product indexing to the registered provider.
+func SearchIndexUpsertProduct(ctx context.Context, db *gorm.DB, productID string) error {
+	if searchIndexerProvider == nil {
+		return nil
+	}
+	return searchIndexerProvider.UpsertProduct(ctx, db, productID)
+}
+
+// SearchIndexDeleteProduct delegates product removal from the search index.
+func SearchIndexDeleteProduct(ctx context.Context, db *gorm.DB, productID string) error {
+	if searchIndexerProvider == nil {
+		return nil
+	}
+	return searchIndexerProvider.DeleteProduct(ctx, db, productID)
+}
+
+// SearchIndexUpsertBusiness delegates business indexing to the registered provider.
+func SearchIndexUpsertBusiness(ctx context.Context, db *gorm.DB, businessID string) error {
+	if searchIndexerProvider == nil {
+		return nil
+	}
+	return searchIndexerProvider.UpsertBusiness(ctx, db, businessID)
+}
+
+// SearchIndexDeleteBusiness delegates business removal from the search index.
+func SearchIndexDeleteBusiness(ctx context.Context, db *gorm.DB, businessID string) error {
+	if searchIndexerProvider == nil {
+		return nil
+	}
+	return searchIndexerProvider.DeleteBusiness(ctx, db, businessID)
+}
+
+// SearchIndexUpsertCategory delegates category indexing to the registered provider.
+func SearchIndexUpsertCategory(ctx context.Context, db *gorm.DB, categoryID string) error {
+	if searchIndexerProvider == nil {
+		return nil
+	}
+	return searchIndexerProvider.UpsertCategory(ctx, db, categoryID)
+}
+
+// SearchIndexDeleteCategory delegates category removal from the search index.
+func SearchIndexDeleteCategory(ctx context.Context, db *gorm.DB, categoryID string) error {
+	if searchIndexerProvider == nil {
+		return nil
+	}
+	return searchIndexerProvider.DeleteCategory(ctx, db, categoryID)
+}

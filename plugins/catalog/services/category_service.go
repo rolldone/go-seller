@@ -6,13 +6,21 @@ import (
 	"time"
 
 	catalogmodels "go_framework/plugins/catalog/models"
+	pluginregistry "go_framework/plugins/plugin_registry"
+
+	"gorm.io/gorm"
 )
 
 func (s *CatalogService) CreateCategory(ctx context.Context, c *catalogmodels.Category) error {
 	if strings.TrimSpace(c.Slug) == "" {
 		c.Slug = makeSlug(c.Name)
 	}
-	return s.DB.WithContext(ctx).Create(c).Error
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(c).Error; err != nil {
+			return err
+		}
+		return pluginregistry.SearchIndexUpsertCategory(ctx, tx, c.ID)
+	})
 }
 
 func (s *CatalogService) ListCategories(ctx context.Context, page, limit int, parentID *string, filterByParent bool, withDeleted bool) ([]catalogmodels.Category, int64, error) {
@@ -64,18 +72,45 @@ func (s *CatalogService) UpdateCategory(ctx context.Context, c *catalogmodels.Ca
 	if strings.TrimSpace(c.Slug) == "" {
 		c.Slug = makeSlug(c.Name)
 	}
-	return s.DB.WithContext(ctx).Save(c).Error
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(c).Error; err != nil {
+			return err
+		}
+		return pluginregistry.SearchIndexUpsertCategory(ctx, tx, c.ID)
+	})
 }
 
 func (s *CatalogService) DeleteCategoryByID(ctx context.Context, id string) (int64, error) {
-	res := s.DB.WithContext(ctx).Where("id = ?", id).Delete(&catalogmodels.Category{})
-	return res.RowsAffected, res.Error
+	var affected int64
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Where("id = ?", id).Delete(&catalogmodels.Category{})
+		if res.Error != nil {
+			return res.Error
+		}
+		affected = res.RowsAffected
+		if affected == 0 {
+			return nil
+		}
+		return pluginregistry.SearchIndexDeleteCategory(ctx, tx, id)
+	})
+	return affected, err
 }
 
 func (s *CatalogService) RestoreCategoryByID(ctx context.Context, id string) (int64, error) {
-	res := s.DB.WithContext(ctx).Model(&catalogmodels.Category{}).Unscoped().Where("id = ?", id).Updates(map[string]interface{}{
-		"deleted_at": nil,
-		"updated_at": time.Now(),
+	var affected int64
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&catalogmodels.Category{}).Unscoped().Where("id = ?", id).Updates(map[string]interface{}{
+			"deleted_at": nil,
+			"updated_at": time.Now(),
+		})
+		if res.Error != nil {
+			return res.Error
+		}
+		affected = res.RowsAffected
+		if affected == 0 {
+			return nil
+		}
+		return pluginregistry.SearchIndexUpsertCategory(ctx, tx, id)
 	})
-	return res.RowsAffected, res.Error
+	return affected, err
 }
