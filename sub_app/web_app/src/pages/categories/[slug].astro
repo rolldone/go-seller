@@ -1,0 +1,87 @@
+---
+export const prerender = false;
+
+import "../../styles/front.css";
+import HomeNav from "../../components/front/HomeNav";
+import Footer from "../../components/front/Footer";
+import CategoryStoreFrontPage from "../../components/front/categories/CategoryStoreFrontPage";
+import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
+import { buildLocalizedPath, normalizeLocale } from "../../lib/siteLocale";
+import { fetchCategoryPageData } from "../../lib/categoryPageData";
+
+const locale = normalizeLocale("id");
+const slug = String(Astro.params.slug || "").trim();
+const customerSession = Astro.locals.customerSession ?? null;
+const page = Math.max(1, Number(Astro.url.searchParams.get("page") || "1") || 1);
+
+const categoryPage = await fetchCategoryPageData({
+  requestOrigin: Astro.url.origin,
+  locale,
+  slug,
+  page,
+  perPage: 12,
+  fetchImpl: fetch,
+}).catch(() => ({
+  notFound: true,
+  category: null,
+  childCategories: [],
+  products: [],
+  page,
+  totalPages: 1,
+  totalProducts: 0,
+}));
+
+if (categoryPage.notFound || !categoryPage.category) {
+  Astro.response.status = 404;
+}
+
+const activeCategoryName = String(categoryPage.category?.name || "Kategori");
+const pageTitle = categoryPage.notFound
+  ? "Kategori Tidak Ditemukan | GoSeller"
+  : `${activeCategoryName} | GoSeller`;
+---
+
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{pageTitle}</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <div class="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
+      <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+        <HomeNav client:load variant="light" customerSession={customerSession} locale={locale} />
+
+        <main class="mt-10 flex-1 space-y-8 pb-8">
+          {categoryPage.notFound ? (
+            <section class="rounded-3xl border border-rose-200 bg-rose-50 p-6 sm:p-8">
+              <h1 class="text-2xl font-black tracking-tight text-rose-900 sm:text-3xl">Kategori tidak ditemukan</h1>
+              <p class="mt-2 text-sm text-rose-700">Slug kategori yang diminta tidak tersedia.</p>
+              <a
+                href={buildLocalizedPath("/products", locale)}
+                class="mt-5 inline-flex rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-800"
+              >
+                Kembali ke produk
+              </a>
+            </section>
+          ) : (
+            <CategoryStoreFrontPage
+              client:load
+              locale={locale}
+              categoryName={activeCategoryName}
+              childCategories={categoryPage.childCategories.map((item) => ({
+                id: String(item.id),
+                name: String(item.name || "Kategori"),
+                slug: String(item.slug || ""),
+              }))}
+              products={categoryPage.products}
+              initialProductPage={categoryPage.page}
+            />
+          )}
+        </main>
+      </div>
+      <Footer client:load locale={locale} />
+    </div>
+  </body>
+</html>

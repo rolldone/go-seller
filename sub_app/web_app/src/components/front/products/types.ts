@@ -16,6 +16,9 @@ export interface BrowseProductItem {
   slug: string;
   name: string;
   price: number;
+  originalPrice: number;
+  hasDiscount: boolean;
+  stockStatus: string;
   storeId: string;
   storeSlug: string;
   storeName: string;

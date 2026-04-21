@@ -7,6 +7,7 @@ export type PublicProduct = {
   slug?: string;
   price?: number;
   sale_price?: number | null;
+  stock_status?: string | null;
   business_id?: string | null;
   product_type?: string | null;
   category_ids?: string[];
@@ -201,6 +202,8 @@ export function buildBrowseData(products: PublicProduct[], businesses: PublicBus
     .map((item, index) => {
       const storeID = item.business_id || "";
       const business = storeID ? businessByID.get(storeID) : undefined;
+      const originalPrice = typeof item.price === "number" ? Math.max(0, Number(item.price) || 0) : 0;
+      const salePrice = typeof item.sale_price === "number" ? Math.max(0, Number(item.sale_price) || 0) : null;
       const resolvedPrice = typeof item.sale_price === "number"
         ? item.sale_price
         : typeof item.price === "number"
@@ -212,6 +215,9 @@ export function buildBrowseData(products: PublicProduct[], businesses: PublicBus
         slug: String(item.slug || ""),
         name: String(item.name || "Produk"),
         price: Math.max(0, Number(resolvedPrice) || 0),
+        originalPrice,
+        hasDiscount: salePrice != null && originalPrice > 0 && salePrice < originalPrice,
+        stockStatus: String(item.stock_status || "in_stock").trim().toLowerCase() || "in_stock",
         storeId: storeID,
         storeSlug: String(business?.slug || ""),
         storeName: String(business?.name || "Toko"),
