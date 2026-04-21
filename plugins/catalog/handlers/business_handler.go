@@ -368,6 +368,11 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 			var categoryName string
 			if catIDs, ok := categoryMap[p.ID]; ok && len(catIDs) > 0 {
 				if catObj, err := h.svc.GetCategoryByID(c.Request.Context(), catIDs[0]); err == nil {
+					if catTranslationMap, err := h.svc.GetCategoryTranslationMapByCategoryIDs(c.Request.Context(), []string{catObj.ID}, locale); err == nil {
+						if tr, ok := catTranslationMap[catObj.ID]; ok {
+							applyCategoryTranslation(catObj, tr)
+						}
+					}
 					categoryName = catObj.Name
 				}
 			}

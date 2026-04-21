@@ -98,6 +98,7 @@ type upsertProductTranslationRequest struct {
 	DescriptionPlain  *string         `json:"description_plain"`
 	DescriptionBlocks json.RawMessage `json:"description_blocks"`
 	ShortDescription  *string         `json:"short_description"`
+	SEOContent        json.RawMessage `json:"seo_content"`
 }
 
 type productResponse struct {
@@ -155,6 +156,9 @@ func applyTranslation(product *catalogmodels.Product, tr catalogmodels.ProductTr
 	}
 	if tr.ShortDescription != nil {
 		product.ShortDescription = tr.ShortDescription
+	}
+	if len(tr.SEOContent) > 0 {
+		product.SEOContent = tr.SEOContent
 	}
 }
 
@@ -576,6 +580,11 @@ func (h *ProductHandler) UpsertTranslation(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	seoJSON, err := normalizeRawJSON(req.SEOContent)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "seo_content must be valid JSON"})
+		return
+	}
 	item, err := h.svc.UpsertProductTranslation(
 		c.Request.Context(),
 		productID,
@@ -587,6 +596,7 @@ func (h *ProductHandler) UpsertTranslation(c *gin.Context) {
 		req.DescriptionPlain,
 		blocksJSON,
 		req.ShortDescription,
+		json.RawMessage(seoJSON),
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

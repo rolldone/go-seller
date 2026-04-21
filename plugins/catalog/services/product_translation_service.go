@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -24,7 +25,7 @@ func normalizeProductLocale(locale string) (string, error) {
 	}
 }
 
-func (s *CatalogService) UpsertProductTranslation(ctx context.Context, productID string, locale string, name string, slug string, description *string, descriptionHTML *string, descriptionPlain *string, descriptionBlocks datatypes.JSON, shortDescription *string) (*catalogmodels.ProductTranslation, error) {
+func (s *CatalogService) UpsertProductTranslation(ctx context.Context, productID string, locale string, name string, slug string, description *string, descriptionHTML *string, descriptionPlain *string, descriptionBlocks datatypes.JSON, shortDescription *string, seoContent json.RawMessage) (*catalogmodels.ProductTranslation, error) {
 	normalizedLocale, err := normalizeProductLocale(locale)
 	if err != nil {
 		return nil, err
@@ -53,6 +54,7 @@ func (s *CatalogService) UpsertProductTranslation(ctx context.Context, productID
 			DescriptionPlain:  descriptionPlain,
 			DescriptionBlocks: descriptionBlocks,
 			ShortDescription:  shortDescription,
+			SEOContent:        seoContent,
 			CreatedAt:         now,
 			UpdatedAt:         now,
 		}
@@ -69,6 +71,7 @@ func (s *CatalogService) UpsertProductTranslation(ctx context.Context, productID
 	row.DescriptionPlain = descriptionPlain
 	row.DescriptionBlocks = descriptionBlocks
 	row.ShortDescription = shortDescription
+	row.SEOContent = seoContent
 	row.UpdatedAt = now
 	if err := s.DB.WithContext(ctx).Save(&row).Error; err != nil {
 		return nil, err
