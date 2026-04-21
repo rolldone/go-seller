@@ -94,6 +94,7 @@ export type ProductTranslation = {
   description_plain?: string | null;
   description_blocks?: unknown;
   short_description?: string | null;
+  seo_content?: unknown;
   created_at: string;
   updated_at: string;
 };
@@ -106,4 +107,5 @@ export type ProductTranslationPayload = {
   description_plain?: string;
   description_blocks?: unknown;
   short_description?: string;
+  seo_content?: unknown;
 };

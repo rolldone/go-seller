@@ -9,6 +9,7 @@ import type { Product, ProductPayload } from "./types";
 import { adminDelete, adminGet, adminPut } from "../entities/adminApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { getAmountFormatSettings } from "../../../lib/amountFormat";
+import SeoSegment from "../SeoSegment.tsx";
 
 type Props = {
   open: boolean;
@@ -188,6 +189,18 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     plain: "",
     blocks: { type: "doc", content: [] },
   });
+
+  const parsedSeoContent = useMemo<Record<string, unknown> | null>(() => {
+    const raw = String(form.seo_content || "").trim();
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+      return parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  }, [form.seo_content]);
 
   // Helper: load children for a parent (lazy)
   const loadChildren = async (pid: string) => {
@@ -912,16 +925,18 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
             />
 
             <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-              <h4 className="mb-3 text-sm font-semibold text-slate-900">Metadata JSON</h4>
-              <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-                <label className="text-sm">
-                  <span className={labelClass}>SEO Content (JSON)</span>
-                  <textarea className={`${textareaClass} font-mono`} rows={4} value={form.seo_content} onChange={(e) => setField("seo_content", e.target.value)} />
-                </label>
-                <label className="text-sm">
-                  <span className={labelClass}>Attributes (JSON)</span>
-                  <textarea className={`${textareaClass} font-mono`} rows={4} value={form.attributes} onChange={(e) => setField("attributes", e.target.value)} />
-                </label>
+              <h4 className="mb-3 text-sm font-semibold text-slate-900">Metadata</h4>
+              <div className="space-y-4">
+                <SeoSegment
+                  value={parsedSeoContent}
+                  onChange={(next) => setField("seo_content", next ? JSON.stringify(next, null, 2) : "")}
+                />
+                <div>
+                  <label className="text-sm">
+                    <span className={labelClass}>Attributes (JSON)</span>
+                    <textarea className={`${textareaClass} font-mono`} rows={4} value={form.attributes} onChange={(e) => setField("attributes", e.target.value)} />
+                  </label>
+                </div>
               </div>
             </section>
           </>

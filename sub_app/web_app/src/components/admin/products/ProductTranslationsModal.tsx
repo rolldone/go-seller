@@ -5,6 +5,7 @@ import { notifyError, notifySuccess } from "../../../lib/notification";
 import { listProductTranslations, upsertProductTranslation } from "./api";
 import type { Product, ProductTranslation } from "./types";
 import RichTextEditor, { type RichTextValue } from "../ui/RichTextEditor";
+import SeoSegment from "../SeoSegment.tsx";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import type { JSONContent } from "@tiptap/react";
@@ -22,6 +23,17 @@ type TranslationForm = {
   slug: string;
   description: string;
   short_description: string;
+};
+
+type SeoContent = {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  image?: string;
+  og?: { title?: string; description?: string; image?: string };
+  twitter?: { card?: string; site?: string; title?: string; description?: string; image?: string };
+  robots?: string;
+  structured_data?: unknown;
 };
 
 const emptyForm: TranslationForm = {
@@ -45,6 +57,56 @@ function slugify(value: string): string {
     .replace(/-+/g, "-");
 }
 
+function parseSeoContent(input: unknown): SeoContent | null {
+  if (!input) return null;
+
+  let raw: unknown = input;
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try {
+      raw = JSON.parse(trimmed);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+
+  const source = raw as Record<string, any>;
+  const out: SeoContent = {};
+
+  if (String(source.title ?? "").trim()) out.title = String(source.title ?? "").trim();
+  if (String(source.description ?? "").trim()) out.description = String(source.description ?? "").trim();
+  if (String(source.canonical ?? "").trim()) out.canonical = String(source.canonical ?? "").trim();
+  if (String(source.image ?? "").trim()) out.image = String(source.image ?? "").trim();
+  if (String(source.robots ?? "").trim()) out.robots = String(source.robots ?? "").trim();
+
+  if (source.og && typeof source.og === "object" && !Array.isArray(source.og)) {
+    const og: SeoContent["og"] = {};
+    if (String(source.og.title ?? "").trim()) og.title = String(source.og.title ?? "").trim();
+    if (String(source.og.description ?? "").trim()) og.description = String(source.og.description ?? "").trim();
+    if (String(source.og.image ?? "").trim()) og.image = String(source.og.image ?? "").trim();
+    if (Object.keys(og).length > 0) out.og = og;
+  }
+
+  if (source.twitter && typeof source.twitter === "object" && !Array.isArray(source.twitter)) {
+    const twitter: SeoContent["twitter"] = {};
+    if (String(source.twitter.card ?? "").trim()) twitter.card = String(source.twitter.card ?? "").trim();
+    if (String(source.twitter.site ?? "").trim()) twitter.site = String(source.twitter.site ?? "").trim();
+    if (String(source.twitter.title ?? "").trim()) twitter.title = String(source.twitter.title ?? "").trim();
+    if (String(source.twitter.description ?? "").trim()) twitter.description = String(source.twitter.description ?? "").trim();
+    if (String(source.twitter.image ?? "").trim()) twitter.image = String(source.twitter.image ?? "").trim();
+    if (Object.keys(twitter).length > 0) out.twitter = twitter;
+  }
+
+  if (source.structured_data !== undefined && source.structured_data !== null && source.structured_data !== "") {
+    out.structured_data = source.structured_data;
+  }
+
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 export default function ProductTranslationsModal({ open, product, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -52,6 +114,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
   const [items, setItems] = useState<ProductTranslation[]>([]);
   const [form, setForm] = useState<TranslationForm>(emptyForm);
   const [descriptionValue, setDescriptionValue] = useState<RichTextValue>({ html: "", plain: "", blocks: { type: "doc", content: [] } });
+  const [seoContent, setSeoContent] = useState<SeoContent | null>(null);
 
   const currentTranslation = useMemo(
     () => items.find((item) => item.locale === locale) || null,
@@ -72,6 +135,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
           description: picked.description || "",
           short_description: picked.short_description || "",
         });
+        setSeoContent(parseSeoContent(picked.seo_content));
         setDescriptionValue({
           html: picked.description_html || picked.description || "",
           plain: picked.description_plain || picked.description || "",
@@ -84,6 +148,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
           description: activeLocale === "id" ? product.description || "" : "",
           short_description: activeLocale === "id" ? product.short_description || "" : "",
         });
+        setSeoContent(activeLocale === "id" ? parseSeoContent(product.seo_content) : null);
         setDescriptionValue({
           html: activeLocale === "id" ? (product.description_html || product.description || "") : "",
           plain: activeLocale === "id" ? (product.description_plain || product.description || "") : "",
@@ -113,6 +178,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
         description: picked.description || "",
         short_description: picked.short_description || "",
       });
+      setSeoContent(parseSeoContent(picked.seo_content));
       setDescriptionValue({
         html: picked.description_html || picked.description || "",
         plain: picked.description_plain || picked.description || "",
@@ -126,6 +192,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
       description: locale === "id" ? product.description || "" : "",
       short_description: locale === "id" ? product.short_description || "" : "",
     });
+    setSeoContent(locale === "id" ? parseSeoContent(product.seo_content) : null);
     setDescriptionValue({
       html: locale === "id" ? (product.description_html || product.description || "") : "",
       plain: locale === "id" ? (product.description_plain || product.description || "") : "",
@@ -150,6 +217,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
         description_plain: (descriptionValue.plain || "").trim() || undefined,
         description_blocks: (descriptionValue.blocks as unknown) || undefined,
         short_description: form.short_description.trim() || undefined,
+        seo_content: seoContent || undefined,
       });
       notifySuccess(`Translation ${localeLabels[locale]} saved`);
       await refresh(locale);
@@ -223,6 +291,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
                     slug: product.slug || "",
                     short_description: product.short_description || "",
                   }));
+                  setSeoContent(parseSeoContent(product.seo_content));
                   // If product has blocks, use them. Otherwise convert HTML -> blocks synchronously
                   const html = product.description_html || product.description || "";
                   const plain = product.description_plain || product.description || "";
@@ -293,6 +362,23 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
             <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Description</span>
             <RichTextEditor value={descriptionValue.html} placeholder="Full description" onChange={setDescriptionValue} />
           </div>
+
+          <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">SEO Translation</p>
+                <p className="text-sm text-slate-600">Locale-specific SEO metadata is saved only for the selected translation.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSeoContent(parseSeoContent(product.seo_content))}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Import from product SEO
+              </button>
+            </div>
+            <SeoSegment value={seoContent} onChange={setSeoContent} />
+          </section>
         </div>
       )}
     </AdminModal>

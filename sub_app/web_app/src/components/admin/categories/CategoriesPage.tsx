@@ -3,6 +3,7 @@ import { notifyError, notifySuccess } from "../../../lib/notification";
 import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import EntityDeleteModal from "../entities/EntityDeleteModal";
 import CategoryFormModal from "./CategoryFormModal";
+import CategoryTranslationsModal from "./CategoryTranslationsModal";
 
 type Category = {
   id: string;
@@ -10,6 +11,7 @@ type Category = {
   name: string;
   slug: string;
   icon_url?: string | null;
+  seo_content?: Record<string, unknown> | null;
   sort_priority: number;
   created_at: string;
   updated_at: string;
@@ -100,6 +102,8 @@ export default function CategoriesPage() {
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [selected, setSelected] = useState<Category | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [translationOpen, setTranslationOpen] = useState(false);
+  const [translationCategory, setTranslationCategory] = useState<Category | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -209,6 +213,7 @@ export default function CategoriesPage() {
       slug: selected?.slug || "",
       parent_id: selected?.parent_id || parentID || "",
       icon_url: selected?.icon_url || "",
+      seo_content: selected?.seo_content || null,
       sort_priority: selected?.sort_priority ?? 0,
     }),
     [selected, parentID],
@@ -234,6 +239,11 @@ export default function CategoriesPage() {
     setFormOpen(true);
   };
 
+  const handleTranslations = (item: Category) => {
+    setTranslationCategory(item);
+    setTranslationOpen(true);
+  };
+
   const handleSave = async (values: Record<string, unknown>) => {
     setSubmitting(true);
     try {
@@ -243,6 +253,7 @@ export default function CategoriesPage() {
         slug: String(values.slug || "").trim(),
         parent_id: parentValue || undefined,
         icon_url: String(values.icon_url || "").trim() || undefined,
+        seo_content: values.seo_content || undefined,
         sort_priority: Number(values.sort_priority || 0),
       };
 
@@ -422,6 +433,9 @@ export default function CategoriesPage() {
                           <button type="button" onClick={() => handleEdit(item)} className="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">
                             Edit / Move
                           </button>
+                          <button type="button" onClick={() => handleTranslations(item)} className="rounded bg-emerald-100 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-200">
+                            Translations
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(item)}
@@ -501,6 +515,15 @@ export default function CategoriesPage() {
           setSelected(null);
         }}
         onSubmit={handleSave}
+      />
+
+      <CategoryTranslationsModal
+        open={translationOpen}
+        category={translationCategory}
+        onClose={() => {
+          setTranslationOpen(false);
+          setTranslationCategory(null);
+        }}
       />
 
       <EntityDeleteModal

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CustomerSession } from "../../lib/customerSession";
-import HomeNav from "./HomeNav";
+import BusinessPageNav from "./business/BusinessPageNav";
 import Footer from "./Footer";
 import ProductsCatalogSection from "./products/ProductsCatalogSection";
 import ProductsHeroSearchSection from "./products/ProductsHeroSearchSection";
@@ -325,7 +325,7 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
       <div className="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
-        <HomeNav variant="light" customerSession={customerSession} locale={locale} />
+        <BusinessPageNav business={{ id: "", name: "GoSeller", slug: "" }} customerSession={customerSession} locale={locale} />
 
         <main className="mt-10 flex-1 space-y-12 pb-8">
           <ProductsHeroSearchSection

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminModal from "../ui/AdminModal";
+import SeoSegment from "../SeoSegment.tsx";
 
 type ParentOption = {
   value: string;
@@ -23,6 +24,7 @@ const defaultForm = {
   slug: "",
   parent_id: "",
   icon_url: "",
+  seo_content: null,
   sort_priority: 0,
 };
 
@@ -47,6 +49,22 @@ export default function CategoryFormModal({
       slug: String((initialValues as any).slug ?? (item as any)?.slug ?? ""),
       parent_id: String((initialValues as any).parent_id ?? (item as any)?.parent_id ?? ""),
       icon_url: String((initialValues as any).icon_url ?? (item as any)?.icon_url ?? ""),
+      seo_content: (() => {
+        const raw = (initialValues as any).seo_content ?? (item as any)?.seo_content ?? null;
+        if (!raw) return null;
+        try {
+          if (typeof raw === "string") {
+            try {
+              return JSON.parse(raw);
+            } catch {
+              return null;
+            }
+          }
+          return raw;
+        } catch {
+          return null;
+        }
+      })(),
       sort_priority: (initialValues as any).sort_priority ?? (item as any)?.sort_priority ?? 0,
     });
     setError("");
@@ -74,6 +92,24 @@ export default function CategoryFormModal({
       setError("Name wajib diisi");
       return;
     }
+    // validate seo_content if provided and include parsed JSON in payload
+    let seoPayload: unknown | undefined = undefined;
+    if (form.seo_content) {
+      if (typeof form.seo_content === "string") {
+        const seoRaw = String(form.seo_content).trim();
+        if (seoRaw) {
+          try {
+            seoPayload = JSON.parse(seoRaw);
+          } catch (e) {
+            setError("SEO Content harus berupa JSON valid");
+            return;
+          }
+        }
+      } else {
+        // assume object
+        seoPayload = form.seo_content;
+      }
+    }
 
     try {
       await onSubmit({
@@ -82,6 +118,7 @@ export default function CategoryFormModal({
         parent_id: String(form.parent_id || "").trim() || undefined,
         icon_url: String(form.icon_url || "").trim() || undefined,
         sort_priority: Number(form.sort_priority || 0),
+        ...(seoPayload !== undefined ? { seo_content: seoPayload } : {}),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal menyimpan kategori");
@@ -91,13 +128,14 @@ export default function CategoryFormModal({
   const inputClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100";
   const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+  const textareaClass = `${inputClass} font-mono`;
 
   return (
     <AdminModal
       open={open}
       title={mode === "create" ? "Create Category" : "Edit Category"}
       onClose={onClose}
-      maxWidth="md"
+      maxWidth="xl"
       footer={
         <>
           <button type="button" onClick={onClose} className="rounded bg-slate-100 px-3 py-2 text-sm hover:bg-slate-200">
@@ -160,6 +198,7 @@ export default function CategoryFormModal({
           <span className={labelClass}>Icon URL</span>
           <input className={inputClass} value={form.icon_url} onChange={(e) => setField("icon_url", e.target.value)} />
         </label>
+            <SeoSegment value={form.seo_content} onChange={(v: any) => setField("seo_content", v)} />
 
         <label className="text-sm">
           <span className={labelClass}>Sort Priority</span>
