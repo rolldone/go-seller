@@ -93,8 +93,8 @@ export default function CategoryStoreFrontPage({
   }, [filteredProducts, productSafePage]);
 
   return (
-    <>
-      <section className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8">
+    <div className="space-y-12">
+      <section className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
           {isEnglish ? "Category Page" : "Halaman Kategori"}
         </p>
@@ -104,8 +104,8 @@ export default function CategoryStoreFrontPage({
         </p>
       </section>
 
-      <section className="space-y-5">
-        <div className="flex items-center justify-between gap-3">
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">
             {isEnglish ? "Filter Subcategories" : "Filter Subkategori"}
           </h2>
@@ -117,7 +117,7 @@ export default function CategoryStoreFrontPage({
         </div>
 
         {visibleChildCategories.length > 0 ? (
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-3 lg:grid-cols-3">
             {visibleChildCategories.map((item) => {
               const active = selectedChildCategoryIDs.includes(item.id);
               return (
@@ -146,7 +146,7 @@ export default function CategoryStoreFrontPage({
                     }
                   }}
                   className={[
-                    "flex h-full cursor-pointer flex-col rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-emerald-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-100",
+                    "flex h-full cursor-pointer flex-col rounded-2xl border bg-white p-3 text-left shadow-sm transition hover:border-emerald-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-100",
                     active ? "border-emerald-300 ring-2 ring-emerald-100" : "border-slate-200",
                   ].join(" ")}
                 >
@@ -165,11 +165,11 @@ export default function CategoryStoreFrontPage({
                       <Check className="h-3.5 w-3.5" />
                     </span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-500">/{item.slug}</p>
+                  <p className="mt-1 text-sm text-slate-500">/{item.slug}</p>
                   <a
                     href={buildLocalizedPath(`/categories/${encodeURIComponent(item.slug)}`, locale)}
                     onClick={(event) => event.stopPropagation()}
-                    className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
+                    className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-semibold text-white transition hover:bg-emerald-700"
                   >
                     {isEnglish ? "Open Category" : "Buka Kategori"}
                   </a>
@@ -187,12 +187,12 @@ export default function CategoryStoreFrontPage({
           page={childCategorySafePage}
           totalPages={childCategoryTotalPages}
           onPageChange={setChildCategoryPage}
-          className="mt-0 justify-start"
+          className="mt-3 justify-start"
         />
       </section>
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className="space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">{isEnglish ? "Products" : "Produk"}</h2>
             <p className="mt-1 text-base text-slate-500">
@@ -271,6 +271,6 @@ export default function CategoryStoreFrontPage({
 
         <ProductsPagination page={productSafePage} totalPages={productTotalPages} onPageChange={setProductPage} />
       </section>
-    </>
+    </div>
   );
 }

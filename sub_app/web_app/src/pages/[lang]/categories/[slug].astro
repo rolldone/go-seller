@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import "../../../styles/front.css";
-import HomeNav from "../../../components/front/HomeNav";
+import BusinessPageNav from "../../../components/front/business/BusinessPageNav";
 import Footer from "../../../components/front/Footer";
 import CategoryStoreFrontPage from "../../../components/front/categories/CategoryStoreFrontPage";
 import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
@@ -52,9 +52,9 @@ const pageTitle = categoryPage.notFound
   <body class="bg-[#f7f7f5] text-slate-900 antialiased">
     <div class="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
       <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
-        <HomeNav client:load variant="light" customerSession={customerSession} locale={locale} />
+        <BusinessPageNav client:load business={{ id: "", name: "GoSeller", slug: "" }} customerSession={customerSession} locale={locale} />
 
-        <main class="mt-10 flex-1 space-y-8 pb-8">
+        <main class="mt-10 flex-1 space-y-12 pb-8">
           {categoryPage.notFound ? (
             <section class="rounded-3xl border border-rose-200 bg-rose-50 p-6 sm:p-8">
               <h1 class="text-2xl font-black tracking-tight text-rose-900 sm:text-3xl">

@@ -27,11 +27,25 @@ const MOCK_CATEGORIES: PublicCategory[] = [
   { id: "cat-elektronik", name: "Elektronik", slug: "elektronik", sort_priority: 1 },
   { id: "cat-gadget", parent_id: "cat-elektronik", name: "Gadget", slug: "gadget", sort_priority: 1 },
   { id: "cat-audio", parent_id: "cat-elektronik", name: "Audio", slug: "audio", sort_priority: 2 },
+  { id: "cat-smartphone", parent_id: "cat-elektronik", name: "Smartphone", slug: "smartphone", sort_priority: 3 },
+  { id: "cat-laptop", parent_id: "cat-elektronik", name: "Laptop", slug: "laptop", sort_priority: 4 },
+  { id: "cat-camera", parent_id: "cat-elektronik", name: "Kamera", slug: "kamera", sort_priority: 5 },
+  { id: "cat-accessories", parent_id: "cat-elektronik", name: "Aksesori", slug: "aksesori", sort_priority: 6 },
+  { id: "cat-tv", parent_id: "cat-elektronik", name: "Televisi", slug: "televisi", sort_priority: 7 },
+  { id: "cat-wearable", parent_id: "cat-elektronik", name: "Wearable", slug: "wearable", sort_priority: 8 },
+  { id: "cat-gaming", parent_id: "cat-elektronik", name: "Gaming", slug: "gaming", sort_priority: 9 },
+  { id: "cat-peripheral", parent_id: "cat-elektronik", name: "Peripheral", slug: "peripheral", sort_priority: 10 },
+
   { id: "cat-rumah", name: "Rumah Tangga", slug: "rumah-tangga", sort_priority: 2 },
   { id: "cat-dapur", parent_id: "cat-rumah", name: "Peralatan Dapur", slug: "peralatan-dapur", sort_priority: 1 },
   { id: "cat-kebersihan", parent_id: "cat-rumah", name: "Kebersihan", slug: "kebersihan", sort_priority: 2 },
+  { id: "cat-dekorasi", parent_id: "cat-rumah", name: "Dekorasi", slug: "dekorasi", sort_priority: 3 },
+  { id: "cat-kamar", parent_id: "cat-rumah", name: "Perabot Kamar", slug: "perabot-kamar", sort_priority: 4 },
+
   { id: "cat-olahraga", name: "Olahraga", slug: "olahraga", sort_priority: 3 },
   { id: "cat-fitness", parent_id: "cat-olahraga", name: "Fitness", slug: "fitness", sort_priority: 1 },
+  { id: "cat-outdoor", parent_id: "cat-olahraga", name: "Outdoor Gear", slug: "outdoor-gear", sort_priority: 2 },
+  { id: "cat-team-sport", parent_id: "cat-olahraga", name: "Team Sport", slug: "team-sport", sort_priority: 3 },
 ];
 
 const MOCK_BUSINESSES: PublicBusiness[] = [
