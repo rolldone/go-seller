@@ -8,6 +8,7 @@ import (
 	authplugin "go_framework/plugins/auth"
 	catalogplugin "go_framework/plugins/catalog"
 	datasearchplugin "go_framework/plugins/data_search"
+	maintenanceplugin "go_framework/plugins/maintenance"
 	marketingplugin "go_framework/plugins/marketing"
 	notificationplugin "go_framework/plugins/notification"
 	orderplugin "go_framework/plugins/order"
@@ -20,6 +21,6 @@ func main() {
 	syscall.Umask(0o002)
 	// To register additional plugins and their console commands, use:
 	// console.RegisterAdditionalPlugins([]plugins.Plugin{plugin.New()})
-	console.RegisterAdditionalPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), marketingplugin.New(), orderplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New()})
+	console.RegisterAdditionalPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), marketingplugin.New(), maintenanceplugin.New(), orderplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New()})
 	console.Execute()
 }

@@ -10,6 +10,7 @@ import (
 	"go_framework/internal/uuid"
 	catalogmodels "go_framework/plugins/catalog/models"
 
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +24,19 @@ func normalizeCategoryLocale(locale string) (string, error) {
 	}
 }
 
-func (s *CatalogService) UpsertCategoryTranslation(ctx context.Context, categoryID string, locale string, name string, slug string, seoContent json.RawMessage) (*catalogmodels.CategoryTranslation, error) {
+func (s *CatalogService) UpsertCategoryTranslation(
+	ctx context.Context,
+	categoryID string,
+	locale string,
+	name string,
+	slug string,
+	description *string,
+	descriptionHTML *string,
+	descriptionPlain *string,
+	descriptionBlocks datatypes.JSON,
+	shortDescription *string,
+	seoContent json.RawMessage,
+) (*catalogmodels.CategoryTranslation, error) {
 	normalizedLocale, err := normalizeCategoryLocale(locale)
 	if err != nil {
 		return nil, err
@@ -43,14 +56,19 @@ func (s *CatalogService) UpsertCategoryTranslation(ctx context.Context, category
 			return nil, err
 		}
 		row = catalogmodels.CategoryTranslation{
-			ID:         uuid.NewString(),
-			CategoryID: categoryID,
-			Locale:     normalizedLocale,
-			Name:       name,
-			Slug:       slug,
-			SEOContent: seoContent,
-			CreatedAt:  now,
-			UpdatedAt:  now,
+			ID:                uuid.NewString(),
+			CategoryID:        categoryID,
+			Locale:            normalizedLocale,
+			Name:              name,
+			Slug:              slug,
+			Description:       description,
+			DescriptionHTML:   descriptionHTML,
+			DescriptionPlain:  descriptionPlain,
+			DescriptionBlocks: descriptionBlocks,
+			ShortDescription:  shortDescription,
+			SEOContent:        seoContent,
+			CreatedAt:         now,
+			UpdatedAt:         now,
 		}
 		if err := s.DB.WithContext(ctx).Create(&row).Error; err != nil {
 			return nil, err
@@ -60,6 +78,11 @@ func (s *CatalogService) UpsertCategoryTranslation(ctx context.Context, category
 
 	row.Name = name
 	row.Slug = slug
+	row.Description = description
+	row.DescriptionHTML = descriptionHTML
+	row.DescriptionPlain = descriptionPlain
+	row.DescriptionBlocks = descriptionBlocks
+	row.ShortDescription = shortDescription
 	row.SEOContent = seoContent
 	row.UpdatedAt = now
 	if err := s.DB.WithContext(ctx).Save(&row).Error; err != nil {

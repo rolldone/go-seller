@@ -147,7 +147,14 @@ func (s *SearchService) upsertCategoryModel(ctx context.Context, db *gorm.DB, ca
 		category.Name,
 		category.Slug,
 		nil,
-		category.Name,
+		compactText(
+			category.Name,
+			nonEmpty(category.ShortDescription),
+			nonEmpty(category.DescriptionPlain),
+			nonEmpty(category.Description),
+			collectJSONStrings(json.RawMessage(category.DescriptionBlocks)),
+			collectJSONStrings(category.SEOContent),
+		),
 	)
 }
 
