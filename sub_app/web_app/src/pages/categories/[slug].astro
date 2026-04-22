@@ -58,7 +58,7 @@ const ancestors = Array.isArray((categoryPage as any).ancestors)
   <body class="bg-[#f7f7f5] text-slate-900 antialiased">
     <div class="relative min-h-screen overflow-x-hidden bg-[#f7f7f5]">
       <div class="relative mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 pb-12 pt-6 sm:px-6 lg:px-8">
-        <BusinessPageNav client:load business={{ id: "", name: "GoSeller", slug: "" }} customerSession={customerSession} locale={locale} />
+        <BusinessPageNav client:load business={null} customerSession={customerSession} locale={locale} />
 
         <main class="mt-10 flex-1 space-y-12 pb-8">
           {categoryPage.notFound ? (

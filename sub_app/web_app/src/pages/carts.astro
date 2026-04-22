@@ -1,0 +1,40 @@
+---
+import "../styles/front.css";
+import CartsPage from "../components/front/CartsPage";
+import CustomerSessionBootstrap from "../components/customer/CustomerSessionBootstrap.astro";
+import type { CartBusinessSummary } from "../lib/cartApi";
+
+const customerSession = Astro.locals.customerSession ?? null;
+const apiBase = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";
+
+async function loadCartBusinesses(session: typeof customerSession): Promise<CartBusinessSummary[]> {
+  if (!apiBase || !session?.authenticated || !session.accessToken) return [];
+  try {
+    const res = await fetch(`${apiBase}/api/order/carts/me/businesses`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+      },
+    });
+    if (!res.ok) return [];
+    const payload = (await res.json().catch(() => ({}))) as { data?: CartBusinessSummary[] };
+    return Array.isArray(payload?.data) ? payload.data : [];
+  } catch {
+    return [];
+  }
+}
+
+const initialBusinesses = await loadCartBusinesses(customerSession);
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Keranjang Belanja | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body class="bg-[#f7f7f5] text-slate-900 antialiased">
+    <CartsPage client:only="react" customerSession={customerSession} initialBusinesses={initialBusinesses} />
+  </body>
+</html>

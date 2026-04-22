@@ -8,12 +8,14 @@ import { getCartPreview, type CartPreview } from "../../../lib/cartApi";
 import { buildLocalizedPath, getLocaleFromPathname } from "../../../lib/siteLocale";
 import { useTranslations } from "../../../i18n";
 import { formatAmount } from "../../../lib/amountFormat";
+import HomeCartIcon from "./HomeCartIcon";
 
 interface BusinessPageNavProps {
-  business: PublicBusiness;
+  business?: PublicBusiness | null;
   customerSession?: CustomerSession | null;
   cartPreview?: CartPreview | null;
   locale?: string;
+  initialBusinesses?: CartBusinessSummary[];
 }
 
 function NavIcon({ children, label, href }: { children: React.ReactNode; label: string; href?: string }) {
@@ -33,15 +35,39 @@ function NavIcon({ children, label, href }: { children: React.ReactNode; label: 
   );
 }
 
-export default function BusinessPageNav({ business, customerSession = null, cartPreview = null, locale }: BusinessPageNavProps) {
+export default function BusinessPageNav({ business, customerSession = null, cartPreview = null, locale, initialBusinesses = [] }: BusinessPageNavProps) {
   const tCommon = useTranslations("common", locale);
   const tBusiness = useTranslations("business", locale);
   const [session, setSession] = useState<CustomerSession | null>(customerSession);
   const [internalPreview, setInternalPreview] = useState<CartPreview | null>(null);
   const preview = cartPreview ?? internalPreview;
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [hoveringPanel, setHoveringPanel] = useState(false);
   const previewFetchKeyRef = useRef("");
+  const closeTimerRef = useRef<number | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const resolvedLocale = locale || (typeof window !== "undefined" ? getLocaleFromPathname(window.location.pathname) : undefined);
+
+  const clearCloseTimer = () => {
+    if (closeTimerRef.current !== null) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const openPanel = () => {
+    clearCloseTimer();
+    setPreviewOpen(true);
+  };
+
+  const scheduleClosePanel = () => {
+    clearCloseTimer();
+    closeTimerRef.current = window.setTimeout(() => {
+      if (!hoveringPanel) {
+        setPreviewOpen(false);
+      }
+    }, 350);
+  };
 
   useEffect(() => {
     if (session?.authenticated) return;
@@ -97,11 +123,29 @@ export default function BusinessPageNav({ business, customerSession = null, cart
     };
   }, [business?.id, cartPreview, session?.authenticated]);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+        setPreviewOpen(false);
+      }
+    };
+
+    if (previewOpen) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [previewOpen]);
+
   const isAuthenticated = Boolean(session?.authenticated);
   const customerName = session?.profile?.name || tBusiness("myAccount", "Akun saya");
   const cartItemCount = preview?.items?.reduce((sum, item) => sum + (item.qty || 0), 0) || 0;
   const cartPreviewItems = (preview?.items || []).slice(0, 3);
   const hasCartPreview = Boolean(preview && (preview.items?.length || 0) > 0);
+  const businessID = business?.id?.trim() || "";
+  const cartsHref = buildLocalizedPath(`/carts?business_id=${encodeURIComponent(businessID)}`, resolvedLocale);
 
   return (
     <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
@@ -115,68 +159,82 @@ export default function BusinessPageNav({ business, customerSession = null, cart
       </a>
 
       <div className="flex items-center justify-end gap-2">
-        <div className="relative group" onMouseEnter={() => setPreviewOpen(true)} onMouseLeave={() => setPreviewOpen(false)}>
-          <NavIcon label={tBusiness("cart", "Keranjang")} href={buildLocalizedPath(business?.slug ? `/b/${encodeURIComponent(business.slug)}/cart` : "/cart", resolvedLocale)}>
-            <span className="relative inline-flex">
-              <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="20" r="1" />
-                <circle cx="20" cy="20" r="1" />
-                <path d="M1 1h4l2.7 12.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.7L23 6H6" />
-              </svg>
-              {cartItemCount > 0 ? (
-                <span className="absolute -right-2 -top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-5 text-white shadow-sm">
-                  {cartItemCount > 99 ? "99+" : cartItemCount}
-                </span>
-              ) : null}
-            </span>
-          </NavIcon>
-
-          {previewOpen ? (
-            <div className="absolute right-0 top-full z-20 mt-3 w-80 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/60">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">{tBusiness("cart", "Keranjang")}</div>
-                  <div className="text-xs text-slate-500">
-                    {cartItemCount > 0 ? `${cartItemCount} ${tBusiness("itemsInCart", "item dalam keranjang")}` : tBusiness("cartEmpty", "Keranjang masih kosong")}
-                  </div>
-                </div>
-                {preview?.grand_total ? (
-                  <div className="text-right text-xs text-slate-500">
-                    {tBusiness("total", "Total")}
-                    <div className="text-sm font-semibold text-slate-900">
-                      {formatAmount(Math.max(0, Math.round(preview.grand_total)), { fractionDigits: 0 })}
-                    </div>
-                  </div>
+        {!businessID ? (
+          <HomeCartIcon customerSession={session} locale={resolvedLocale} initialBusinesses={initialBusinesses} />
+        ) : (
+          <div className="relative group" ref={popupRef} onMouseEnter={openPanel} onMouseLeave={scheduleClosePanel}>
+            <NavIcon label={tBusiness("cart", "Keranjang")} href={cartsHref}>
+              <span className="relative inline-flex">
+                <svg className="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="9" cy="20" r="1" />
+                  <circle cx="20" cy="20" r="1" />
+                  <path d="M1 1h4l2.7 12.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.7L23 6H6" />
+                </svg>
+                {cartItemCount > 0 ? (
+                  <span className="absolute -right-2 -top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold leading-5 text-white shadow-sm">
+                    {cartItemCount > 99 ? "99+" : cartItemCount}
+                  </span>
                 ) : null}
-              </div>
+              </span>
+            </NavIcon>
 
-              <div className="mt-3 space-y-3">
-                {hasCartPreview ? (
-                  cartPreviewItems.map((item) => (
-                    <div key={item.id || `${item.product_id}-${item.sku || item.variation_id || item.qty}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium text-slate-900">{item.product_name || tBusiness("product", "Produk")}</div>
-                        <div className="text-xs text-slate-500">{tBusiness("quantityShort", "Qty")} {item.qty}</div>
-                      </div>
-                      <div className="text-xs font-semibold text-slate-700">
-                        {formatAmount(Math.max(0, Math.round(item.net_total || item.line_total || 0)), { fractionDigits: 0 })}
+            {previewOpen ? (
+              <div
+                className="absolute right-0 top-full z-20 mt-3 w-80 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-200/60"
+                onMouseEnter={() => {
+                  setHoveringPanel(true);
+                  clearCloseTimer();
+                }}
+                onMouseLeave={() => {
+                  setHoveringPanel(false);
+                  scheduleClosePanel();
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{tBusiness("cart", "Keranjang")}</div>
+                    <div className="text-xs text-slate-500">
+                      {cartItemCount > 0 ? `${cartItemCount} ${tBusiness("itemsInCart", "item dalam keranjang")}` : tBusiness("cartEmpty", "Keranjang masih kosong")}
+                    </div>
+                  </div>
+                  {preview?.grand_total ? (
+                    <div className="text-right text-xs text-slate-500">
+                      {tBusiness("total", "Total")}
+                      <div className="text-sm font-semibold text-slate-900">
+                        {formatAmount(Math.max(0, Math.round(preview.grand_total)), { fractionDigits: 0 })}
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">{tBusiness("cartEmpty", "Keranjang masih kosong")}</div>
-                )}
-              </div>
+                  ) : null}
+                </div>
 
-              <a
-                href={buildLocalizedPath(business?.slug ? `/b/${encodeURIComponent(business.slug)}/cart` : "/cart", resolvedLocale)}
-                className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-              >
-                {tBusiness("openCart", "Buka Keranjang")}
-              </a>
-            </div>
-          ) : null}
-        </div>
+                <div className="mt-3 space-y-3">
+                  {hasCartPreview ? (
+                    cartPreviewItems.map((item) => (
+                      <div key={item.id || `${item.product_id}-${item.sku || item.variation_id || item.qty}`} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-slate-900">{item.product_name || tBusiness("product", "Produk")}</div>
+                          <div className="text-xs text-slate-500">{tBusiness("quantityShort", "Qty")} {item.qty}</div>
+                        </div>
+                        <div className="text-xs font-semibold text-slate-700">
+                          {formatAmount(Math.max(0, Math.round(item.net_total || item.line_total || 0)), { fractionDigits: 0 })}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-xl bg-slate-50 px-3 py-4 text-center text-sm text-slate-500">{tBusiness("cartEmpty", "Keranjang masih kosong")}</div>
+                  )}
+                </div>
+
+                <a
+                  href={cartsHref}
+                  className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  {tBusiness("openCart", "Buka Keranjang")}
+                </a>
+              </div>
+            ) : null}
+          </div>
+        )}
 
         <a
           href={buildLocalizedPath(isAuthenticated ? "/customer/dashboard" : "/customer/auth/login", resolvedLocale)}

@@ -7,9 +7,30 @@ import CustomerSessionBootstrap from "../../components/customer/CustomerSessionB
 import { normalizeLocale } from "../../lib/siteLocale";
 import { useTranslations } from "../../i18n";
 
+import type { CartBusinessSummary } from "../../lib/cartApi";
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;
 const t = useTranslations("common", locale);
+const apiBase = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";
+
+async function loadCartBusinesses(session: typeof customerSession): Promise<CartBusinessSummary[]> {
+	if (!apiBase || !session?.authenticated || !session.accessToken) return [];
+	try {
+		const res = await fetch(`${apiBase}/api/order/carts/me/businesses`, {
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${session.accessToken}`,
+			},
+		});
+		if (!res.ok) return [];
+		const payload = (await res.json().catch(() => ({}))) as { data?: CartBusinessSummary[] };
+		return Array.isArray(payload?.data) ? payload.data : [];
+	} catch {
+		return [];
+	}
+}
+
+const initialBusinesses = await loadCartBusinesses(customerSession);
 ---
 
 <html lang={locale}>
@@ -23,6 +44,6 @@ const t = useTranslations("common", locale);
 		<CustomerSessionBootstrap session={customerSession} />
 	</head>
 	<body class="bg-[#f7f7f5] text-slate-900 antialiased">
-		<StoreFrontHome client:load customerSession={customerSession} locale={locale} />
+		<StoreFrontHome client:load customerSession={customerSession} locale={locale} initialBusinesses={initialBusinesses} />
 	</body>
 </html>
