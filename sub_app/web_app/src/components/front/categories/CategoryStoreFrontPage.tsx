@@ -1,8 +1,9 @@
 import { Check, FolderTree } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BrowseProductItem } from "../products/types";
 import ProductsPagination from "../products/ProductsPagination";
 import ProductsProductCard from "../products/ProductsProductCard";
+import { fetchPublicProducts, fetchPublicBusinesses, buildBrowseData } from "../products/api";
 import { buildLocalizedPath } from "../../../lib/siteLocale";
 import Breadcrumbs from "../common/Breadcrumbs";
 
@@ -73,6 +74,9 @@ export default function CategoryStoreFrontPage({
   const [selectedStockStatus, setSelectedStockStatus] = useState("all");
   const [selectedPriceStatus, setSelectedPriceStatus] = useState("all");
   const [productPage, setProductPage] = useState(Math.max(1, initialProductPage));
+  const [clientProducts, setClientProducts] = useState<BrowseProductItem[] | null>(null);
+  const [clientLoading, setClientLoading] = useState(false);
+  const [clientError, setClientError] = useState<string | null>(null);
 
   const childCategoryTotalPages = Math.max(1, Math.ceil(childCategories.length / CHILD_CATEGORY_PER_PAGE));
   const childCategorySafePage = Math.min(childCategoryPage, childCategoryTotalPages);
@@ -82,8 +86,10 @@ export default function CategoryStoreFrontPage({
     return childCategories.slice(start, start + CHILD_CATEGORY_PER_PAGE);
   }, [childCategories, childCategorySafePage]);
 
+  const sourceProducts = clientProducts ?? products;
+
   const filteredProducts = useMemo(() => {
-    return products.filter((item) => {
+    return sourceProducts.filter((item) => {
       const byChildCategory = selectedChildCategoryIDs.length === 0
         ? true
         : item.categoryIds.some((categoryID) => selectedChildCategoryIDs.includes(categoryID));
@@ -92,7 +98,7 @@ export default function CategoryStoreFrontPage({
       const byPriceStatus = matchPriceStatus(item, selectedPriceStatus);
       return byChildCategory && byPrice && byStockStatus && byPriceStatus;
     });
-  }, [products, selectedChildCategoryIDs, selectedPrice, selectedStockStatus, selectedPriceStatus]);
+  }, [sourceProducts, selectedChildCategoryIDs, selectedPrice, selectedStockStatus, selectedPriceStatus]);
 
   const productTotalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PER_PAGE));
   const productSafePage = Math.min(productPage, productTotalPages);
@@ -101,6 +107,46 @@ export default function CategoryStoreFrontPage({
     const start = (productSafePage - 1) * PRODUCT_PER_PAGE;
     return filteredProducts.slice(start, start + PRODUCT_PER_PAGE);
   }, [filteredProducts, productSafePage]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // if no child category filter selected, use server-provided products
+    if (!selectedChildCategoryIDs || selectedChildCategoryIDs.length === 0) {
+      setClientProducts(null);
+      setClientError(null);
+      setClientLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function loadByCategories() {
+      setClientLoading(true);
+      setClientError(null);
+      try {
+        // fetch up to 200 items for selected categories and map to browse model
+        const prods = await fetchPublicProducts({ categoryIDs: selectedChildCategoryIDs, page: 1, limit: 200, locale });
+        const businesses = await fetchPublicBusinesses();
+        if (cancelled) return;
+        const browse = buildBrowseData(prods, businesses).products;
+        setClientProducts(browse);
+        setProductPage(1);
+      } catch (err) {
+        if (cancelled) return;
+        setClientError(err instanceof Error ? err.message : String(err));
+        setClientProducts([]);
+      } finally {
+        if (!cancelled) setClientLoading(false);
+      }
+    }
+
+    void loadByCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedChildCategoryIDs, locale]);
 
   const descriptionHtml = String(description?.html || "").trim();
   const shortDescription = String(description?.short || "").trim();
@@ -282,7 +328,11 @@ export default function CategoryStoreFrontPage({
           </div>
         </div>
 
-        {pagedProducts.length > 0 ? (
+        {clientLoading ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+            {isEnglish ? "Loading products..." : "Memuat produk..."}
+          </div>
+        ) : pagedProducts.length > 0 ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {pagedProducts.map((product) => (
               <ProductsProductCard key={product.id} product={product} locale={locale} />
