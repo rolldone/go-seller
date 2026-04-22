@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import AdminModal from "../ui/AdminModal";
+import RichTextEditor, { type RichTextValue } from "../ui/RichTextEditor";
 import SeoSegment from "../SeoSegment.tsx";
 
 type ParentOption = {
@@ -23,10 +24,42 @@ const defaultForm = {
   name: "",
   slug: "",
   parent_id: "",
+  description: "",
+  short_description: "",
   icon_url: "",
   seo_content: null,
   sort_priority: 0,
 };
+
+const emptyDescriptionValue: RichTextValue = {
+  html: "",
+  plain: "",
+  blocks: { type: "doc", content: [] },
+};
+
+function parseDescriptionValue(input: unknown): RichTextValue {
+  if (!input) {
+    return emptyDescriptionValue;
+  }
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    const source = input as Record<string, unknown>;
+    return {
+      html: String(source.html || ""),
+      plain: String(source.plain || ""),
+      blocks: (source.blocks as RichTextValue["blocks"]) || emptyDescriptionValue.blocks,
+    };
+  }
+  if (typeof input === "string") {
+    const raw = input.trim();
+    if (!raw) return emptyDescriptionValue;
+    return {
+      html: raw,
+      plain: raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+      blocks: emptyDescriptionValue.blocks,
+    };
+  }
+  return emptyDescriptionValue;
+}
 
 export default function CategoryFormModal({
   open,
@@ -41,6 +74,7 @@ export default function CategoryFormModal({
 }: Props) {
   const [form, setForm] = useState<Record<string, any>>(defaultForm);
   const [error, setError] = useState("");
+  const [descriptionValue, setDescriptionValue] = useState<RichTextValue>(emptyDescriptionValue);
 
   useEffect(() => {
     if (!open) return;
@@ -48,6 +82,8 @@ export default function CategoryFormModal({
       name: String((initialValues as any).name ?? (item as any)?.name ?? ""),
       slug: String((initialValues as any).slug ?? (item as any)?.slug ?? ""),
       parent_id: String((initialValues as any).parent_id ?? (item as any)?.parent_id ?? ""),
+      description: String((initialValues as any).description_plain ?? (initialValues as any).description ?? (item as any)?.description_plain ?? (item as any)?.description ?? ""),
+      short_description: String((initialValues as any).short_description ?? (item as any)?.short_description ?? ""),
       icon_url: String((initialValues as any).icon_url ?? (item as any)?.icon_url ?? ""),
       seo_content: (() => {
         const raw = (initialValues as any).seo_content ?? (item as any)?.seo_content ?? null;
@@ -67,6 +103,16 @@ export default function CategoryFormModal({
       })(),
       sort_priority: (initialValues as any).sort_priority ?? (item as any)?.sort_priority ?? 0,
     });
+    setDescriptionValue(
+      parseDescriptionValue(
+        (initialValues as any).description_html
+          ?? (item as any)?.description_html
+          ?? (initialValues as any).description_plain
+          ?? (item as any)?.description_plain
+          ?? (initialValues as any).description
+          ?? (item as any)?.description
+        ),
+    );
     setError("");
   }, [open, initialValues, item]);
 
@@ -115,6 +161,11 @@ export default function CategoryFormModal({
       await onSubmit({
         name: String(form.name || "").trim(),
         slug: String(form.slug || "").trim(),
+        description: descriptionValue.plain || undefined,
+        description_html: descriptionValue.html || undefined,
+        description_plain: descriptionValue.plain || undefined,
+        description_blocks: descriptionValue.blocks,
+        short_description: String(form.short_description || "").trim() || undefined,
         parent_id: String(form.parent_id || "").trim() || undefined,
         icon_url: String(form.icon_url || "").trim() || undefined,
         sort_priority: Number(form.sort_priority || 0),
@@ -198,7 +249,26 @@ export default function CategoryFormModal({
           <span className={labelClass}>Icon URL</span>
           <input className={inputClass} value={form.icon_url} onChange={(e) => setField("icon_url", e.target.value)} />
         </label>
-            <SeoSegment value={form.seo_content} onChange={(v: any) => setField("seo_content", v)} />
+
+        <label className="text-sm">
+          <span className={labelClass}>Short Description</span>
+          <textarea
+            rows={3}
+            className={textareaClass}
+            value={form.short_description}
+            onChange={(e) => setField("short_description", e.target.value)}
+            placeholder="Ringkasan pendek kategori"
+          />
+        </label>
+
+        <RichTextEditor
+          value={descriptionValue.html}
+          title="Description"
+          helperText="Isi deskripsi kategori dengan rich text seperti pada produk."
+          onChange={setDescriptionValue}
+        />
+
+        <SeoSegment value={form.seo_content} onChange={(v: any) => setField("seo_content", v)} />
 
         <label className="text-sm">
           <span className={labelClass}>Sort Priority</span>

@@ -56,8 +56,8 @@ export default function BusinessProductTab({
   const resolvePublicURL = (url?: string | null) => {
     if (!url) return null;
     if (url.startsWith("/")) {
-      const apiBase = (import.meta as any)?.env?.PUBLIC_API_URL
-        ? String((import.meta as any).env.PUBLIC_API_URL).replace(/\/$/, "")
+      const apiBase = import.meta.env.PUBLIC_API_URL
+        ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "")
         : "";
       return apiBase ? `${apiBase}${url}` : url;
     }

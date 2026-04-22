@@ -54,8 +54,8 @@ const PRODUCT_TONES = [
 ] as const;
 
 function getPublicApiBase(): string {
-  return (import.meta as any)?.env?.PUBLIC_API_URL
-    ? String((import.meta as any).env.PUBLIC_API_URL).replace(/\/$/, "")
+  return import.meta.env.PUBLIC_API_URL
+    ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "")
     : "";
 }
 

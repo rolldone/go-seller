@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import AdminModal from "../ui/AdminModal";
+import RichTextEditor, { type RichTextValue } from "../ui/RichTextEditor";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import SeoSegment from "../SeoSegment.tsx";
 import { listCategoryTranslations, upsertCategoryTranslation } from "./api";
@@ -9,6 +10,11 @@ type Category = {
   id: string;
   name: string;
   slug: string;
+  description?: string | null;
+  description_html?: string | null;
+  description_plain?: string | null;
+  description_blocks?: unknown;
+  short_description?: string | null;
   seo_content?: unknown;
 };
 
@@ -23,6 +29,7 @@ type Locale = "id" | "en";
 type FormState = {
   name: string;
   slug: string;
+  short_description: string;
 };
 
 type SeoContent = {
@@ -39,7 +46,39 @@ type SeoContent = {
 const emptyForm: FormState = {
   name: "",
   slug: "",
+  short_description: "",
 };
+
+const emptyDescriptionValue: RichTextValue = {
+  html: "",
+  plain: "",
+  blocks: { type: "doc", content: [] },
+};
+
+function parseDescriptionValue(input: unknown): RichTextValue {
+  if (!input) return emptyDescriptionValue;
+
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    const source = input as Record<string, unknown>;
+    return {
+      html: String(source.html || ""),
+      plain: String(source.plain || ""),
+      blocks: (source.blocks as RichTextValue["blocks"]) || emptyDescriptionValue.blocks,
+    };
+  }
+
+  if (typeof input === "string") {
+    const raw = input.trim();
+    if (!raw) return emptyDescriptionValue;
+    return {
+      html: raw,
+      plain: raw.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim(),
+      blocks: emptyDescriptionValue.blocks,
+    };
+  }
+
+  return emptyDescriptionValue;
+}
 
 const localeLabels: Record<Locale, string> = {
   id: "Indonesia",
@@ -116,6 +155,7 @@ export default function CategoryTranslationsModal({ open, category, onClose }: P
   const [items, setItems] = useState<Awaited<ReturnType<typeof listCategoryTranslations>>>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [seoContent, setSeoContent] = useState<SeoContent | null>(null);
+  const [descriptionValue, setDescriptionValue] = useState<RichTextValue>(emptyDescriptionValue);
 
   const currentTranslation = useMemo(() => items.find((item) => item.locale === locale) || null, [items, locale]);
 
@@ -127,14 +167,27 @@ export default function CategoryTranslationsModal({ open, category, onClose }: P
       setItems(data);
       const picked = data.find((item) => item.locale === activeLocale);
       if (picked) {
-        setForm({ name: picked.name || "", slug: picked.slug || "" });
+        setForm({ name: picked.name || "", slug: picked.slug || "", short_description: picked.short_description || "" });
         setSeoContent(parseSeoContent(picked.seo_content));
+        setDescriptionValue(
+          parseDescriptionValue(
+            picked.description_html ?? picked.description_plain ?? picked.description ?? picked.description_blocks,
+          ),
+        );
       } else {
         setForm({
           name: activeLocale === "id" ? category.name || "" : "",
           slug: activeLocale === "id" ? category.slug || "" : "",
+          short_description: activeLocale === "id" ? category.short_description || "" : "",
         });
         setSeoContent(activeLocale === "id" ? parseSeoContent(category.seo_content) : null);
+        setDescriptionValue(
+          activeLocale === "id"
+            ? parseDescriptionValue(
+                category.description_html ?? category.description_plain ?? category.description ?? category.description_blocks,
+              )
+            : emptyDescriptionValue,
+        );
       }
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Failed to load category translations");
@@ -153,15 +206,24 @@ export default function CategoryTranslationsModal({ open, category, onClose }: P
     if (!open || !category?.id) return;
     const picked = items.find((item) => item.locale === locale);
     if (picked) {
-      setForm({ name: picked.name || "", slug: picked.slug || "" });
+      setForm({ name: picked.name || "", slug: picked.slug || "", short_description: picked.short_description || "" });
       setSeoContent(parseSeoContent(picked.seo_content));
+      setDescriptionValue(
+        parseDescriptionValue(picked.description_html ?? picked.description_plain ?? picked.description ?? picked.description_blocks),
+      );
       return;
     }
     setForm({
       name: locale === "id" ? category.name || "" : "",
       slug: locale === "id" ? category.slug || "" : "",
+      short_description: locale === "id" ? category.short_description || "" : "",
     });
     setSeoContent(locale === "id" ? parseSeoContent(category.seo_content) : null);
+    setDescriptionValue(
+      locale === "id"
+        ? parseDescriptionValue(category.description_html ?? category.description_plain ?? category.description ?? category.description_blocks)
+        : emptyDescriptionValue,
+    );
   }, [locale, open, category, items]);
 
   const handleSave = async () => {
@@ -176,6 +238,11 @@ export default function CategoryTranslationsModal({ open, category, onClose }: P
       await upsertCategoryTranslation(category.id, locale, {
         name: form.name.trim(),
         slug: form.slug.trim(),
+        description: descriptionValue.plain || undefined,
+        description_html: descriptionValue.html || undefined,
+        description_plain: descriptionValue.plain || undefined,
+        description_blocks: descriptionValue.blocks,
+        short_description: String(form.short_description || "").trim() || undefined,
         seo_content: seoContent || undefined,
       });
       notifySuccess(`Category translation ${localeLabels[locale]} saved`);
@@ -234,8 +301,17 @@ export default function CategoryTranslationsModal({ open, category, onClose }: P
               <button
                 type="button"
                 onClick={() => {
-                  setForm({ name: category.name || "", slug: category.slug || "" });
+                  setForm({
+                    name: category.name || "",
+                    slug: category.slug || "",
+                    short_description: category.short_description || "",
+                  });
                   setSeoContent(parseSeoContent(category.seo_content));
+                  setDescriptionValue(
+                    parseDescriptionValue(
+                      category.description_html ?? category.description_plain ?? category.description ?? category.description_blocks,
+                    ),
+                  );
                 }}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-100"
               >
@@ -259,6 +335,24 @@ export default function CategoryTranslationsModal({ open, category, onClose }: P
               </div>
             </label>
           </div>
+
+          <label className="text-sm block">
+            <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Short Description</span>
+            <textarea
+              rows={3}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm"
+              value={form.short_description}
+              onChange={(e) => setForm((prev) => ({ ...prev, short_description: e.target.value }))}
+              placeholder="Localized short description"
+            />
+          </label>
+
+          <RichTextEditor
+            value={descriptionValue.html}
+            title="Description"
+            helperText="Localized category description for this locale."
+            onChange={setDescriptionValue}
+          />
 
           <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">

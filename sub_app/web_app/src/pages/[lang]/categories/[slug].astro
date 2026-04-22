@@ -25,6 +25,7 @@ const categoryPage = await fetchCategoryPageData({
   notFound: true,
   category: null,
   childCategories: [],
+  ancestors: [],
   products: [],
   page,
   totalPages: 1,
@@ -40,6 +41,12 @@ const isEnglish = locale === "en";
 const pageTitle = categoryPage.notFound
   ? (isEnglish ? "Category Not Found | GoSeller" : "Kategori Tidak Ditemukan | GoSeller")
   : `${activeCategoryName} | GoSeller`;
+
+const ancestors = Array.isArray((categoryPage as any).ancestors)
+  ? categoryPage.ancestors
+  : categoryPage.category
+  ? [categoryPage.category]
+  : [];
 ---
 
 <html lang={locale}>
@@ -64,25 +71,32 @@ const pageTitle = categoryPage.notFound
                 {isEnglish ? "The category slug you requested is not available." : "Slug kategori yang diminta tidak tersedia."}
               </p>
               <a
-                href={buildLocalizedPath("/products", locale)}
+                href={buildLocalizedPath("/categories", locale)}
                 class="mt-5 inline-flex rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-800"
               >
-                {isEnglish ? "Back to products" : "Kembali ke produk"}
+                {isEnglish ? "Back to categories" : "Kembali ke kategori"}
               </a>
             </section>
           ) : (
-            <CategoryStoreFrontPage
-              client:load
-              locale={locale}
-              categoryName={activeCategoryName}
-              childCategories={categoryPage.childCategories.map((item) => ({
-                id: String(item.id),
-                name: String(item.name || "Kategori"),
-                slug: String(item.slug || ""),
-              }))}
-              products={categoryPage.products}
-              initialProductPage={categoryPage.page}
-            />
+            <>
+                <CategoryStoreFrontPage
+                  client:load
+                  locale={locale}
+                  categoryName={activeCategoryName}
+                  description={{
+                    html: String(categoryPage.category?.description_html || ""),
+                    short: String(categoryPage.category?.short_description || ""),
+                  }}
+                  ancestors={ancestors.map((c) => ({ id: String(c.id), name: String(c.name || ""), slug: String(c.slug || "") }))}
+                  childCategories={categoryPage.childCategories.map((item) => ({
+                    id: String(item.id),
+                    name: String(item.name || "Kategori"),
+                    slug: String(item.slug || ""),
+                  }))}
+                  products={categoryPage.products}
+                  initialProductPage={categoryPage.page}
+                />
+            </>
           )}
         </main>
       </div>

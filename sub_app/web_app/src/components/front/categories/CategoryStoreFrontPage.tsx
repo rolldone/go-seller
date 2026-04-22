@@ -4,11 +4,17 @@ import type { BrowseProductItem } from "../products/types";
 import ProductsPagination from "../products/ProductsPagination";
 import ProductsProductCard from "../products/ProductsProductCard";
 import { buildLocalizedPath } from "../../../lib/siteLocale";
+import Breadcrumbs from "../common/Breadcrumbs";
 
 type ChildCategoryItem = {
   id: string;
   name: string;
   slug: string;
+};
+
+type CategoryDescription = {
+  html?: string | null;
+  short?: string | null;
 };
 
 interface CategoryStoreFrontPageProps {
@@ -17,6 +23,8 @@ interface CategoryStoreFrontPageProps {
   childCategories: ChildCategoryItem[];
   products: BrowseProductItem[];
   initialProductPage?: number;
+  ancestors?: ChildCategoryItem[];
+  description?: CategoryDescription;
 }
 
 const CHILD_CATEGORY_PER_PAGE = 3;
@@ -55,6 +63,8 @@ export default function CategoryStoreFrontPage({
   childCategories,
   products,
   initialProductPage = 1,
+  ancestors = [],
+  description,
 }: CategoryStoreFrontPageProps) {
   const isEnglish = locale === "en";
   const [childCategoryPage, setChildCategoryPage] = useState(1);
@@ -92,16 +102,31 @@ export default function CategoryStoreFrontPage({
     return filteredProducts.slice(start, start + PRODUCT_PER_PAGE);
   }, [filteredProducts, productSafePage]);
 
+  const descriptionHtml = String(description?.html || "").trim();
+  const shortDescription = String(description?.short || "").trim();
+
   return (
     <div className="space-y-12">
+      {ancestors && ancestors.length > 0 ? (
+        <Breadcrumbs ancestors={ancestors} locale={locale} />
+      ) : null}
       <section className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
           {isEnglish ? "Category Page" : "Halaman Kategori"}
         </p>
         <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-900 sm:text-5xl">{categoryName}</h1>
-        <p className="mt-3 text-sm text-slate-600 sm:text-base">
-          {isEnglish ? "Explore products from this category and its subcategories" : "Jelajahi produk dari kategori ini dan subkategorinya"}
-        </p>
+        {descriptionHtml ? (
+          <div
+            className="prose prose-slate mt-3 max-w-none text-sm sm:text-base"
+            dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+          />
+        ) : shortDescription ? (
+          <p className="mt-3 text-sm text-slate-600 sm:text-base">{shortDescription}</p>
+        ) : (
+          <p className="mt-3 text-sm text-slate-600 sm:text-base">
+            {isEnglish ? "Explore products from this category and its subcategories" : "Jelajahi produk dari kategori ini dan subkategorinya"}
+          </p>
+        )}
       </section>
 
       <section className="space-y-4">

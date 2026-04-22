@@ -108,8 +108,8 @@ export default function BusinessStoreFrontPage({ store, initialTab = "beranda", 
           params.set("locale", locale);
         }
         const q = params.toString() ? `?${params.toString()}` : "";
-        const apiBase = (import.meta as any)?.env?.PUBLIC_API_URL
-          ? String((import.meta as any).env.PUBLIC_API_URL).replace(/\/$/, "")
+        const apiBase = import.meta.env.PUBLIC_API_URL
+          ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "")
           : "";
         // Use the public business route so frontend can reuse the page slug: /b/:slug
         const endpoint = apiBase

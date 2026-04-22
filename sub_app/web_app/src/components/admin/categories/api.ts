@@ -8,6 +8,11 @@ export type CategoryTranslation = {
   locale: Locale;
   name: string;
   slug: string;
+  description?: string | null;
+  description_html?: string | null;
+  description_plain?: string | null;
+  description_blocks?: unknown;
+  short_description?: string | null;
   seo_content?: unknown;
   created_at: string;
   updated_at: string;
@@ -16,6 +21,11 @@ export type CategoryTranslation = {
 export type CategoryTranslationPayload = {
   name: string;
   slug: string;
+  description?: string;
+  description_html?: string;
+  description_plain?: string;
+  description_blocks?: unknown;
+  short_description?: string;
   seo_content?: unknown;
 };
 

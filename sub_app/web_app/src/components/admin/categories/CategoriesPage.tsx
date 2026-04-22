@@ -10,6 +10,11 @@ type Category = {
   parent_id?: string | null;
   name: string;
   slug: string;
+  description?: string | null;
+  description_html?: string | null;
+  description_plain?: string | null;
+  description_blocks?: unknown;
+  short_description?: string | null;
   icon_url?: string | null;
   seo_content?: Record<string, unknown> | null;
   sort_priority: number;
@@ -212,6 +217,11 @@ export default function CategoriesPage() {
       name: selected?.name || "",
       slug: selected?.slug || "",
       parent_id: selected?.parent_id || parentID || "",
+      description: selected?.description || "",
+      description_html: selected?.description_html || "",
+      description_plain: selected?.description_plain || "",
+      description_blocks: selected?.description_blocks || null,
+      short_description: selected?.short_description || "",
       icon_url: selected?.icon_url || "",
       seo_content: selected?.seo_content || null,
       sort_priority: selected?.sort_priority ?? 0,
@@ -251,6 +261,11 @@ export default function CategoriesPage() {
       const payload = {
         name: String(values.name || "").trim(),
         slug: String(values.slug || "").trim(),
+        description: values.description || undefined,
+        description_html: values.description_html || undefined,
+        description_plain: values.description_plain || undefined,
+        description_blocks: values.description_blocks || undefined,
+        short_description: String(values.short_description || "").trim() || undefined,
         parent_id: parentValue || undefined,
         icon_url: String(values.icon_url || "").trim() || undefined,
         seo_content: values.seo_content || undefined,

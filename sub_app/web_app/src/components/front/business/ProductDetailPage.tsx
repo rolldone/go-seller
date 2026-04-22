@@ -74,8 +74,8 @@ type ReviewAttachmentMeta = {
 };
 
 function getPublicApiBase(): string {
-  return (import.meta as any)?.env?.PUBLIC_API_URL
-    ? String((import.meta as any).env.PUBLIC_API_URL).replace(/\/$/, "")
+  return import.meta.env.PUBLIC_API_URL
+    ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "")
     : "";
 }
 
@@ -302,8 +302,8 @@ export default function ProductDetailPage({ store, product, relatedProducts, loc
       return variationMedia;
     }
 
-    const apiBase = (import.meta as any)?.env?.PUBLIC_API_URL
-      ? String((import.meta as any).env.PUBLIC_API_URL).replace(/\/$/, "")
+    const apiBase = import.meta.env.PUBLIC_API_URL
+      ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "")
       : "";
     const items = (product.gallery || []).map((g, idx) => {
       let url = g?.public_url || "";
