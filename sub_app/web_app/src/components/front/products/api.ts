@@ -180,6 +180,38 @@ export async function fetchPublicProducts(options: FetchPublicProductsOptions = 
   return parseListResponse<PublicProduct>(payload);
 }
 
+export async function fetchPublicProductsPage(options: FetchPublicProductsOptions = {}): Promise<{ items: PublicProduct[]; total: number }> {
+  const query = new URLSearchParams();
+  query.set("page", String(Math.max(1, options.page || 1)));
+  query.set("limit", String(Math.min(200, Math.max(1, options.limit || 200))));
+  if (options.locale) {
+    query.set("locale", options.locale);
+  }
+  if (options.q) query.set("q", options.q);
+  if (options.sku) query.set("sku", options.sku);
+  if (options.slug) query.set("slug", options.slug);
+  if (options.stockStatus) query.set("stock_status", options.stockStatus);
+  if (options.productType) query.set("product_type", options.productType);
+  if (options.ids?.length) query.set("ids", options.ids.join(","));
+  if (options.businessIDs?.length) query.set("business_ids", options.businessIDs.join(","));
+  if (options.categoryIDs?.length) query.set("category_ids", options.categoryIDs.join(","));
+  if (options.tagIDs?.length) query.set("tag_ids", options.tagIDs.join(","));
+
+  const res = await fetch(buildUrl(`/api/catalog/products?${query.toString()}`), {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to fetch products: HTTP ${res.status}`);
+  }
+
+  const payload = await res.json().catch(() => ({}));
+  const parsed = (payload || {}) as ListResponse<PublicProduct>;
+  const items = Array.isArray(parsed.data) ? parsed.data : [];
+  const total = Math.max(0, Number(parsed.total) || items.length);
+  return { items, total };
+}
+
 export async function fetchPublicBusinesses(): Promise<PublicBusiness[]> {
   const query = new URLSearchParams();
   query.set("page", "1");

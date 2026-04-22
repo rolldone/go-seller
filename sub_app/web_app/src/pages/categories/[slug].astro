@@ -77,6 +77,9 @@ const ancestors = Array.isArray((categoryPage as any).ancestors)
                 <CategoryStoreFrontPage
                   client:load
                   locale={locale}
+                  slug={slug}
+                  serverTotalPages={categoryPage.totalPages}
+                  serverTotalProducts={categoryPage.totalProducts}
                   categoryName={activeCategoryName}
                   description={{
                     html: String(categoryPage.category?.description_html || ""),

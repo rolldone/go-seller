@@ -210,26 +210,30 @@ export async function fetchCategoryPageData(options: {
     `[categoryPageData] matched category id=${activeCategory.id} slug=${String(activeCategory.slug || "")}, child=${childCategories.length}, descendants=${categoryIDs.length}`,
   );
 
-  const [allProducts, allBusinesses] = await Promise.all([
-    fetchAllListItems<PublicProduct>(fetchImpl, (nextPage, limit) => {
-      return buildPagedUrl(
-        "/api/catalog/products",
-        options.requestOrigin,
-        nextPage,
-        limit,
-        {
-          locale,
-          category_ids: categoryIDs.join(","),
-        },
-      );
-    }),
-    fetchAllListItems<PublicBusiness>(fetchImpl, (nextPage, limit) => {
-      return buildPagedUrl("/api/catalog/businesses", options.requestOrigin, nextPage, limit);
-    }),
-  ]);
+  // Fetch only the requested page of products from the public API (server-side pagination)
+  const productsPayload = await fetchJson(
+    fetchImpl,
+    buildPagedUrl(
+      "/api/catalog/products",
+      options.requestOrigin,
+      page,
+      perPage,
+      {
+        locale,
+        category_ids: categoryIDs.join(","),
+      },
+    ),
+  );
 
-  const browseProducts = buildBrowseData(allProducts, allBusinesses).products;
-  const totalProducts = browseProducts.length;
+  const parsedProducts = parseListResponse<PublicProduct>(productsPayload);
+  const pageProducts = parsedProducts.data;
+  const totalProducts = Math.max(0, Number(parsedProducts.total) || pageProducts.length);
+
+  const allBusinesses = await fetchAllListItems<PublicBusiness>(fetchImpl, (nextPage, limit) => {
+    return buildPagedUrl("/api/catalog/businesses", options.requestOrigin, nextPage, limit);
+  });
+
+  const browseProducts = buildBrowseData(pageProducts, allBusinesses).products;
   const totalPages = Math.max(1, Math.ceil(totalProducts / perPage));
 
   return {

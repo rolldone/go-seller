@@ -1,9 +1,9 @@
 import { Check, FolderTree } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BrowseProductItem } from "../products/types";
 import ProductsPagination from "../products/ProductsPagination";
 import ProductsProductCard from "../products/ProductsProductCard";
-import { fetchPublicProducts, fetchPublicBusinesses, buildBrowseData } from "../products/api";
+import { fetchPublicProductsPage, fetchPublicBusinesses, buildBrowseData } from "../products/api";
 import { buildLocalizedPath } from "../../../lib/siteLocale";
 import Breadcrumbs from "../common/Breadcrumbs";
 
@@ -26,6 +26,9 @@ interface CategoryStoreFrontPageProps {
   initialProductPage?: number;
   ancestors?: ChildCategoryItem[];
   description?: CategoryDescription;
+  slug?: string;
+  serverTotalPages?: number;
+  serverTotalProducts?: number;
 }
 
 const CHILD_CATEGORY_PER_PAGE = 3;
@@ -66,6 +69,9 @@ export default function CategoryStoreFrontPage({
   initialProductPage = 1,
   ancestors = [],
   description,
+  slug,
+  serverTotalPages,
+  serverTotalProducts,
 }: CategoryStoreFrontPageProps) {
   const isEnglish = locale === "en";
   const [childCategoryPage, setChildCategoryPage] = useState(1);
@@ -77,6 +83,10 @@ export default function CategoryStoreFrontPage({
   const [clientProducts, setClientProducts] = useState<BrowseProductItem[] | null>(null);
   const [clientLoading, setClientLoading] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
+  const [ajaxTotalProducts, setAjaxTotalProducts] = useState<number | null>(null);
+  const [ajaxTotalPages, setAjaxTotalPages] = useState<number | null>(null);
+  const isMountedRef = useRef(false);
+  const debounceRef = useRef<number | null>(null);
 
   const childCategoryTotalPages = Math.max(1, Math.ceil(childCategories.length / CHILD_CATEGORY_PER_PAGE));
   const childCategorySafePage = Math.min(childCategoryPage, childCategoryTotalPages);
@@ -100,53 +110,164 @@ export default function CategoryStoreFrontPage({
     });
   }, [sourceProducts, selectedChildCategoryIDs, selectedPrice, selectedStockStatus, selectedPriceStatus]);
 
-  const productTotalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PER_PAGE));
+  const serverPaged = typeof serverTotalPages === "number" && serverTotalPages > 0 && clientProducts == null;
+
+  const productTotalPages = serverPaged ? serverTotalPages! : Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PER_PAGE));
   const productSafePage = Math.min(productPage, productTotalPages);
 
   const pagedProducts = useMemo(() => {
+    if (serverPaged) {
+      // server already returned the current page items in `products`
+      return sourceProducts;
+    }
     const start = (productSafePage - 1) * PRODUCT_PER_PAGE;
     return filteredProducts.slice(start, start + PRODUCT_PER_PAGE);
-  }, [filteredProducts, productSafePage]);
+  }, [filteredProducts, productSafePage, serverPaged, sourceProducts]);
 
+  // Apply initial query params from URL (if any) on client mount
   useEffect(() => {
-    let cancelled = false;
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const cats = sp.get("category_ids") ? sp.get("category_ids")!.split(",").filter(Boolean) : [];
+    const price = sp.get("price") || "all";
+    const stock = sp.get("stock_status") || "all";
+    const priceStatus = sp.get("price_status") || "all";
+    const pageParam = Math.max(1, Number(sp.get("page") || String(initialProductPage)) || initialProductPage);
 
-    // if no child category filter selected, use server-provided products
-    if (!selectedChildCategoryIDs || selectedChildCategoryIDs.length === 0) {
+    let needFetch = false;
+    if (cats.length) {
+      setSelectedChildCategoryIDs(cats);
+      needFetch = true;
+    }
+    if (price !== "all") {
+      setSelectedPrice(price);
+      needFetch = true;
+    }
+    if (stock !== "all") {
+      setSelectedStockStatus(stock);
+      needFetch = true;
+    }
+    if (priceStatus !== "all") {
+      setSelectedPriceStatus(priceStatus);
+      needFetch = true;
+    }
+    setProductPage(pageParam);
+
+    // If any filter present, we'll trigger client-side fetch via effect below
+    isMountedRef.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Helper: determine whether we should do client AJAX fetch
+  const shouldUseClientFetch = (): boolean => {
+    return (
+      (selectedChildCategoryIDs && selectedChildCategoryIDs.length > 0) ||
+      selectedPrice !== "all" ||
+      selectedStockStatus !== "all" ||
+      selectedPriceStatus !== "all"
+    );
+  };
+
+  // Fetch products via AJAX when filters or page change (debounced)
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+
+    const doClear = () => {
       setClientProducts(null);
       setClientError(null);
       setClientLoading(false);
-      return () => {
-        cancelled = true;
-      };
+      setAjaxTotalProducts(null);
+      setAjaxTotalPages(null);
+    };
+
+    if (!shouldUseClientFetch()) {
+      doClear();
+      return;
     }
 
-    async function loadByCategories() {
-      setClientLoading(true);
-      setClientError(null);
-      try {
-        // fetch up to 200 items for selected categories and map to browse model
-        const prods = await fetchPublicProducts({ categoryIDs: selectedChildCategoryIDs, page: 1, limit: 200, locale });
-        const businesses = await fetchPublicBusinesses();
-        if (cancelled) return;
-        const browse = buildBrowseData(prods, businesses).products;
-        setClientProducts(browse);
-        setProductPage(1);
-      } catch (err) {
-        if (cancelled) return;
-        setClientError(err instanceof Error ? err.message : String(err));
-        setClientProducts([]);
-      } finally {
-        if (!cancelled) setClientLoading(false);
+    if (debounceRef.current) {
+      window.clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = window.setTimeout(() => {
+      let cancelled = false;
+      async function exec() {
+        setClientLoading(true);
+        setClientError(null);
+        try {
+          const res = await fetchPublicProductsPage({
+            categoryIDs: selectedChildCategoryIDs?.length ? selectedChildCategoryIDs : undefined,
+            page: productPage,
+            limit: PRODUCT_PER_PAGE,
+            locale,
+            stockStatus: selectedStockStatus !== "all" ? selectedStockStatus : undefined,
+          });
+
+          if (cancelled) return;
+
+          const businesses = await fetchPublicBusinesses();
+          if (cancelled) return;
+
+          const browse = buildBrowseData(res.items, businesses).products;
+          setClientProducts(browse);
+          setAjaxTotalProducts(res.total);
+          setAjaxTotalPages(Math.max(1, Math.ceil(res.total / PRODUCT_PER_PAGE)));
+
+          // update URL without reload
+          try {
+            const params = new URLSearchParams();
+            if (selectedChildCategoryIDs && selectedChildCategoryIDs.length) params.set("category_ids", selectedChildCategoryIDs.join(","));
+            if (selectedPrice !== "all") params.set("price", selectedPrice);
+            if (selectedStockStatus !== "all") params.set("stock_status", selectedStockStatus);
+            if (selectedPriceStatus !== "all") params.set("price_status", selectedPriceStatus);
+            if (productPage && productPage > 1) params.set("page", String(productPage));
+
+            const base = buildLocalizedPath(`/categories/${encodeURIComponent(slug || "")}`, locale);
+            const url = params.toString() ? `${base}?${params.toString()}` : base;
+            window.history.pushState({ filters: true }, "", url);
+          } catch (e) {
+            // ignore history errors
+          }
+        } catch (err) {
+          if (cancelled) return;
+          setClientError(err instanceof Error ? err.message : String(err));
+          setClientProducts([]);
+        } finally {
+          if (!cancelled) setClientLoading(false);
+        }
       }
-    }
 
-    void loadByCategories();
+      void exec();
+    }, 350);
 
     return () => {
-      cancelled = true;
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [selectedChildCategoryIDs, locale]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChildCategoryIDs, selectedPrice, selectedStockStatus, selectedPriceStatus, productPage, locale, slug]);
+
+  // Handle back/forward navigation
+  useEffect(() => {
+    function onPop() {
+      const sp = new URLSearchParams(window.location.search);
+      const cats = sp.get("category_ids") ? sp.get("category_ids")!.split(",").filter(Boolean) : [];
+      const price = sp.get("price") || "all";
+      const stock = sp.get("stock_status") || "all";
+      const priceStatus = sp.get("price_status") || "all";
+      const pageParam = Math.max(1, Number(sp.get("page") || String(initialProductPage)) || initialProductPage);
+
+      setSelectedChildCategoryIDs(cats);
+      setSelectedPrice(price);
+      setSelectedStockStatus(stock);
+      setSelectedPriceStatus(priceStatus);
+      setProductPage(pageParam);
+      // effect above will trigger fetch if needed
+    }
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProductPage]);
 
   const descriptionHtml = String(description?.html || "").trim();
   const shortDescription = String(description?.short || "").trim();
@@ -267,7 +388,7 @@ export default function CategoryStoreFrontPage({
           <div>
             <h2 className="text-4xl font-extrabold tracking-tight text-slate-900">{isEnglish ? "Products" : "Produk"}</h2>
             <p className="mt-1 text-base text-slate-500">
-              {filteredProducts.length} {isEnglish ? "items match your filter" : "produk sesuai filter"}
+              {(typeof serverTotalProducts === "number" && clientProducts == null ? serverTotalProducts : filteredProducts.length)} {isEnglish ? "items match your filter" : "produk sesuai filter"}
             </p>
           </div>
 
@@ -344,7 +465,19 @@ export default function CategoryStoreFrontPage({
           </div>
         )}
 
-        <ProductsPagination page={productSafePage} totalPages={productTotalPages} onPageChange={setProductPage} />
+        <ProductsPagination
+          page={productSafePage}
+          totalPages={productTotalPages}
+          onPageChange={(targetPage) => {
+            if (clientProducts == null && slug) {
+              const base = buildLocalizedPath(`/categories/${encodeURIComponent(slug)}`, locale);
+              const separator = base.includes("?") ? "&" : "?";
+              window.location.href = `${base}${separator}page=${targetPage}`;
+            } else {
+              setProductPage(targetPage);
+            }
+          }}
+        />
       </section>
     </div>
   );
