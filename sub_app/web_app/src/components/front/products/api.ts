@@ -1,6 +1,14 @@
 import type { PublicProductAsset } from "../business/types";
 import type { BrowseProductItem, BrowseStoreItem } from "./types";
 
+export type PublicCategory = {
+  id: string;
+  parent_id?: string | null;
+  name?: string;
+  slug?: string;
+  sort_priority?: number;
+};
+
 export type PublicProduct = {
   id: string;
   name?: string;
@@ -67,6 +75,38 @@ function buildUrl(path: string): string {
 function parseListResponse<T>(value: unknown): T[] {
   const payload = (value || {}) as ListResponse<T>;
   return Array.isArray(payload.data) ? payload.data : [];
+}
+
+async function fetchAllListItems<T>(makeUrl: (page: number, limit: number) => string): Promise<T[]> {
+  const pageSize = 100;
+  const firstResponse = await fetch(makeUrl(1, pageSize), { headers: { Accept: "application/json" } });
+  if (!firstResponse.ok) {
+    throw new Error(`Failed to fetch list: HTTP ${firstResponse.status}`);
+  }
+
+  const firstPayload = await firstResponse.json().catch(() => ({}));
+  const firstPage = (firstPayload || {}) as ListResponse<T>;
+  const items = Array.isArray(firstPage.data) ? [...firstPage.data] : [];
+  const total = Math.max(0, Number(firstPage.total) || items.length);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    if (items.length >= total) {
+      break;
+    }
+    const response = await fetch(makeUrl(page, pageSize), { headers: { Accept: "application/json" } });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch list: HTTP ${response.status}`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    const parsed = (payload || {}) as ListResponse<T>;
+    if (!Array.isArray(parsed.data) || parsed.data.length === 0) {
+      break;
+    }
+    items.push(...parsed.data);
+  }
+
+  return items;
 }
 
 function toStoreCode(id: string): string {
@@ -155,6 +195,18 @@ export async function fetchPublicBusinesses(): Promise<PublicBusiness[]> {
 
   const payload = await res.json().catch(() => ({}));
   return parseListResponse<PublicBusiness>(payload);
+}
+
+export async function fetchPublicCategories(locale?: string): Promise<PublicCategory[]> {
+  return fetchAllListItems<PublicCategory>((page, limit) => {
+    const query = new URLSearchParams();
+    query.set("page", String(page));
+    query.set("limit", String(limit));
+    if (locale) {
+      query.set("locale", locale);
+    }
+    return buildUrl(`/api/catalog/categories?${query.toString()}`);
+  });
 }
 
 export async function fetchPublicSearchResults(query: string): Promise<PublicSearchResult[]> {

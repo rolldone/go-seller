@@ -10,8 +10,10 @@ import { getLocaleFromPathname } from "../../lib/siteLocale";
 import {
   buildBrowseData,
   fetchPublicBusinesses,
+  fetchPublicCategories,
   fetchPublicProducts,
   fetchPublicSearchResults,
+  type PublicCategory,
   type PublicBusiness,
   type PublicProduct,
   type PublicSearchResult,
@@ -33,7 +35,9 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
   const resolvedLocale = locale || (typeof window !== "undefined" ? getLocaleFromPathname(window.location.pathname) : undefined);
   const [businessesData, setBusinessesData] = useState<PublicBusiness[]>([]);
   const [productsData, setProductsData] = useState<PublicProduct[]>([]);
+  const [categoryData, setCategoryData] = useState<PublicCategory[]>([]);
   const [businessesLoaded, setBusinessesLoaded] = useState(false);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [productsLoaded, setProductsLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
 
@@ -43,8 +47,7 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
   const [searchPending, setSearchPending] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
-  const [heroCategory, setHeroCategory] = useState("all");
-  const [heroSort, setHeroSort] = useState("Terbaru");
+  const [selectedCategoryID, setSelectedCategoryID] = useState("all");
   const [storePage, setStorePage] = useState(1);
   const [selectedStoreIDs, setSelectedStoreIDs] = useState<string[]>([]);
 
@@ -80,6 +83,32 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
       cancelled = true;
     };
   }, [locale]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCategories() {
+      setCategoriesLoaded(false);
+
+      try {
+        const categories = await fetchPublicCategories(resolvedLocale);
+        if (cancelled) return;
+        setCategoryData(categories);
+        setCategoriesLoaded(true);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setLoadError(message || "Gagal memuat kategori");
+        setCategoryData([]);
+        setCategoriesLoaded(true);
+      }
+    }
+
+    void loadCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedLocale]);
 
   useEffect(() => {
     const keyword = searchQuery.trim();
@@ -199,7 +228,6 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
           locale,
           page: 1,
           limit: 200,
-          productType: heroCategory === "all" ? undefined : heroCategory,
           ids: ids.length > 0 ? ids : undefined,
           businessIDs: businessIDs.size > 0 ? Array.from(businessIDs) : undefined,
           categoryIDs: categoryIDs.length > 0 ? categoryIDs : undefined,
@@ -219,7 +247,7 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
     return () => {
       cancelled = true;
     };
-  }, [activeSearchQuery, businessesLoaded, heroCategory, locale, searchLoading, searchPending, searchResultMaps]);
+  }, [activeSearchQuery, businessesLoaded, locale, searchLoading, searchPending, searchResultMaps]);
 
   const browseData = useMemo(() => buildBrowseData(productsData, businessesData), [businessesData, productsData]);
   const { products: browseProducts, stores: browseStores } = browseData;
@@ -277,18 +305,45 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
     return [{ id: "all", label: "Semua Kategori" }, ...dynamic];
   }, [browseProducts]);
 
+  const categoryChildrenMap = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const cat of categoryData) {
+      const parent = String(cat.parent_id || "").trim() || "__root__";
+      const arr = map.get(parent) || [];
+      arr.push(String(cat.id));
+      map.set(parent, arr);
+    }
+    return map;
+  }, [categoryData]);
+
+  const selectedDescendantIDs = useMemo(() => {
+    if (selectedCategoryID === "all") return null;
+    const out = new Set<string>();
+    const stack = [selectedCategoryID];
+    while (stack.length) {
+      const curr = stack.pop()!;
+      if (out.has(curr)) continue;
+      out.add(curr);
+      const children = categoryChildrenMap.get(curr) || [];
+      for (const c of children) stack.push(c);
+    }
+    return out;
+  }, [categoryChildrenMap, selectedCategoryID]);
+
   const topFilteredStores = useMemo(() => {
-    const byHeroCategory = heroCategory === "all"
+    const bySelectedCategory = selectedCategoryID === "all"
       ? browseStores
       : browseStores.filter((store) => {
-          return browseProducts.some((product) => product.storeId === store.id && product.category === heroCategory);
+          return browseProducts.some((product) => {
+            return product.storeId === store.id && product.categoryIds.some((cid) => selectedDescendantIDs ? selectedDescendantIDs.has(cid) : false);
+          });
         });
 
     if (!activeSearchQuery) {
-      return byHeroCategory;
+      return bySelectedCategory;
     }
 
-    return byHeroCategory.filter((store) => {
+    return bySelectedCategory.filter((store) => {
       const storeMatch = searchResultMaps.businessIDs.has(store.id);
       const productMatch = browseProducts.some((product) => {
         const categoryMatch = product.categoryIds.some((categoryID) => searchResultMaps.categoryIDs.has(categoryID));
@@ -296,12 +351,12 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
       });
       return storeMatch || productMatch;
     });
-  }, [activeSearchQuery, browseProducts, browseStores, heroCategory, searchResultMaps]);
+  }, [activeSearchQuery, browseProducts, browseStores, searchResultMaps, selectedCategoryID]);
 
   const topFilteredProducts = useMemo(() => {
-    const byCategory = heroCategory === "all"
+    const byCategory = selectedCategoryID === "all"
       ? browseProducts
-      : browseProducts.filter((item) => item.category === heroCategory);
+      : browseProducts.filter((item) => item.categoryIds.some((cid) => selectedDescendantIDs ? selectedDescendantIDs.has(cid) : false));
 
     const byStore = selectedStoreIDs.length === 0
       ? byCategory
@@ -317,7 +372,7 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
         || searchResultMaps.businessIDs.has(item.storeId)
         || categoryMatch;
     });
-  }, [activeSearchQuery, browseProducts, heroCategory, searchResultMaps, selectedStoreIDs]);
+  }, [activeSearchQuery, browseProducts, searchResultMaps, selectedCategoryID, selectedStoreIDs]);
 
   const storeSectionLoading = !businessesLoaded || searchPending || searchLoading;
   const productSectionLoading = !productsLoaded || searchPending || searchLoading;
@@ -341,17 +396,14 @@ export default function StoreFrontProducts({ customerSession = null, locale }: S
               setCatalogPage(1);
               setStorePage(1);
             }}
-            category={heroCategory}
-            onCategoryChange={(value) => {
-              setHeroCategory(value);
-              setCatalogCategory(value);
+            categories={categoryData}
+            selectedCategoryID={selectedCategoryID}
+            onSelectedCategoryChange={(value) => {
+              setSelectedCategoryID(value);
+              setSelectedStoreIDs([]);
               setCatalogPage(1);
               setStorePage(1);
             }}
-            sortBy={heroSort}
-            onSortByChange={setHeroSort}
-            categories={browseCategories}
-            sortOptions={browseSortOptions}
             isSearching={searchLoading}
           />
 

@@ -1,16 +1,14 @@
 import { Search } from "lucide-react";
-import type { BrowseCategoryItem } from "./types";
+import ProductsFloatingCategoryMenu from "./ProductsFloatingCategoryMenu";
+import type { PublicCategory } from "./api";
 
 interface ProductsHeroSearchSectionProps {
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
   onSearchSubmit: () => void;
-  category: string;
-  onCategoryChange: (value: string) => void;
-  sortBy: string;
-  onSortByChange: (value: string) => void;
-  categories: BrowseCategoryItem[];
-  sortOptions: string[];
+  categories: PublicCategory[];
+  selectedCategoryID: string;
+  onSelectedCategoryChange: (value: string) => void;
   isSearching?: boolean;
 }
 
@@ -18,12 +16,9 @@ export default function ProductsHeroSearchSection({
   searchQuery,
   onSearchQueryChange,
   onSearchSubmit,
-  category,
-  onCategoryChange,
-  sortBy,
-  onSortByChange,
   categories,
-  sortOptions,
+  selectedCategoryID,
+  onSelectedCategoryChange,
   isSearching = false,
 }: ProductsHeroSearchSectionProps) {
   return (
@@ -40,27 +35,11 @@ export default function ProductsHeroSearchSection({
           onSearchSubmit();
         }}
       >
-        <select
-          value={category}
-          onChange={(event) => onCategoryChange(event.target.value)}
-          className="h-11 appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-8 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-500"
-          aria-label="Pilih kategori"
-        >
-          {categories.map((option) => (
-            <option key={option.id} value={option.id}>{option.label}</option>
-          ))}
-        </select>
-
-        <select
-          value={sortBy}
-          onChange={(event) => onSortByChange(event.target.value)}
-          className="h-11 appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-8 text-sm font-semibold text-slate-700 outline-none transition focus:border-emerald-500"
-          aria-label="Urutkan produk"
-        >
-          {sortOptions.map((option) => (
-            <option key={option} value={option}>{option}</option>
-          ))}
-        </select>
+        <ProductsFloatingCategoryMenu
+          categories={categories}
+          selectedCategoryID={selectedCategoryID}
+          onSelectedCategoryChange={onSelectedCategoryChange}
+        />
 
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
