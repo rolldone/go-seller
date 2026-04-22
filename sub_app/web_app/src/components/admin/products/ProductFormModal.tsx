@@ -245,22 +245,26 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     }
   };
 
-  const fetchPathForCategory = async (id: string) => {
+  const fetchPathForCategory = async (id: string): Promise<Category[]> => {
     try {
-      const chain: string[] = [];
+      const chain: Category[] = [];
       let current: Category = await adminGet<Category>(`/admin/catalog/categories/${id}`);
-      chain.unshift(current.name);
+      chain.unshift(current);
       let parent = current.parent_id || null;
       let guard = 0;
       while (parent && guard < 20) {
         guard += 1;
         const p = await adminGet<Category>(`/admin/catalog/categories/${parent}`);
-        chain.unshift(p.name);
+        chain.unshift(p);
         parent = p.parent_id || null;
       }
-      setSelectedPaths((prev) => ({ ...prev, [id]: chain }));
+
+      const names = chain.map((c) => c.name);
+      setSelectedPaths((prev) => ({ ...prev, [id]: names }));
+      return chain;
     } catch (err) {
       setSelectedPaths((prev) => ({ ...prev, [id]: [id] }));
+      return [];
     }
   };
 
@@ -274,6 +278,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
 
   const toggleCategory = (id: string, item?: Category) => {
     setSelectedCategoryIDs((prev) => {
+      // if already selected, remove only this id
       if (prev.includes(id)) {
         setSelectedPaths((p) => {
           const copy = { ...p };
@@ -283,12 +288,33 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
         return prev.filter((v) => v !== id);
       }
 
+      // quickly set a provisional path if we already have the item in context
       if (item) {
         const path = [...breadcrumbs.map((b) => b.name), item.name].filter(Boolean);
         setSelectedPaths((p) => ({ ...p, [id]: path }));
-      } else {
-        fetchPathForCategory(id);
       }
+
+      // fetch full ancestor chain and merge ancestor IDs + their path names
+      fetchPathForCategory(id)
+        .then((chain) => {
+          if (!chain || chain.length === 0) return;
+
+          setSelectedPaths((prev) => {
+            const copy = { ...prev };
+            for (let i = 0; i < chain.length; i++) {
+              const prefix = chain.slice(0, i + 1).map((c) => c.name);
+              copy[chain[i].id] = prefix;
+            }
+            return copy;
+          });
+
+          setSelectedCategoryIDs((prev2) => {
+            const set = new Set(prev2);
+            for (const c of chain) set.add(c.id);
+            return Array.from(set);
+          });
+        })
+        .catch(() => {});
 
       return [...prev, id];
     });
