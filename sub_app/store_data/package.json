@@ -1,0 +1,14 @@
+{
+  "name": "store-importer",
+  "version": "1.0.0",
+  "description": "CLI tool to import marketplace seed data (categories, products) into the GoSeller backend",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "import:categories": "node src/index.js import:categories",
+    "import:categories:dry": "node src/index.js import:categories --dry-run"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  }
+}

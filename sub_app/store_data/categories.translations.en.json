@@ -1,0 +1,1202 @@
+{
+  "1": {
+    "name": "Electronics",
+    "slug": "electronics",
+    "short_description": "Selected Electronics",
+    "description": "Curated electronics items."
+  },
+  "2": {
+    "name": "Women's Fashion",
+    "slug": "womens-fashion",
+    "short_description": "Selected Women's Fashion",
+    "description": "Curated women's fashion items."
+  },
+  "3": {
+    "name": "Men's Fashion",
+    "slug": "mens-fashion",
+    "short_description": "Selected Men's Fashion",
+    "description": "Curated men's fashion items."
+  },
+  "4": {
+    "name": "Kids & Baby Fashion",
+    "slug": "kids-baby-fashion",
+    "short_description": "Selected Kids & Baby Fashion",
+    "description": "Curated kids & baby fashion items."
+  },
+  "5": {
+    "name": "Home & Garden",
+    "slug": "home-garden",
+    "short_description": "Selected Home & Garden",
+    "description": "Curated home & garden items."
+  },
+  "6": {
+    "name": "Sports & Outdoor",
+    "slug": "sports-outdoor",
+    "short_description": "Selected Sports & Outdoor",
+    "description": "Curated sports & outdoor items."
+  },
+  "7": {
+    "name": "Beauty & Personal Care",
+    "slug": "beauty-personal-care",
+    "short_description": "Selected Beauty & Personal Care",
+    "description": "Curated beauty & personal care items."
+  },
+  "8": {
+    "name": "Health",
+    "slug": "health",
+    "short_description": "Selected Health",
+    "description": "Curated health items."
+  },
+  "9": {
+    "name": "Food & Beverages",
+    "slug": "food-beverages",
+    "short_description": "Selected Food & Beverages",
+    "description": "Curated food & beverages items."
+  },
+  "10": {
+    "name": "Automotive",
+    "slug": "automotive",
+    "short_description": "Selected Automotive",
+    "description": "Curated automotive items."
+  },
+  "11": {
+    "name": "Books, Stationery & Hobbies",
+    "slug": "books-stationery-hobbies",
+    "short_description": "Selected Books, Stationery & Hobbies",
+    "description": "Curated books, stationery & hobbies items."
+  },
+  "12": {
+    "name": "Toys & Games",
+    "slug": "toys-games",
+    "short_description": "Selected Toys & Games",
+    "description": "Curated toys & games items."
+  },
+  "13": {
+    "name": "Pets",
+    "slug": "pets",
+    "short_description": "Selected Pets",
+    "description": "Curated pets items."
+  },
+  "14": {
+    "name": "Industrial & Business",
+    "slug": "industrial-business",
+    "short_description": "Selected Industrial & Business",
+    "description": "Curated industrial & business items."
+  },
+  "15": {
+    "name": "Property & Services",
+    "slug": "property-services",
+    "short_description": "Selected Property & Services",
+    "description": "Curated property & services items."
+  },
+  "16": {
+    "name": "Mobile & Accessories",
+    "slug": "mobile-accessories",
+    "short_description": "Selected Mobile & Accessories",
+    "description": "Curated mobile & accessories items."
+  },
+  "17": {
+    "name": "Laptops & Computers",
+    "slug": "laptops-computers",
+    "short_description": "Selected Laptops & Computers",
+    "description": "Curated laptops & computers items."
+  },
+  "18": {
+    "name": "Cameras & Photography",
+    "slug": "cameras-photography",
+    "short_description": "Selected Cameras & Photography",
+    "description": "Curated cameras & photography items."
+  },
+  "19": {
+    "name": "TV & Home Electronics",
+    "slug": "tv-home-electronics",
+    "short_description": "Selected TV & Home Electronics",
+    "description": "Curated tv & home electronics items."
+  },
+  "20": {
+    "name": "Audio & Headphones",
+    "slug": "audio-headphones",
+    "short_description": "Selected Audio & Headphones",
+    "description": "Curated audio & headphones items."
+  },
+  "21": {
+    "name": "Gaming & Consoles",
+    "slug": "gaming-consoles",
+    "short_description": "Selected Gaming & Consoles",
+    "description": "Curated gaming & consoles items."
+  },
+  "22": {
+    "name": "Tablets & e-Readers",
+    "slug": "tablets-ereaders",
+    "short_description": "Selected Tablets & e-Readers",
+    "description": "Curated tablets & e-readers items."
+  },
+  "23": {
+    "name": "Drones & Robotics",
+    "slug": "drones-robotics",
+    "short_description": "Selected Drones & Robotics",
+    "description": "Curated drones & robotics items."
+  },
+  "24": {
+    "name": "Electronic Components",
+    "slug": "electronic-components",
+    "short_description": "Selected Electronic Components",
+    "description": "Curated electronic components items."
+  },
+  "25": {
+    "name": "Smart Home & IoT",
+    "slug": "smart-home-iot",
+    "short_description": "Selected Smart Home & IoT",
+    "description": "Curated smart home & iot items."
+  },
+  "26": {
+    "name": "Women's Clothing",
+    "slug": "womens-clothing",
+    "short_description": "Selected Women's Clothing",
+    "description": "Curated women's clothing items."
+  },
+  "27": {
+    "name": "Women's Tops",
+    "slug": "womens-tops",
+    "short_description": "Selected Women's Tops",
+    "description": "Curated women's tops items."
+  },
+  "28": {
+    "name": "Pants & Skirts",
+    "slug": "pants-skirts",
+    "short_description": "Selected Pants & Skirts",
+    "description": "Curated pants & skirts items."
+  },
+  "29": {
+    "name": "Modest Wear & Hijab Fashion",
+    "slug": "modest-wear-hijab",
+    "short_description": "Selected Modest Wear & Hijab Fashion",
+    "description": "Curated modest wear & hijab fashion items."
+  },
+  "30": {
+    "name": "Women's Jackets & Coats",
+    "slug": "womens-jackets-coats",
+    "short_description": "Selected Women's Jackets & Coats",
+    "description": "Curated women's jackets & coats items."
+  },
+  "31": {
+    "name": "Women's Bags",
+    "slug": "womens-bags",
+    "short_description": "Selected Women's Bags",
+    "description": "Curated women's bags items."
+  },
+  "32": {
+    "name": "Women's Shoes",
+    "slug": "womens-shoes",
+    "short_description": "Selected Women's Shoes",
+    "description": "Curated women's shoes items."
+  },
+  "33": {
+    "name": "Women's Accessories",
+    "slug": "womens-accessories",
+    "short_description": "Selected Women's Accessories",
+    "description": "Curated women's accessories items."
+  },
+  "34": {
+    "name": "Men's Clothing",
+    "slug": "mens-clothing",
+    "short_description": "Selected Men's Clothing",
+    "description": "Curated men's clothing items."
+  },
+  "35": {
+    "name": "Men's Shirts & Polo",
+    "slug": "mens-shirts-polo",
+    "short_description": "Selected Men's Shirts & Polo",
+    "description": "Curated men's shirts & polo items."
+  },
+  "36": {
+    "name": "Men's Pants",
+    "slug": "mens-pants",
+    "short_description": "Selected Men's Pants",
+    "description": "Curated men's pants items."
+  },
+  "37": {
+    "name": "Men's Jackets & Hoodies",
+    "slug": "mens-jackets-hoodies",
+    "short_description": "Selected Men's Jackets & Hoodies",
+    "description": "Curated men's jackets & hoodies items."
+  },
+  "38": {
+    "name": "Men's Shoes",
+    "slug": "mens-shoes",
+    "short_description": "Selected Men's Shoes",
+    "description": "Curated men's shoes items."
+  },
+  "39": {
+    "name": "Men's Bags",
+    "slug": "mens-bags",
+    "short_description": "Selected Men's Bags",
+    "description": "Curated men's bags items."
+  },
+  "40": {
+    "name": "Men's Accessories",
+    "slug": "mens-accessories",
+    "short_description": "Selected Men's Accessories",
+    "description": "Curated men's accessories items."
+  },
+  "41": {
+    "name": "Baby Clothing",
+    "slug": "baby-clothing",
+    "short_description": "Selected Baby Clothing",
+    "description": "Curated baby clothing items."
+  },
+  "42": {
+    "name": "Kids Clothing",
+    "slug": "kids-clothing",
+    "short_description": "Selected Kids Clothing",
+    "description": "Curated kids clothing items."
+  },
+  "43": {
+    "name": "Kids Shoes",
+    "slug": "kids-shoes",
+    "short_description": "Selected Kids Shoes",
+    "description": "Curated kids shoes items."
+  },
+  "44": {
+    "name": "Baby Essentials",
+    "slug": "baby-essentials",
+    "short_description": "Selected Baby Essentials",
+    "description": "Curated baby essentials items."
+  },
+  "45": {
+    "name": "Baby Toys",
+    "slug": "baby-toys",
+    "short_description": "Selected Baby Toys",
+    "description": "Curated baby toys items."
+  },
+  "46": {
+    "name": "Strollers & Prams",
+    "slug": "strollers-prams",
+    "short_description": "Selected Strollers & Prams",
+    "description": "Curated strollers & prams items."
+  },
+  "47": {
+    "name": "Furniture",
+    "slug": "furniture",
+    "short_description": "Selected Furniture",
+    "description": "Curated furniture items."
+  },
+  "48": {
+    "name": "Home Decor",
+    "slug": "home-decor",
+    "short_description": "Selected Home Decor",
+    "description": "Curated home decor items."
+  },
+  "49": {
+    "name": "Kitchen & Cooking",
+    "slug": "kitchen-cooking",
+    "short_description": "Selected Kitchen & Cooking",
+    "description": "Curated kitchen & cooking items."
+  },
+  "50": {
+    "name": "Bathroom",
+    "slug": "bathroom",
+    "short_description": "Selected Bathroom",
+    "description": "Curated bathroom items."
+  },
+  "51": {
+    "name": "Home Appliances",
+    "slug": "home-appliances",
+    "short_description": "Selected Home Appliances",
+    "description": "Curated home appliances items."
+  },
+  "52": {
+    "name": "Lighting",
+    "slug": "lighting",
+    "short_description": "Selected Lighting",
+    "description": "Curated lighting items."
+  },
+  "53": {
+    "name": "Garden & Gardening",
+    "slug": "garden-gardening",
+    "short_description": "Selected Garden & Gardening",
+    "description": "Curated garden & gardening items."
+  },
+  "54": {
+    "name": "Bedding & Pillows",
+    "slug": "bedding-pillows",
+    "short_description": "Selected Bedding & Pillows",
+    "description": "Curated bedding & pillows items."
+  },
+  "55": {
+    "name": "Storage & Organizers",
+    "slug": "storage-organizers",
+    "short_description": "Selected Storage & Organizers",
+    "description": "Curated storage & organizers items."
+  },
+  "56": {
+    "name": "Bicycles & Accessories",
+    "slug": "bicycles-accessories",
+    "short_description": "Selected Bicycles & Accessories",
+    "description": "Curated bicycles & accessories items."
+  },
+  "57": {
+    "name": "Fitness & Gym",
+    "slug": "fitness-gym",
+    "short_description": "Selected Fitness & Gym",
+    "description": "Curated fitness & gym items."
+  },
+  "58": {
+    "name": "Team Sports",
+    "slug": "team-sports",
+    "short_description": "Selected Team Sports",
+    "description": "Curated team sports items."
+  },
+  "59": {
+    "name": "Swimming & Diving",
+    "slug": "swimming-diving",
+    "short_description": "Selected Swimming & Diving",
+    "description": "Curated swimming & diving items."
+  },
+  "60": {
+    "name": "Hiking & Camping",
+    "slug": "hiking-camping",
+    "short_description": "Selected Hiking & Camping",
+    "description": "Curated hiking & camping items."
+  },
+  "61": {
+    "name": "Water Sports",
+    "slug": "water-sports",
+    "short_description": "Selected Water Sports",
+    "description": "Curated water sports items."
+  },
+  "62": {
+    "name": "Sportswear",
+    "slug": "sportswear",
+    "short_description": "Selected Sportswear",
+    "description": "Curated sportswear items."
+  },
+  "63": {
+    "name": "Sports Nutrition & Supplements",
+    "slug": "sports-nutrition-supplements",
+    "short_description": "Selected Sports Nutrition & Supplements",
+    "description": "Curated sports nutrition & supplements items."
+  },
+  "64": {
+    "name": "Skincare",
+    "slug": "skincare",
+    "short_description": "Selected Skincare",
+    "description": "Curated skincare items."
+  },
+  "65": {
+    "name": "Makeup & Cosmetics",
+    "slug": "makeup-cosmetics",
+    "short_description": "Selected Makeup & Cosmetics",
+    "description": "Curated makeup & cosmetics items."
+  },
+  "66": {
+    "name": "Hair Care",
+    "slug": "hair-care",
+    "short_description": "Selected Hair Care",
+    "description": "Curated hair care items."
+  },
+  "67": {
+    "name": "Perfume & Deodorant",
+    "slug": "perfume-deodorant",
+    "short_description": "Selected Perfume & Deodorant",
+    "description": "Curated perfume & deodorant items."
+  },
+  "68": {
+    "name": "Body Care",
+    "slug": "body-care",
+    "short_description": "Selected Body Care",
+    "description": "Curated body care items."
+  },
+  "69": {
+    "name": "Nail Care",
+    "slug": "nail-care",
+    "short_description": "Selected Nail Care",
+    "description": "Curated nail care items."
+  },
+  "70": {
+    "name": "Beauty Tools",
+    "slug": "beauty-tools",
+    "short_description": "Selected Beauty Tools",
+    "description": "Curated beauty tools items."
+  },
+  "71": {
+    "name": "Men's Grooming",
+    "slug": "mens-grooming",
+    "short_description": "Selected Men's Grooming",
+    "description": "Curated men's grooming items."
+  },
+  "72": {
+    "name": "Supplements & Vitamins",
+    "slug": "supplements-vitamins",
+    "short_description": "Selected Supplements & Vitamins",
+    "description": "Curated supplements & vitamins items."
+  },
+  "73": {
+    "name": "Medical Devices",
+    "slug": "medical-devices",
+    "short_description": "Selected Medical Devices",
+    "description": "Curated medical devices items."
+  },
+  "74": {
+    "name": "OTC Medicine",
+    "slug": "otc-medicine",
+    "short_description": "Selected OTC Medicine",
+    "description": "Curated otc medicine items."
+  },
+  "75": {
+    "name": "Eye Care",
+    "slug": "eye-care",
+    "short_description": "Selected Eye Care",
+    "description": "Curated eye care items."
+  },
+  "76": {
+    "name": "Women's Health",
+    "slug": "womens-health",
+    "short_description": "Selected Women's Health",
+    "description": "Curated women's health items."
+  },
+  "77": {
+    "name": "Mother & Baby Products",
+    "slug": "mother-baby-products",
+    "short_description": "Selected Mother & Baby Products",
+    "description": "Curated mother & baby products items."
+  },
+  "78": {
+    "name": "Dental Care",
+    "slug": "dental-care",
+    "short_description": "Selected Dental Care",
+    "description": "Curated dental care items."
+  },
+  "79": {
+    "name": "Staple Foods",
+    "slug": "staple-foods",
+    "short_description": "Selected Staple Foods",
+    "description": "Curated staple foods items."
+  },
+  "80": {
+    "name": "Snacks",
+    "slug": "snacks",
+    "short_description": "Selected Snacks",
+    "description": "Curated snacks items."
+  },
+  "81": {
+    "name": "Beverages",
+    "slug": "beverages",
+    "short_description": "Selected Beverages",
+    "description": "Curated beverages items."
+  },
+  "82": {
+    "name": "Spices & Seasonings",
+    "slug": "spices-seasonings",
+    "short_description": "Selected Spices & Seasonings",
+    "description": "Curated spices & seasonings items."
+  },
+  "83": {
+    "name": "Healthy & Organic Food",
+    "slug": "healthy-organic-food",
+    "short_description": "Selected Healthy & Organic Food",
+    "description": "Curated healthy & organic food items."
+  },
+  "84": {
+    "name": "Coffee & Tea",
+    "slug": "coffee-tea",
+    "short_description": "Selected Coffee & Tea",
+    "description": "Curated coffee & tea items."
+  },
+  "85": {
+    "name": "Chocolate & Candy",
+    "slug": "chocolate-candy",
+    "short_description": "Selected Chocolate & Candy",
+    "description": "Curated chocolate & candy items."
+  },
+  "86": {
+    "name": "Car Accessories",
+    "slug": "car-accessories",
+    "short_description": "Selected Car Accessories",
+    "description": "Curated car accessories items."
+  },
+  "87": {
+    "name": "Motorcycle Accessories",
+    "slug": "motorcycle-accessories",
+    "short_description": "Selected Motorcycle Accessories",
+    "description": "Curated motorcycle accessories items."
+  },
+  "88": {
+    "name": "Car Spare Parts",
+    "slug": "car-spare-parts",
+    "short_description": "Selected Car Spare Parts",
+    "description": "Curated car spare parts items."
+  },
+  "89": {
+    "name": "Motorcycle Spare Parts",
+    "slug": "motorcycle-spare-parts",
+    "short_description": "Selected Motorcycle Spare Parts",
+    "description": "Curated motorcycle spare parts items."
+  },
+  "90": {
+    "name": "Vehicle Maintenance",
+    "slug": "vehicle-maintenance",
+    "short_description": "Selected Vehicle Maintenance",
+    "description": "Curated vehicle maintenance items."
+  },
+  "91": {
+    "name": "Oil & Lubricants",
+    "slug": "oil-lubricants",
+    "short_description": "Selected Oil & Lubricants",
+    "description": "Curated oil & lubricants items."
+  },
+  "92": {
+    "name": "Tires & Wheels",
+    "slug": "tires-wheels",
+    "short_description": "Selected Tires & Wheels",
+    "description": "Curated tires & wheels items."
+  },
+  "93": {
+    "name": "Books",
+    "slug": "books",
+    "short_description": "Selected Books",
+    "description": "Curated books items."
+  },
+  "94": {
+    "name": "Stationery & Office Supplies",
+    "slug": "stationery-office-supplies",
+    "short_description": "Selected Stationery & Office Supplies",
+    "description": "Curated stationery & office supplies items."
+  },
+  "95": {
+    "name": "Arts & Crafts",
+    "slug": "arts-crafts",
+    "short_description": "Selected Arts & Crafts",
+    "description": "Curated arts & crafts items."
+  },
+  "96": {
+    "name": "Collectibles & Hobbies",
+    "slug": "collectibles-hobbies",
+    "short_description": "Selected Collectibles & Hobbies",
+    "description": "Curated collectibles & hobbies items."
+  },
+  "97": {
+    "name": "Music",
+    "slug": "music",
+    "short_description": "Selected Music",
+    "description": "Curated music items."
+  },
+  "98": {
+    "name": "Photography & Videography",
+    "slug": "photography-videography",
+    "short_description": "Selected Photography & Videography",
+    "description": "Curated photography & videography items."
+  },
+  "99": {
+    "name": "Action Figures & Characters",
+    "slug": "action-figures-characters",
+    "short_description": "Selected Action Figures & Characters",
+    "description": "Curated action figures & characters items."
+  },
+  "100": {
+    "name": "Dolls & Plushies",
+    "slug": "dolls-plushies",
+    "short_description": "Selected Dolls & Plushies",
+    "description": "Curated dolls & plushies items."
+  },
+  "101": {
+    "name": "Toy Vehicles",
+    "slug": "toy-vehicles",
+    "short_description": "Selected Toy Vehicles",
+    "description": "Curated toy vehicles items."
+  },
+  "102": {
+    "name": "Puzzles & Board Games",
+    "slug": "puzzles-board-games",
+    "short_description": "Selected Puzzles & Board Games",
+    "description": "Curated puzzles & board games items."
+  },
+  "103": {
+    "name": "Remote Control & Outdoor Toys",
+    "slug": "remote-control-outdoor-toys",
+    "short_description": "Selected Remote Control & Outdoor Toys",
+    "description": "Curated remote control & outdoor toys items."
+  },
+  "104": {
+    "name": "Educational Toys",
+    "slug": "educational-toys",
+    "short_description": "Selected Educational Toys",
+    "description": "Curated educational toys items."
+  },
+  "105": {
+    "name": "Dogs",
+    "slug": "dogs",
+    "short_description": "Selected Dogs",
+    "description": "Curated dogs items."
+  },
+  "106": {
+    "name": "Cats",
+    "slug": "cats",
+    "short_description": "Selected Cats",
+    "description": "Curated cats items."
+  },
+  "107": {
+    "name": "Birds & Reptiles",
+    "slug": "birds-reptiles",
+    "short_description": "Selected Birds & Reptiles",
+    "description": "Curated birds & reptiles items."
+  },
+  "108": {
+    "name": "Fish & Aquatics",
+    "slug": "fish-aquatics",
+    "short_description": "Selected Fish & Aquatics",
+    "description": "Curated fish & aquatics items."
+  },
+  "109": {
+    "name": "Pet Accessories & Cages",
+    "slug": "pet-accessories-cages",
+    "short_description": "Selected Pet Accessories & Cages",
+    "description": "Curated pet accessories & cages items."
+  },
+  "110": {
+    "name": "Security & Surveillance",
+    "slug": "security-surveillance",
+    "short_description": "Selected Security & Surveillance",
+    "description": "Curated security & surveillance items."
+  },
+  "111": {
+    "name": "Machinery & Equipment",
+    "slug": "machinery-equipment",
+    "short_description": "Selected Machinery & Equipment",
+    "description": "Curated machinery & equipment items."
+  },
+  "112": {
+    "name": "Building Materials",
+    "slug": "building-materials",
+    "short_description": "Selected Building Materials",
+    "description": "Curated building materials items."
+  },
+  "113": {
+    "name": "Agricultural Tools",
+    "slug": "agricultural-tools",
+    "short_description": "Selected Agricultural Tools",
+    "description": "Curated agricultural tools items."
+  },
+  "114": {
+    "name": "Printing & Packaging",
+    "slug": "printing-packaging",
+    "short_description": "Selected Printing & Packaging",
+    "description": "Curated printing & packaging items."
+  },
+  "115": {
+    "name": "Property",
+    "slug": "property",
+    "short_description": "Selected Property",
+    "description": "Curated property items."
+  },
+  "116": {
+    "name": "Professional Services",
+    "slug": "professional-services",
+    "short_description": "Selected Professional Services",
+    "description": "Curated professional services items."
+  },
+  "117": {
+    "name": "Home Services",
+    "slug": "home-services",
+    "short_description": "Selected Home Services",
+    "description": "Curated home services items."
+  },
+  "118": {
+    "name": "Events & Entertainment",
+    "slug": "events-entertainment",
+    "short_description": "Selected Events & Entertainment",
+    "description": "Curated events & entertainment items."
+  },
+  "119": {
+    "name": "Education & Courses",
+    "slug": "education-courses",
+    "short_description": "Selected Education & Courses",
+    "description": "Curated education & courses items."
+  },
+  "120": {
+    "name": "Android Phones",
+    "slug": "android-phones",
+    "short_description": "Selected Android Phones",
+    "description": "Curated android phones items."
+  },
+  "121": {
+    "name": "iPhone & iOS",
+    "slug": "iphone-ios",
+    "short_description": "Selected iPhone & iOS",
+    "description": "Curated iphone & ios items."
+  },
+  "122": {
+    "name": "Phone Cases & Covers",
+    "slug": "phone-cases-covers",
+    "short_description": "Selected Phone Cases & Covers",
+    "description": "Curated phone cases & covers items."
+  },
+  "123": {
+    "name": "Chargers & Cables",
+    "slug": "chargers-cables",
+    "short_description": "Selected Chargers & Cables",
+    "description": "Curated chargers & cables items."
+  },
+  "124": {
+    "name": "Screen Protectors",
+    "slug": "screen-protectors",
+    "short_description": "Selected Screen Protectors",
+    "description": "Curated screen protectors items."
+  },
+  "125": {
+    "name": "Laptops",
+    "slug": "laptops",
+    "short_description": "Selected Laptops",
+    "description": "Curated laptops items."
+  },
+  "126": {
+    "name": "Desktop PCs & All-in-One",
+    "slug": "desktop-pcs-all-in-one",
+    "short_description": "Selected Desktop PCs & All-in-One",
+    "description": "Curated desktop pcs & all-in-one items."
+  },
+  "127": {
+    "name": "Monitors",
+    "slug": "monitors",
+    "short_description": "Selected Monitors",
+    "description": "Curated monitors items."
+  },
+  "128": {
+    "name": "Keyboards & Mice",
+    "slug": "keyboards-mice",
+    "short_description": "Selected Keyboards & Mice",
+    "description": "Curated keyboards & mice items."
+  },
+  "129": {
+    "name": "Storage & Memory (SSD, HDD, RAM)",
+    "slug": "storage-memory",
+    "short_description": "Selected Storage & Memory (SSD, HDD, RAM)",
+    "description": "Curated storage & memory (ssd, hdd, ram) items."
+  },
+  "130": {
+    "name": "DSLR & Mirrorless Cameras",
+    "slug": "dslr-mirrorless-cameras",
+    "short_description": "Selected DSLR & Mirrorless Cameras",
+    "description": "Curated dslr & mirrorless cameras items."
+  },
+  "131": {
+    "name": "Action & Vlog Cameras",
+    "slug": "action-vlog-cameras",
+    "short_description": "Selected Action & Vlog Cameras",
+    "description": "Curated action & vlog cameras items."
+  },
+  "132": {
+    "name": "Camera Accessories",
+    "slug": "camera-accessories",
+    "short_description": "Selected Camera Accessories",
+    "description": "Curated camera accessories items."
+  },
+  "133": {
+    "name": "Tripods & Stabilizers",
+    "slug": "tripods-stabilizers",
+    "short_description": "Selected Tripods & Stabilizers",
+    "description": "Curated tripods & stabilizers items."
+  },
+  "134": {
+    "name": "Headphones & Earphones",
+    "slug": "headphones-earphones",
+    "short_description": "Selected Headphones & Earphones",
+    "description": "Curated headphones & earphones items."
+  },
+  "135": {
+    "name": "Bluetooth Speakers",
+    "slug": "bluetooth-speakers",
+    "short_description": "Selected Bluetooth Speakers",
+    "description": "Curated bluetooth speakers items."
+  },
+  "136": {
+    "name": "Home Audio Speakers",
+    "slug": "home-audio-speakers",
+    "short_description": "Selected Home Audio Speakers",
+    "description": "Curated home audio speakers items."
+  },
+  "137": {
+    "name": "Microphones & Audio Accessories",
+    "slug": "microphones-audio-accessories",
+    "short_description": "Selected Microphones & Audio Accessories",
+    "description": "Curated microphones & audio accessories items."
+  },
+  "138": {
+    "name": "Game Consoles (PS, Xbox, Switch)",
+    "slug": "game-consoles",
+    "short_description": "Selected Game Consoles (PS, Xbox, Switch)",
+    "description": "Curated game consoles (ps, xbox, switch) items."
+  },
+  "139": {
+    "name": "Controllers & Joysticks",
+    "slug": "controllers-joysticks",
+    "short_description": "Selected Controllers & Joysticks",
+    "description": "Curated controllers & joysticks items."
+  },
+  "140": {
+    "name": "Gaming Headsets",
+    "slug": "gaming-headsets",
+    "short_description": "Selected Gaming Headsets",
+    "description": "Curated gaming headsets items."
+  },
+  "141": {
+    "name": "Gaming Chairs & Desks",
+    "slug": "gaming-chairs-desks",
+    "short_description": "Selected Gaming Chairs & Desks",
+    "description": "Curated gaming chairs & desks items."
+  },
+  "142": {
+    "name": "Smart Speakers & Displays",
+    "slug": "smart-speakers-displays",
+    "short_description": "Selected Smart Speakers & Displays",
+    "description": "Curated smart speakers & displays items."
+  },
+  "143": {
+    "name": "Smart Locks & Security",
+    "slug": "smart-locks-security",
+    "short_description": "Selected Smart Locks & Security",
+    "description": "Curated smart locks & security items."
+  },
+  "144": {
+    "name": "Smart Lighting",
+    "slug": "smart-lighting",
+    "short_description": "Selected Smart Lighting",
+    "description": "Curated smart lighting items."
+  },
+  "145": {
+    "name": "Dresses",
+    "slug": "dresses",
+    "short_description": "Selected Dresses",
+    "description": "Curated dresses items."
+  },
+  "146": {
+    "name": "Blouses & Women's Shirts",
+    "slug": "blouses-womens-shirts",
+    "short_description": "Selected Blouses & Women's Shirts",
+    "description": "Curated blouses & women's shirts items."
+  },
+  "147": {
+    "name": "Women's T-Shirts & Tank Tops",
+    "slug": "womens-tshirts-tank-tops",
+    "short_description": "Selected Women's T-Shirts & Tank Tops",
+    "description": "Curated women's t-shirts & tank tops items."
+  },
+  "148": {
+    "name": "Lingerie & Underwear",
+    "slug": "lingerie-underwear",
+    "short_description": "Selected Lingerie & Underwear",
+    "description": "Curated lingerie & underwear items."
+  },
+  "149": {
+    "name": "Gamis & Abaya",
+    "slug": "gamis-abaya",
+    "short_description": "Selected Gamis & Abaya",
+    "description": "Curated gamis & abaya items."
+  },
+  "150": {
+    "name": "Hijab & Head Scarves",
+    "slug": "hijab-head-scarves",
+    "short_description": "Selected Hijab & Head Scarves",
+    "description": "Curated hijab & head scarves items."
+  },
+  "151": {
+    "name": "Koko Shirts & Sarongs",
+    "slug": "koko-shirts-sarongs",
+    "short_description": "Selected Koko Shirts & Sarongs",
+    "description": "Curated koko shirts & sarongs items."
+  },
+  "152": {
+    "name": "Handbags & Clutches",
+    "slug": "handbags-clutches",
+    "short_description": "Selected Handbags & Clutches",
+    "description": "Curated handbags & clutches items."
+  },
+  "153": {
+    "name": "Crossbody & Shoulder Bags",
+    "slug": "crossbody-shoulder-bags",
+    "short_description": "Selected Crossbody & Shoulder Bags",
+    "description": "Curated crossbody & shoulder bags items."
+  },
+  "154": {
+    "name": "Women's Backpacks",
+    "slug": "womens-backpacks",
+    "short_description": "Selected Women's Backpacks",
+    "description": "Curated women's backpacks items."
+  },
+  "155": {
+    "name": "Heels & Stilettos",
+    "slug": "heels-stilettos",
+    "short_description": "Selected Heels & Stilettos",
+    "description": "Curated heels & stilettos items."
+  },
+  "156": {
+    "name": "Sandals & Flat Shoes",
+    "slug": "sandals-flat-shoes",
+    "short_description": "Selected Sandals & Flat Shoes",
+    "description": "Curated sandals & flat shoes items."
+  },
+  "157": {
+    "name": "Women's Sneakers",
+    "slug": "womens-sneakers",
+    "short_description": "Selected Women's Sneakers",
+    "description": "Curated women's sneakers items."
+  },
+  "158": {
+    "name": "Sofas & Chairs",
+    "slug": "sofas-chairs",
+    "short_description": "Selected Sofas & Chairs",
+    "description": "Curated sofas & chairs items."
+  },
+  "159": {
+    "name": "Tables & Wardrobes",
+    "slug": "tables-wardrobes",
+    "short_description": "Selected Tables & Wardrobes",
+    "description": "Curated tables & wardrobes items."
+  },
+  "160": {
+    "name": "Mattresses & Pillows",
+    "slug": "mattresses-pillows",
+    "short_description": "Selected Mattresses & Pillows",
+    "description": "Curated mattresses & pillows items."
+  },
+  "161": {
+    "name": "Dining Tables & Chairs",
+    "slug": "dining-tables-chairs",
+    "short_description": "Selected Dining Tables & Chairs",
+    "description": "Curated dining tables & chairs items."
+  },
+  "162": {
+    "name": "Cookware (Pots & Pans)",
+    "slug": "cookware",
+    "short_description": "Selected Cookware (Pots & Pans)",
+    "description": "Curated cookware (pots & pans) items."
+  },
+  "163": {
+    "name": "Tableware & Drinkware",
+    "slug": "tableware-drinkware",
+    "short_description": "Selected Tableware & Drinkware",
+    "description": "Curated tableware & drinkware items."
+  },
+  "164": {
+    "name": "Baking Equipment",
+    "slug": "baking-equipment",
+    "short_description": "Selected Baking Equipment",
+    "description": "Curated baking equipment items."
+  },
+  "165": {
+    "name": "Barbells & Dumbbells",
+    "slug": "barbells-dumbbells",
+    "short_description": "Selected Barbells & Dumbbells",
+    "description": "Curated barbells & dumbbells items."
+  },
+  "166": {
+    "name": "Treadmills & Cardio",
+    "slug": "treadmills-cardio",
+    "short_description": "Selected Treadmills & Cardio",
+    "description": "Curated treadmills & cardio items."
+  },
+  "167": {
+    "name": "Yoga & Pilates Mats",
+    "slug": "yoga-pilates-mats",
+    "short_description": "Selected Yoga & Pilates Mats",
+    "description": "Curated yoga & pilates mats items."
+  },
+  "168": {
+    "name": "Gym Accessories",
+    "slug": "gym-accessories",
+    "short_description": "Selected Gym Accessories",
+    "description": "Curated gym accessories items."
+  },
+  "169": {
+    "name": "Moisturizers",
+    "slug": "moisturizers",
+    "short_description": "Selected Moisturizers",
+    "description": "Curated moisturizers items."
+  },
+  "170": {
+    "name": "Sunscreen & SPF",
+    "slug": "sunscreen-spf",
+    "short_description": "Selected Sunscreen & SPF",
+    "description": "Curated sunscreen & spf items."
+  },
+  "171": {
+    "name": "Serums & Essences",
+    "slug": "serums-essences",
+    "short_description": "Selected Serums & Essences",
+    "description": "Curated serums & essences items."
+  },
+  "172": {
+    "name": "Face Cleansers",
+    "slug": "face-cleansers",
+    "short_description": "Selected Face Cleansers",
+    "description": "Curated face cleansers items."
+  },
+  "173": {
+    "name": "Face Masks",
+    "slug": "face-masks",
+    "short_description": "Selected Face Masks",
+    "description": "Curated face masks items."
+  },
+  "174": {
+    "name": "Foundation & BB Cream",
+    "slug": "foundation-bb-cream",
+    "short_description": "Selected Foundation & BB Cream",
+    "description": "Curated foundation & bb cream items."
+  },
+  "175": {
+    "name": "Lipstick & Lip Gloss",
+    "slug": "lipstick-lip-gloss",
+    "short_description": "Selected Lipstick & Lip Gloss",
+    "description": "Curated lipstick & lip gloss items."
+  },
+  "176": {
+    "name": "Eyeshadow & Eyeliner",
+    "slug": "eyeshadow-eyeliner",
+    "short_description": "Selected Eyeshadow & Eyeliner",
+    "description": "Curated eyeshadow & eyeliner items."
+  },
+  "177": {
+    "name": "Blush & Highlighter",
+    "slug": "blush-highlighter",
+    "short_description": "Selected Blush & Highlighter",
+    "description": "Curated blush & highlighter items."
+  },
+  "178": {
+    "name": "Mascara & False Lashes",
+    "slug": "mascara-false-lashes",
+    "short_description": "Selected Mascara & False Lashes",
+    "description": "Curated mascara & false lashes items."
+  },
+  "179": {
+    "name": "Vitamin C & Immunity",
+    "slug": "vitamin-c-immunity",
+    "short_description": "Selected Vitamin C & Immunity",
+    "description": "Curated vitamin c & immunity items."
+  },
+  "180": {
+    "name": "Bone & Joint Supplements",
+    "slug": "bone-joint-supplements",
+    "short_description": "Selected Bone & Joint Supplements",
+    "description": "Curated bone & joint supplements items."
+  },
+  "181": {
+    "name": "Multivitamins",
+    "slug": "multivitamins",
+    "short_description": "Selected Multivitamins",
+    "description": "Curated multivitamins items."
+  },
+  "182": {
+    "name": "Rice & Cereal",
+    "slug": "rice-cereal",
+    "short_description": "Selected Rice & Cereal",
+    "description": "Curated rice & cereal items."
+  },
+  "183": {
+    "name": "Noodles & Pasta",
+    "slug": "noodles-pasta",
+    "short_description": "Selected Noodles & Pasta",
+    "description": "Curated noodles & pasta items."
+  },
+  "184": {
+    "name": "Flour & Baking Ingredients",
+    "slug": "flour-baking-ingredients",
+    "short_description": "Selected Flour & Baking Ingredients",
+    "description": "Curated flour & baking ingredients items."
+  },
+  "185": {
+    "name": "Ground & Bean Coffee",
+    "slug": "ground-bean-coffee",
+    "short_description": "Selected Ground & Bean Coffee",
+    "description": "Curated ground & bean coffee items."
+  },
+  "186": {
+    "name": "Instant & Sachet Coffee",
+    "slug": "instant-sachet-coffee",
+    "short_description": "Selected Instant & Sachet Coffee",
+    "description": "Curated instant & sachet coffee items."
+  },
+  "187": {
+    "name": "Tea & Herbal Drinks",
+    "slug": "tea-herbal-drinks",
+    "short_description": "Selected Tea & Herbal Drinks",
+    "description": "Curated tea & herbal drinks items."
+  },
+  "188": {
+    "name": "Novels & Fiction",
+    "slug": "novels-fiction",
+    "short_description": "Selected Novels & Fiction",
+    "description": "Curated novels & fiction items."
+  },
+  "189": {
+    "name": "Non-Fiction & Self-Development Books",
+    "slug": "non-fiction-self-development-books",
+    "short_description": "Selected Non-Fiction & Self-Development Books",
+    "description": "Curated non-fiction & self-development books items."
+  },
+  "190": {
+    "name": "Comics & Manga",
+    "slug": "comics-manga",
+    "short_description": "Selected Comics & Manga",
+    "description": "Curated comics & manga items."
+  },
+  "191": {
+    "name": "Textbooks & Academic Books",
+    "slug": "textbooks-academic-books",
+    "short_description": "Selected Textbooks & Academic Books",
+    "description": "Curated textbooks & academic books items."
+  },
+  "192": {
+    "name": "Board Games & Card Games",
+    "slug": "board-games-card-games",
+    "short_description": "Selected Board Games & Card Games",
+    "description": "Curated board games & card games items."
+  },
+  "193": {
+    "name": "Puzzles & Jigsaws",
+    "slug": "puzzles-jigsaws",
+    "short_description": "Selected Puzzles & Jigsaws",
+    "description": "Curated puzzles & jigsaws items."
+  },
+  "194": {
+    "name": "Strategy Games",
+    "slug": "strategy-games",
+    "short_description": "Selected Strategy Games",
+    "description": "Curated strategy games items."
+  },
+  "195": {
+    "name": "Dog Food",
+    "slug": "dog-food",
+    "short_description": "Selected Dog Food",
+    "description": "Curated dog food items."
+  },
+  "196": {
+    "name": "Dog Cages & Beds",
+    "slug": "dog-cages-beds",
+    "short_description": "Selected Dog Cages & Beds",
+    "description": "Curated dog cages & beds items."
+  },
+  "197": {
+    "name": "Dog Accessories & Toys",
+    "slug": "dog-accessories-toys",
+    "short_description": "Selected Dog Accessories & Toys",
+    "description": "Curated dog accessories & toys items."
+  },
+  "198": {
+    "name": "Cat Food",
+    "slug": "cat-food",
+    "short_description": "Selected Cat Food",
+    "description": "Curated cat food items."
+  },
+  "199": {
+    "name": "Cat Cages & Litter",
+    "slug": "cat-cages-litter",
+    "short_description": "Selected Cat Cages & Litter",
+    "description": "Curated cat cages & litter items."
+  },
+  "200": {
+    "name": "Cat Accessories & Toys",
+    "slug": "cat-accessories-toys",
+    "short_description": "Selected Cat Accessories & Toys",
+    "description": "Curated cat accessories & toys items."
+  }
+}
