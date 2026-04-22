@@ -211,6 +211,15 @@ export async function fetchCategoryPageData(options: {
   );
 
   // Fetch only the requested page of products from the public API (server-side pagination)
+  // If the active category is a root (no parent), do not send category filter so
+  // the page returns all products; filtering will apply only when users select subcategory checkboxes.
+  const productExtraParams: Record<string, string> = { locale };
+  if (String(activeCategory.parent_id || "").trim()) {
+    productExtraParams.category_ids = categoryIDs.join(",");
+  }
+
+  console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+  
   const productsPayload = await fetchJson(
     fetchImpl,
     buildPagedUrl(
@@ -218,12 +227,11 @@ export async function fetchCategoryPageData(options: {
       options.requestOrigin,
       page,
       perPage,
-      {
-        locale,
-        category_ids: categoryIDs.join(","),
-      },
+      productExtraParams,
     ),
   );
+
+  console.log("[categoryPageData] fetched products for category, payload:", productsPayload);
 
   const parsedProducts = parseListResponse<PublicProduct>(productsPayload);
   const pageProducts = parsedProducts.data;

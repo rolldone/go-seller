@@ -8,12 +8,30 @@ import CategoryStoreFrontPage from "../../components/front/categories/CategorySt
 import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
 import { normalizeLocale } from "../../lib/siteLocale";
 import { fetchRootCategories } from "../../lib/categoryPageData";
+import { fetchPublicProductsPage, fetchPublicBusinesses, buildBrowseData } from "../../components/front/products/api";
 
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;
+const initialPage = Math.max(1, Number(Astro.url.searchParams.get("page") || "1") || 1);
+const initialCategoryIDs = String(Astro.url.searchParams.get("category_ids") || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
 
 const roots = await fetchRootCategories({ locale, fetchImpl: fetch }).catch(() => []);
 const categoryName = locale === "en" ? "Categories" : "Kategori";
+
+const PRODUCT_PER_PAGE = 12;
+const productsPayload = await fetchPublicProductsPage({
+  locale,
+  page: initialPage,
+  limit: PRODUCT_PER_PAGE,
+  categoryIDs: initialCategoryIDs.length > 0 ? initialCategoryIDs : undefined,
+}).catch(() => ({ items: [], total: 0 }));
+const businesses = await fetchPublicBusinesses().catch(() => []);
+const browse = buildBrowseData(productsPayload.items || [], businesses);
+const serverTotalProducts = Math.max(0, Number(productsPayload.total) || (productsPayload.items || []).length);
+const serverTotalPages = Math.max(1, Math.ceil(serverTotalProducts / PRODUCT_PER_PAGE));
 ---
 
 <html lang={locale}>
@@ -34,8 +52,11 @@ const categoryName = locale === "en" ? "Categories" : "Kategori";
             locale={locale}
             categoryName={categoryName}
             childCategories={roots.map((item) => ({ id: String(item.id), name: String(item.name || "Kategori"), slug: String(item.slug || "") }))}
-            products={[]}
-            initialProductPage={1}
+            products={browse.products}
+            initialProductPage={initialPage}
+            initialSelectedChildCategoryIDs={initialCategoryIDs}
+            serverTotalPages={serverTotalPages}
+            serverTotalProducts={serverTotalProducts}
           />
         </main>
       </div>

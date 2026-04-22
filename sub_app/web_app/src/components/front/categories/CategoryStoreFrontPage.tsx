@@ -24,6 +24,7 @@ interface CategoryStoreFrontPageProps {
   childCategories: ChildCategoryItem[];
   products: BrowseProductItem[];
   initialProductPage?: number;
+  initialSelectedChildCategoryIDs?: string[];
   ancestors?: ChildCategoryItem[];
   description?: CategoryDescription;
   slug?: string;
@@ -67,6 +68,7 @@ export default function CategoryStoreFrontPage({
   childCategories,
   products,
   initialProductPage = 1,
+  initialSelectedChildCategoryIDs = [],
   ancestors = [],
   description,
   slug,
@@ -75,7 +77,7 @@ export default function CategoryStoreFrontPage({
 }: CategoryStoreFrontPageProps) {
   const isEnglish = locale === "en";
   const [childCategoryPage, setChildCategoryPage] = useState(1);
-  const [selectedChildCategoryIDs, setSelectedChildCategoryIDs] = useState<string[]>([]);
+  const [selectedChildCategoryIDs, setSelectedChildCategoryIDs] = useState<string[]>(() => [...initialSelectedChildCategoryIDs]);
   const [selectedPrice, setSelectedPrice] = useState("all");
   const [selectedStockStatus, setSelectedStockStatus] = useState("all");
   const [selectedPriceStatus, setSelectedPriceStatus] = useState("all");
@@ -87,6 +89,7 @@ export default function CategoryStoreFrontPage({
   const [ajaxTotalPages, setAjaxTotalPages] = useState<number | null>(null);
   const isMountedRef = useRef(false);
   const debounceRef = useRef<number | null>(null);
+  const skipInitialClientFetchRef = useRef<boolean>(false);
 
   const childCategoryTotalPages = Math.max(1, Math.ceil(childCategories.length / CHILD_CATEGORY_PER_PAGE));
   const childCategorySafePage = Math.min(childCategoryPage, childCategoryTotalPages);
@@ -134,29 +137,30 @@ export default function CategoryStoreFrontPage({
     const priceStatus = sp.get("price_status") || "all";
     const pageParam = Math.max(1, Number(sp.get("page") || String(initialProductPage)) || initialProductPage);
 
-    let needFetch = false;
     if (cats.length) {
       setSelectedChildCategoryIDs(cats);
-      needFetch = true;
     }
     if (price !== "all") {
       setSelectedPrice(price);
-      needFetch = true;
     }
     if (stock !== "all") {
       setSelectedStockStatus(stock);
-      needFetch = true;
     }
     if (priceStatus !== "all") {
       setSelectedPriceStatus(priceStatus);
-      needFetch = true;
     }
     setProductPage(pageParam);
+    // If SSR already provided data for the same initial query, skip the first client fetch.
+    const sameCategories = cats.length === initialSelectedChildCategoryIDs.length && cats.every((value, index) => value === initialSelectedChildCategoryIDs[index]);
+    const samePage = pageParam === initialProductPage;
+    const noClientOnlyFilters = price === "all" && stock === "all" && priceStatus === "all";
+    if (sameCategories && samePage && noClientOnlyFilters) {
+      skipInitialClientFetchRef.current = true;
+    }
 
-    // If any filter present, we'll trigger client-side fetch via effect below
     isMountedRef.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialProductPage, initialSelectedChildCategoryIDs]);
 
   // Helper: determine whether we should do client AJAX fetch
   const shouldUseClientFetch = (): boolean => {
@@ -171,6 +175,12 @@ export default function CategoryStoreFrontPage({
   // Fetch products via AJAX when filters or page change (debounced)
   useEffect(() => {
     if (!isMountedRef.current) return;
+
+    // If SSR already provided matching data for the initial query, skip the first client fetch
+    if (skipInitialClientFetchRef.current) {
+      skipInitialClientFetchRef.current = false;
+      return;
+    }
 
     const doClear = () => {
       setClientProducts(null);
@@ -469,8 +479,10 @@ export default function CategoryStoreFrontPage({
           page={productSafePage}
           totalPages={productTotalPages}
           onPageChange={(targetPage) => {
-            if (clientProducts == null && slug) {
-              const base = buildLocalizedPath(`/categories/${encodeURIComponent(slug)}`, locale);
+            if (clientProducts == null) {
+              const base = slug
+                ? buildLocalizedPath(`/categories/${encodeURIComponent(slug)}`, locale)
+                : buildLocalizedPath(`/categories`, locale);
               const separator = base.includes("?") ? "&" : "?";
               window.location.href = `${base}${separator}page=${targetPage}`;
             } else {
