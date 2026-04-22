@@ -104,7 +104,7 @@ export default function ProductsHeroSearchSection({
     return () => {
       if (timeout) window.clearTimeout(timeout);
     };
-  }, [isFixed, fixedStyle]);
+  }, [isFixed]);
 
   return (
     <section className="space-y-4">
