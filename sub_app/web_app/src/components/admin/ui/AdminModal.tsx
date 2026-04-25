@@ -7,7 +7,7 @@ type Props = {
   isOpen?: boolean;
   title: string;
   onClose: () => void;
-  maxWidth?: "md" | "lg" | "xl";
+  maxWidth?: "md" | "lg" | "xl" | "2xl";
   children: ReactNode;
   footer?: ReactNode;
 };
@@ -16,6 +16,7 @@ const maxWidthClass: Record<NonNullable<Props["maxWidth"]>, string> = {
   md: "max-w-md",
   lg: "max-w-lg",
   xl: "max-w-3xl",
+  "2xl": "max-w-5xl",
 };
 
 export default function AdminModal({ open, isOpen, title, onClose, maxWidth = "lg", children, footer }: Props) {

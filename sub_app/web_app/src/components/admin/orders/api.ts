@@ -1,5 +1,15 @@
-import { adminGet, adminGetBlob, adminPost, adminPut } from "../entities/adminApi";
-import type { GenerateCheckoutLinkResponse, ListOrdersParams, Order, OrderDetailResponse, OrderListResponse, PaymentProofListResponse } from "./types";
+import { adminGet, adminGetBlob, adminPatch, adminPost, adminPut } from "../entities/adminApi";
+import type {
+  GenerateCheckoutLinkResponse,
+  ListOrdersParams,
+  Order,
+  OrderDetailResponse,
+  OrderListResponse,
+  PaymentProofListResponse,
+  ShipmentListResponse,
+  ShippableItemsResponse,
+  OrderShipment,
+} from "./types";
 
 const toQuery = (params: ListOrdersParams): string => {
   const q = new URLSearchParams();
@@ -45,10 +55,64 @@ export async function updateShippingQuote(
   return adminPut<{ data: Order }>(`/admin/order/orders/${orderID}/shipping`, input);
 }
 
+export async function updateOrderShippingAddress(
+  orderID: string,
+  payload: { address_id: string },
+): Promise<{ data: Order }> {
+  return adminPost<{ data: Order }>(`/admin/order/orders/${orderID}/shipping-address`, payload);
+}
+
 export async function listPaymentProofs(paymentID: string): Promise<PaymentProofListResponse> {
   return adminGet<PaymentProofListResponse>(`/admin/order/payments/${paymentID}/proofs`);
 }
 
 export async function downloadOrderInvoice(orderID: string): Promise<Blob> {
   return adminGetBlob(`/admin/order/orders/${orderID}/invoice`);
+}
+
+export async function listOrderShipments(orderID: string): Promise<ShipmentListResponse> {
+  return adminGet<ShipmentListResponse>(`/admin/order/orders/${orderID}/shipments`);
+}
+
+export async function listShippableItems(orderID: string): Promise<ShippableItemsResponse> {
+  return adminGet<ShippableItemsResponse>(`/admin/order/orders/${orderID}/shippable-items`);
+}
+
+export async function createOrderShipment(
+  orderID: string,
+  payload: {
+    carrier_name?: string;
+    service_name?: string;
+    tracking_number?: string;
+    shipping_amount?: number;
+    estimated_delivery?: string;
+    description?: string;
+    notes?: string;
+    item_ids: string[];
+  },
+): Promise<OrderShipment> {
+  return adminPost<OrderShipment>(`/admin/order/orders/${orderID}/shipments`, payload);
+}
+
+export async function updateOrderShipmentStatus(
+  shipmentID: string,
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+): Promise<OrderShipment> {
+  return adminPatch<OrderShipment>(`/admin/order/shipments/${shipmentID}`, { status });
+}
+
+export async function updateOrderShipment(
+  shipmentID: string,
+  payload: {
+    carrier_name?: string;
+    service_name?: string;
+    tracking_number?: string;
+    shipping_amount?: number;
+    estimated_delivery?: string;
+    description?: string;
+    notes?: string;
+    status?: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  },
+): Promise<OrderShipment> {
+  return adminPatch<OrderShipment>(`/admin/order/shipments/${shipmentID}`, payload);
 }

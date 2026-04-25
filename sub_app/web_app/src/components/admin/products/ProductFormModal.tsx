@@ -6,7 +6,7 @@ import type { UploadFile } from "../ui/FileUploadDropzone";
 import AssetBundleField, { type AssetRulesConfig, validateFilesAgainstUsageConfig } from "../ui/AssetBundleField";
 import RichTextEditor, { type RichTextValue } from "../ui/RichTextEditor";
 import type { Product, ProductPayload } from "./types";
-import { adminDelete, adminGet, adminPut } from "../entities/adminApi";
+import { adminDelete, adminGet, adminPatch, adminPostForm, adminPut } from "../entities/adminApi";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { getAmountFormatSettings } from "../../../lib/amountFormat";
 import SeoSegment from "../SeoSegment.tsx";
@@ -55,6 +55,18 @@ type ExistingAsset = {
   is_main: boolean;
   display_order: number;
   usage_tag?: string;
+};
+
+type DigitalFileItem = {
+  id: string;
+  product_id: string;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  file_size: number;
+  download_limit: number;
+  is_active: boolean;
+  sort_order: number;
 };
 
 type Category = {
@@ -169,6 +181,10 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [existingAssets, setExistingAssets] = useState<ExistingAsset[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
+  const [digitalFiles, setDigitalFiles] = useState<DigitalFileItem[]>([]);
+  const [loadingDigitalFiles, setLoadingDigitalFiles] = useState(false);
+  const [selectedDigitalUploadFiles, setSelectedDigitalUploadFiles] = useState<File[]>([]);
+  const [uploadingDigitalFiles, setUploadingDigitalFiles] = useState(false);
 
   // categories drill-down state
   const [categories, setCategories] = useState<Category[]>([]); // current level
@@ -371,6 +387,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     setTagSearch("");
     setError("");
     setSelectedFiles([]);
+    setSelectedDigitalUploadFiles([]);
     setUploading(false);
     setUploadProgress(null);
     setUsageTag("gallery");
@@ -388,8 +405,22 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
           setLoadingExisting(false);
         }
       })();
+
+      (async () => {
+        setLoadingDigitalFiles(true);
+        try {
+          const res = await adminGet<{ data: DigitalFileItem[] }>(`/admin/catalog/digital-files?product_id=${initialData.id}`);
+          setDigitalFiles(res.data || []);
+        } catch (err) {
+          console.error("Failed to load digital files", err);
+          setDigitalFiles([]);
+        } finally {
+          setLoadingDigitalFiles(false);
+        }
+      })();
     } else {
       setExistingAssets([]);
+      setDigitalFiles([]);
     }
 
     (async () => {
@@ -459,9 +490,25 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     setExistingAssets(res.data || []);
   };
 
+  const refreshDigitalFiles = async (productID: string) => {
+    const res = await adminGet<{ data: DigitalFileItem[] }>(`/admin/catalog/digital-files?product_id=${productID}`);
+    setDigitalFiles(res.data || []);
+  };
+
   const activeProductID = createdProduct?.id || initialData?.id || undefined;
   const showAdvancedSections = mode === "edit" || Boolean(createdProduct?.id);
   const isEditMode = mode === "edit" || Boolean(createdProduct?.id);
+
+  useEffect(() => {
+    if (!open || !activeProductID || form.product_type !== "digital") return;
+    setLoadingDigitalFiles(true);
+    refreshDigitalFiles(activeProductID)
+      .catch((err) => {
+        console.error("Failed to refresh digital files", err);
+        setDigitalFiles([]);
+      })
+      .finally(() => setLoadingDigitalFiles(false));
+  }, [open, activeProductID, form.product_type]);
 
   const uploadFiles = async (productID: string) => {
     if (selectedFiles.length === 0) return;
@@ -511,6 +558,31 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
       notifySuccess("Product assets uploaded");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const uploadDigitalFiles = async (productID: string) => {
+    if (selectedDigitalUploadFiles.length === 0) return;
+
+    setUploadingDigitalFiles(true);
+    try {
+      for (let i = 0; i < selectedDigitalUploadFiles.length; i++) {
+        const file = selectedDigitalUploadFiles[i];
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("product_id", productID);
+        formData.append("sort_order", String(i));
+        formData.append("download_limit", "0");
+        await adminPostForm("/admin/catalog/digital-files/upload", formData);
+      }
+
+      setSelectedDigitalUploadFiles([]);
+      await refreshDigitalFiles(productID);
+      notifySuccess("Digital files uploaded");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal upload digital files");
+    } finally {
+      setUploadingDigitalFiles(false);
     }
   };
 
@@ -624,14 +696,14 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
             type="button"
             onClick={onClose}
             className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-            disabled={submitting || uploading}
+            disabled={submitting || uploading || uploadingDigitalFiles}
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={submitting || uploading}
+            disabled={submitting || uploading || uploadingDigitalFiles}
             className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-70"
           >
             {uploading && uploadProgress
@@ -898,6 +970,95 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
                 }
               }}
             />
+
+            {form.product_type === "digital" && Boolean(activeProductID) ? (
+              <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-slate-900">Digital Files</h4>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{digitalFiles.length} files</span>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Upload File Digital</p>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => setSelectedDigitalUploadFiles(e.target.files ? Array.from(e.target.files) : [])}
+                    className="w-full rounded border border-slate-300 px-2 py-2 text-sm"
+                  />
+                  {selectedDigitalUploadFiles.length > 0 ? (
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+                      {selectedDigitalUploadFiles.map((file) => (
+                        <div key={`${file.name}-${file.lastModified}`} className="truncate">{file.name}</div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => activeProductID && uploadDigitalFiles(activeProductID)}
+                      disabled={uploadingDigitalFiles || selectedDigitalUploadFiles.length === 0}
+                      className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                    >
+                      {uploadingDigitalFiles ? "Uploading..." : "Upload Digital Files"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">File Tersimpan</p>
+                  {loadingDigitalFiles ? (
+                    <p className="text-sm text-slate-500">Loading files...</p>
+                  ) : digitalFiles.length === 0 ? (
+                    <p className="text-sm text-slate-500">Belum ada digital file.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {digitalFiles.map((file) => (
+                        <div key={file.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-800">{file.file_name || file.file_path}</p>
+                            <p className="text-xs text-slate-500">{file.mime_type || "application/octet-stream"} - {Math.max(0, Number(file.file_size || 0))} bytes</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await adminPatch(`/admin/catalog/digital-files/${file.id}`, { is_active: !file.is_active });
+                                  if (activeProductID) await refreshDigitalFiles(activeProductID);
+                                  notifySuccess(file.is_active ? "File dinonaktifkan" : "File diaktifkan");
+                                } catch (err) {
+                                  notifyError(err instanceof Error ? err.message : "Gagal update status file");
+                                }
+                              }}
+                              className={`rounded px-2 py-1 text-xs font-medium ${file.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}
+                            >
+                              {file.is_active ? "Active" : "Inactive"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm("Delete digital file ini?")) return;
+                                try {
+                                  await adminDelete(`/admin/catalog/digital-files/${file.id}`);
+                                  if (activeProductID) await refreshDigitalFiles(activeProductID);
+                                  notifySuccess("Digital file dihapus");
+                                } catch (err) {
+                                  notifyError(err instanceof Error ? err.message : "Gagal hapus digital file");
+                                }
+                              }}
+                              className="rounded bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            ) : null}
 
             <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
               <h4 className="mb-3 text-sm font-semibold text-slate-900">Settings</h4>

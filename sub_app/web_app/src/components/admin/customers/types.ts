@@ -39,3 +39,42 @@ export type CustomerPayload = {
   notes?: string;
   is_active: boolean;
 };
+
+export type CustomerAddress = {
+  id: string;
+  customer_id: string;
+  label: string;
+  receiver_name: string;
+  phone_number: string;
+  address_line_1: string;
+  address_line_2?: string | null;
+  subdistrict?: string | null;
+  district?: string | null;
+  city: string;
+  province: string;
+  postal_code: string;
+  country: string;
+  notes?: string | null;
+  is_primary: boolean;
+  metadata?: unknown;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+};
+
+export type CustomerAddressInput = {
+  label?: string;
+  receiver_name: string;
+  phone_number: string;
+  address_line_1: string;
+  address_line_2?: string | null;
+  subdistrict?: string | null;
+  district?: string | null;
+  city: string;
+  province: string;
+  postal_code: string;
+  country?: string;
+  notes?: string | null;
+  is_primary?: boolean;
+  metadata?: Record<string, unknown>;
+};

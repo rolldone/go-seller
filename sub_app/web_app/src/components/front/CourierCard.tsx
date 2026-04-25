@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { useTranslations } from "../../i18n";
 import { formatAmount } from "../../lib/amountFormat";
 
@@ -18,20 +18,6 @@ function toCurrency(value: number, currency = "IDR"): string {
   }
 }
 
-function trackingUrlForCarrier(carrier: string | undefined, trackingNumber: string): string | null {
-  if (!trackingNumber) return null;
-  const tn = encodeURIComponent(trackingNumber.trim());
-  const c = String(carrier || "").toLowerCase();
-  if (c.includes("jne")) return `https://www.jne.co.id/id/tracking/trace?waybill=${tn}`;
-  if (c.includes("sicepat") || c.includes("si cepat")) return `https://www.sicepat.com/tracking?resi=${tn}`;
-  if (c.includes("j&t") || c.includes("jnt")) return `https://www.jtexpress.id/track?awb=${tn}`;
-  if (c.includes("tiki")) return `https://www.tiki.id/tracking?resi=${tn}`;
-  if (c.includes("ninja") || c.includes("ninjaxpress")) return `https://www.ninjaxpress.co/id/track?waybill=${tn}`;
-  if (c.includes("anteraja")) return `https://anteraja.id/cek-resi?resi=${tn}`;
-  if (c.includes("pos") || c.includes("posindonesia") || c.includes("pos indonesia")) return `https://www.posindonesia.co.id/en/tracking?waybill=${tn}`;
-  return `https://www.google.com/search?q=${encodeURIComponent(((carrier || "") + " " + trackingNumber).trim())}`;
-}
-
 export default function CourierCard({ shippingQuote, fallbackAmount = 0, currency = "IDR", className = "" }: Props) {
   if (!shippingQuote) return null;
 
@@ -49,21 +35,6 @@ export default function CourierCard({ shippingQuote, fallbackAmount = 0, currenc
     : typeof shippingQuote.amount === "number"
     ? shippingQuote.amount
     : Number(shippingQuote.shippingAmount || fallbackAmount || 0);
-
-  const [copied, setCopied] = useState(false);
-
-  const onCopy = async () => {
-    if (!trackingNumber) return;
-    try {
-      await navigator.clipboard.writeText(trackingNumber);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // ignore
-    }
-  };
-
-  const trackUrl = trackingUrlForCarrier(carrier, trackingNumber || "");
 
   let updatedAtText = "";
   try {
@@ -105,20 +76,6 @@ export default function CourierCard({ shippingQuote, fallbackAmount = 0, currenc
               <div>
               <div className="text-xs text-slate-500">{t("trackingNumberLabel", "Resi")}</div>
               <div className="mt-0.5 font-medium text-slate-900 break-words">{trackingNumber || "-"}</div>
-            </div>
-            <div className="flex items-center gap-2">
-              {trackingNumber ? (
-                <>
-                  <button type="button" onClick={onCopy} className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                    {copied ? t("copied", "Tersalin") : t("copy", "Salin")}
-                  </button>
-                  {trackUrl ? (
-                    <a href={trackUrl} target="_blank" rel="noopener noreferrer" className="rounded bg-indigo-600 px-3 py-1 text-xs font-semibold text-white hover:bg-indigo-700">
-                      {t("track", "Lacak")}
-                    </a>
-                  ) : null}
-                </>
-              ) : null}
             </div>
           </div>
         </div>

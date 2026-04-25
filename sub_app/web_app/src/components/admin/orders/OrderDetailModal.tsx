@@ -2,8 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { adminGet, adminPost, adminPostForm, adminDelete, adminGetBlob } from "../entities/adminApi";
 import AdminModal from "../ui/AdminModal";
-import { downloadOrderInvoice, generateCheckoutLink, listPaymentProofs, getOrderByID, updateShippingQuote } from "./api";
-import type { Order, Payment, PaymentProof } from "./types";
+import { listCustomerAddresses } from "../customers/api";
+import type { CustomerAddress } from "../customers/types";
+import {
+  createOrderShipment,
+  downloadOrderInvoice,
+  generateCheckoutLink,
+  getOrderByID,
+  listOrderShipments,
+  listPaymentProofs,
+  listShippableItems,
+  updateOrderShipment,
+  updateOrderShippingAddress,
+  updateShippingQuote,
+} from "./api";
+import type { Order, OrderItem, OrderShipment, Payment, PaymentProof } from "./types";
 import { formatAmount } from "../../../lib/amountFormat";
 
 type Props = {
@@ -63,6 +76,50 @@ const defaultShippingQuoteForm: ShippingQuoteFormState = {
   notes: "",
 };
 
+type ShipmentFormState = {
+  carrier_name: string;
+  service_name: string;
+  tracking_number: string;
+  shipping_amount: string;
+  estimated_delivery: string;
+  description: string;
+  notes: string;
+};
+
+const defaultShipmentForm: ShipmentFormState = {
+  carrier_name: "",
+  service_name: "",
+  tracking_number: "",
+  shipping_amount: "0",
+  estimated_delivery: "",
+  description: "",
+  notes: "",
+};
+
+type EditShipmentFormState = {
+  shipment_id: string;
+  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  carrier_name: string;
+  service_name: string;
+  tracking_number: string;
+  shipping_amount: string;
+  estimated_delivery: string;
+  description: string;
+  notes: string;
+};
+
+const defaultEditShipmentForm: EditShipmentFormState = {
+  shipment_id: "",
+  status: "pending",
+  carrier_name: "",
+  service_name: "",
+  tracking_number: "",
+  shipping_amount: "0",
+  estimated_delivery: "",
+  description: "",
+  notes: "",
+};
+
 const parseOrderMetadata = (raw: unknown): Record<string, unknown> | null => {
   if (!raw) return null;
   if (typeof raw === "object") return raw as Record<string, unknown>;
@@ -117,6 +174,21 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const [shippingQuoteForm, setShippingQuoteForm] = useState<ShippingQuoteFormState>(defaultShippingQuoteForm);
   const [savingShippingQuote, setSavingShippingQuote] = useState(false);
+  const [shipments, setShipments] = useState<OrderShipment[]>([]);
+  const [loadingShipments, setLoadingShipments] = useState(false);
+  const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
+  const [customerAddresses, setCustomerAddresses] = useState<CustomerAddress[]>([]);
+  const [loadingCustomerAddresses, setLoadingCustomerAddresses] = useState(false);
+  const [selectedCustomerAddressID, setSelectedCustomerAddressID] = useState("");
+  const [savingShippingAddress, setSavingShippingAddress] = useState(false);
+  const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
+  const [shippableItems, setShippableItems] = useState<OrderItem[]>([]);
+  const [selectedShipmentItemIDs, setSelectedShipmentItemIDs] = useState<Record<string, boolean>>({});
+  const [shipmentForm, setShipmentForm] = useState<ShipmentFormState>(defaultShipmentForm);
+  const [creatingShipment, setCreatingShipment] = useState(false);
+  const [editShipmentModalOpen, setEditShipmentModalOpen] = useState(false);
+  const [editShipmentForm, setEditShipmentForm] = useState<EditShipmentFormState>(defaultEditShipmentForm);
+  const [savingShipmentMeta, setSavingShipmentMeta] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -126,6 +198,14 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
       setOpeningProofKey("");
       setExpandedPayments({});
       setLocalOrder(null);
+      setShipments([]);
+      setShippableItems([]);
+      setSelectedShipmentItemIDs({});
+      setDeliveryModalOpen(false);
+      setShipmentForm(defaultShipmentForm);
+      setShipmentModalOpen(false);
+      setEditShipmentModalOpen(false);
+      setEditShipmentForm(defaultEditShipmentForm);
     }
   }, [open, order?.id]);
 
@@ -169,6 +249,7 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
 
   const displayOrder = localOrder ?? order;
   const displayCustomer = displayOrder?.customer ?? null;
+  const orderCustomerID: string = typeof displayOrder?.customer_id === "string" ? displayOrder.customer_id.trim() : "";
 
   const sortedPayments = useMemo(() => {
     const payments = displayOrder?.payments || [];
@@ -295,6 +376,135 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
     }
   };
 
+  const loadShipments = async (orderID: string) => {
+    setLoadingShipments(true);
+    try {
+      const res = await listOrderShipments(orderID);
+      setShipments(res.data || []);
+    } catch (err) {
+      setShipments([]);
+      notifyError(err instanceof Error ? err.message : "Gagal memuat shipment");
+    } finally {
+      setLoadingShipments(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open || !displayOrder?.id) return;
+    loadShipments(displayOrder.id);
+  }, [open, displayOrder?.id]);
+
+  const openCreateShipmentModal = async () => {
+    if (!displayOrder?.id) return;
+    try {
+      const res = await listShippableItems(displayOrder.id);
+      setShippableItems(res.data || []);
+      setSelectedShipmentItemIDs({});
+      setShipmentForm(defaultShipmentForm);
+      setShipmentModalOpen(true);
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal memuat item kirim");
+    }
+  };
+
+  const handleCreateShipment = async () => {
+    if (!displayOrder?.id) return;
+    const itemIDs = Object.entries(selectedShipmentItemIDs)
+      .filter(([, selected]) => selected)
+      .map(([id]) => id);
+    if (itemIDs.length === 0) {
+      notifyError("Pilih minimal 1 item untuk shipment");
+      return;
+    }
+
+    const shippingAmount = Number(shipmentForm.shipping_amount || "0");
+    if (!Number.isFinite(shippingAmount) || shippingAmount < 0) {
+      notifyError("Biaya kirim harus angka >= 0");
+      return;
+    }
+
+    setCreatingShipment(true);
+    try {
+      await createOrderShipment(displayOrder.id, {
+        carrier_name: shipmentForm.carrier_name.trim(),
+        service_name: shipmentForm.service_name.trim(),
+        tracking_number: shipmentForm.tracking_number.trim(),
+        shipping_amount: shippingAmount,
+        estimated_delivery: shipmentForm.estimated_delivery.trim(),
+        description: shipmentForm.description.trim(),
+        notes: shipmentForm.notes.trim(),
+        item_ids: itemIDs,
+      });
+      notifySuccess("Shipment berhasil dibuat");
+      setShipmentModalOpen(false);
+      await loadShipments(displayOrder.id);
+      await refreshOrder();
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal membuat shipment");
+    } finally {
+      setCreatingShipment(false);
+    }
+  };
+
+  const openEditShipmentModal = (shipment: OrderShipment) => {
+    setEditShipmentForm({
+      shipment_id: shipment.id,
+      status: (shipment.status || "pending") as "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+      carrier_name: shipment.carrier_name || "",
+      service_name: shipment.service_name || "",
+      tracking_number: shipment.tracking_number || "",
+      shipping_amount: String(shipment.shipping_amount ?? 0),
+      estimated_delivery: shipment.estimated_delivery || "",
+      description: shipment.description || "",
+      notes: shipment.notes || "",
+    });
+    setEditShipmentModalOpen(true);
+  };
+
+  const editShipmentNeedsTracking =
+    (editShipmentForm.status === "shipped" || editShipmentForm.status === "delivered") && !editShipmentForm.tracking_number.trim();
+
+  const handleSaveShipmentMeta = async () => {
+    if (!displayOrder?.id || !editShipmentForm.shipment_id) return;
+
+    const trackingNumber = editShipmentForm.tracking_number.trim();
+    if (editShipmentNeedsTracking) {
+      const proceed =
+        typeof window === "undefined"
+          ? true
+          : window.confirm("Status shipment shipped/delivered tapi nomor resi kosong. Lanjut simpan?");
+      if (!proceed) return;
+    }
+
+    const shippingAmount = Number(editShipmentForm.shipping_amount || "0");
+    if (!Number.isFinite(shippingAmount) || shippingAmount < 0) {
+      notifyError("Biaya kirim shipment harus angka >= 0");
+      return;
+    }
+
+    setSavingShipmentMeta(true);
+    try {
+      await updateOrderShipment(editShipmentForm.shipment_id, {
+        status: editShipmentForm.status,
+        carrier_name: editShipmentForm.carrier_name.trim(),
+        service_name: editShipmentForm.service_name.trim(),
+        tracking_number: trackingNumber,
+        shipping_amount: shippingAmount,
+        estimated_delivery: editShipmentForm.estimated_delivery.trim(),
+        description: editShipmentForm.description.trim(),
+        notes: editShipmentForm.notes.trim(),
+      });
+      notifySuccess("Metadata shipment berhasil diperbarui");
+      setEditShipmentModalOpen(false);
+      await loadShipments(displayOrder.id);
+      await refreshOrder();
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal update metadata shipment");
+    } finally {
+      setSavingShipmentMeta(false);
+    }
+  };
+
   const shippingQuoteMetadata = useMemo(() => {
     const metadata = parseOrderMetadata(displayOrder?.metadata);
     return (metadata?.shipping_quote || metadata?.shippingQuote || null) as Record<string, any> | null;
@@ -304,6 +514,78 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
     const metadata = parseOrderMetadata(displayOrder?.metadata);
     return (metadata?.shipping_address || null) as Record<string, any> | null;
   }, [displayOrder?.metadata]);
+
+  useEffect(() => {
+    if (!deliveryModalOpen || !orderCustomerID) {
+      setCustomerAddresses([]);
+      setSelectedCustomerAddressID("");
+      setLoadingCustomerAddresses(false);
+      return;
+    }
+
+    let active = true;
+    (async () => {
+      setLoadingCustomerAddresses(true);
+      try {
+        const rows = await listCustomerAddresses(orderCustomerID);
+        if (!active) return;
+        setCustomerAddresses(rows);
+        const savedAddressID = String(shippingAddressMetadata?.address_id || "").trim();
+        const nextSelected = savedAddressID && rows.some((item) => item.id === savedAddressID)
+          ? savedAddressID
+          : rows.find((item) => item.is_primary)?.id || rows[0]?.id || "";
+        setSelectedCustomerAddressID(nextSelected);
+      } catch {
+        if (!active) return;
+        setCustomerAddresses([]);
+        setSelectedCustomerAddressID("");
+      } finally {
+        if (active) setLoadingCustomerAddresses(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [deliveryModalOpen, orderCustomerID, shippingAddressMetadata?.address_id]);
+
+  const hasShippingAddress = useMemo(() => {
+    if (!shippingAddressMetadata) return false;
+    return [
+      shippingAddressMetadata.receiver_name,
+      shippingAddressMetadata.phone_number,
+      shippingAddressMetadata.address_summary,
+      shippingAddressMetadata.address_line_1,
+      shippingAddressMetadata.city,
+      shippingAddressMetadata.province,
+      shippingAddressMetadata.postal_code,
+    ].some((value) => String(value || "").trim().length > 0);
+  }, [shippingAddressMetadata]);
+
+  const latestShipment = useMemo(() => {
+    if (!shipments.length) return null;
+    return [...shipments].sort((a, b) => {
+      const ta = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const tb = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return tb - ta;
+    })[0] || null;
+  }, [shipments]);
+
+  const latestShipmentStatusMeta = useMemo(() => {
+    const status = String(latestShipment?.status || "").toLowerCase();
+    switch (status) {
+      case "delivered":
+        return { label: "delivered", className: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+      case "shipped":
+        return { label: "shipped", className: "bg-sky-100 text-sky-700 border-sky-200" };
+      case "processing":
+        return { label: "processing", className: "bg-amber-100 text-amber-700 border-amber-200" };
+      case "cancelled":
+        return { label: "cancelled", className: "bg-slate-100 text-slate-700 border-slate-200" };
+      default:
+        return { label: status || "pending", className: "bg-amber-100 text-amber-700 border-amber-200" };
+    }
+  }, [latestShipment?.status]);
 
   const taxBreakdown = useMemo(() => {
     const groups = new Map<string, { taxType: string; taxRate: number; amount: number }>();
@@ -320,6 +602,10 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
 
   const handleSaveShippingQuote = async () => {
     if (!displayOrder?.id) return;
+    if (!hasShippingAddress) {
+      notifyError("Alamat customer belum diisi. Isi alamat dulu sebelum simpan ongkir.");
+      return;
+    }
     const amount = Number(shippingQuoteForm.shipping_amount);
     if (!Number.isFinite(amount) || amount < 0) {
       notifyError("Ongkir harus angka >= 0");
@@ -343,6 +629,29 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
       notifyError(err instanceof Error ? err.message : "Gagal menyimpan detail ongkir");
     } finally {
       setSavingShippingQuote(false);
+    }
+  };
+
+  const openDeliveryModal = () => {
+    setDeliveryModalOpen(true);
+  };
+
+  const handleSaveShippingAddressSelection = async () => {
+    if (!displayOrder?.id) return;
+    if (!selectedCustomerAddressID) {
+      notifyError("Pilih alamat customer dulu");
+      return;
+    }
+
+    setSavingShippingAddress(true);
+    try {
+      await updateOrderShippingAddress(displayOrder.id, { address_id: selectedCustomerAddressID });
+      notifySuccess("Alamat shipping berhasil disimpan");
+      await refreshOrder();
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal menyimpan shipping address");
+    } finally {
+      setSavingShippingAddress(false);
     }
   };
 
@@ -494,7 +803,7 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   };
 
   return (
-    <AdminModal open={open} onClose={onClose} title={displayOrder ? `Order ${displayOrder.order_number}` : "Order Detail"} maxWidth="xl">
+    <AdminModal open={open} onClose={onClose} title={displayOrder ? `Order ${displayOrder.order_number}` : "Order Detail"} maxWidth="2xl">
       
       {loading ? (
         <p className="text-sm text-slate-600">Loading detail...</p>
@@ -570,6 +879,11 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                         <td className="px-3 py-2 text-sm text-slate-800">
                           <p className="font-medium">{item.product_name || item.product_id || "-"}</p>
                           <p className="text-xs text-slate-500">{item.product_id || ""}</p>
+                          <p className="mt-1">
+                            <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${String(item.product_type || "product") === "digital" ? "bg-violet-100 text-violet-700" : "bg-cyan-100 text-cyan-700"}`}>
+                              {String(item.product_type || "product")}
+                            </span>
+                          </p>
                           <p className="mt-1 flex flex-wrap gap-2 text-[11px] font-semibold">
                             <span className={`rounded-full px-2 py-0.5 ${String(item.tax_type || "exclude") === "include" ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-700"}`}>
                               {formatTaxMode(item.tax_type, item.tax_rate)}
@@ -821,8 +1135,10 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h4 className="text-sm font-semibold text-slate-900">Shipping Quote</h4>
-                <p className="mt-1 text-xs text-slate-500">Isi ongkir final dulu untuk buka pembayaran. Resi bisa diisi atau diupdate belakangan setelah barang dikirim.</p>
+                <h4 className="text-sm font-semibold text-slate-900">Delivery System</h4>
+                <p className="mt-1 text-xs text-slate-500">
+                  Ringkasan ongkir dan shipment sudah dirapikan di sini. Detail edit ada di sub-modal agar modal order utama tetap fokus ke informasi final.
+                </p>
               </div>
               {shippingQuoteMetadata?.ready ? (
                 <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Ready</span>
@@ -831,99 +1147,304 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
               )}
             </div>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Ongkir</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={shippingQuoteForm.shipping_amount}
-                  onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, shipping_amount: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Kurir / Forwarder</span>
-                <input
-                  value={shippingQuoteForm.carrier_name}
-                  onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, carrier_name: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="DHL / JNE / FedEx / Forwarder"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Service</span>
-                <input
-                  value={shippingQuoteForm.service_name}
-                  onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, service_name: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Express / Economy / Air / Sea"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Resi / Tracking</span>
-                <input
-                  value={shippingQuoteForm.tracking_number}
-                  onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, tracking_number: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Nomor resi / airway bill"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">ETA</span>
-                <input
-                  value={shippingQuoteForm.estimated_delivery}
-                  onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, estimated_delivery: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="3-5 hari kerja / 7-14 hari"
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Deskripsi Ongkir</span>
-                <input
-                  value={shippingQuoteForm.description}
-                  onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, description: e.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Alasan tarif, rute, volumetrik, dll"
-                />
-              </label>
-              <label className="text-sm sm:col-span-2">
-                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan Internal / Ekstra</span>
-                <textarea
-                  value={shippingQuoteForm.notes}
-                  onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, notes: e.target.value }))}
-                  className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  placeholder="Catatan tambahan, bea, asuransi, dokumen ekspor, dll"
-                />
-              </label>
-            </div>
-
-            {shippingQuoteMetadata ? (
-              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                <div className="font-semibold text-slate-900">Detail Ongkir Tersimpan</div>
-                <div className="mt-2 grid gap-1 sm:grid-cols-2">
-                  <div>Kurir: {String(shippingQuoteMetadata.carrier_name || "-")}</div>
-                  <div>Service: {String(shippingQuoteMetadata.service_name || "-")}</div>
-                  <div>Resi: {String(shippingQuoteMetadata.tracking_number || "-")}</div>
-                  <div>ETA: {String(shippingQuoteMetadata.estimated_delivery || "-")}</div>
-                  <div className="sm:col-span-2">Deskripsi: {String(shippingQuoteMetadata.description || "-")}</div>
-                  <div className="sm:col-span-2">Catatan: {String(shippingQuoteMetadata.notes || "-")}</div>
-                </div>
+            {!hasShippingAddress ? (
+              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                Alamat pengiriman belum dipilih. Buka Delivery System untuk memilih address customer.
               </div>
             ) : null}
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-3 text-sm text-slate-700">
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs uppercase text-slate-500">Ongkir Final</p>
+                <p className="mt-1 font-semibold text-slate-900">{money(displayOrder?.currency || "", Number(shippingQuoteMetadata?.shipping_amount || displayOrder?.shipping_amount || 0))}</p>
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs uppercase text-slate-500">Shipment</p>
+                {latestShipment ? (
+                  <>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold text-slate-900">{shipments.length} resi</p>
+                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${latestShipmentStatusMeta.className}`}>
+                        {latestShipmentStatusMeta.label}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {latestShipment.carrier_name || "Carrier"}{latestShipment.service_name ? ` - ${latestShipment.service_name}` : ""}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">Update terakhir: {formatDateTime(latestShipment.updated_at)}</p>
+                  </>
+                ) : (
+                  <p className="mt-1 font-semibold text-slate-900">Belum ada resi</p>
+                )}
+              </div>
+              <div className="rounded-lg bg-slate-50 p-3">
+                <p className="text-xs uppercase text-slate-500">Resi Terakhir</p>
+                <p className="mt-1 truncate font-semibold text-slate-900">{latestShipment?.tracking_number || "-"}</p>
+                <p className="mt-1 text-xs text-slate-500">ETA: {latestShipment?.estimated_delivery || "-"}</p>
+              </div>
+            </div>
 
             <div className="mt-4 flex justify-end">
               <button
                 type="button"
-                onClick={handleSaveShippingQuote}
-                disabled={savingShippingQuote}
-                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                onClick={openDeliveryModal}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
               >
-                {savingShippingQuote ? "Menyimpan..." : "Simpan / Update Ongkir & Resi"}
+                Kelola Delivery
               </button>
             </div>
           </section>
+
+          <AdminModal
+            open={deliveryModalOpen}
+            title="Delivery System"
+            onClose={() => setDeliveryModalOpen(false)}
+            maxWidth="2xl"
+            footer={
+              <button
+                type="button"
+                onClick={() => setDeliveryModalOpen(false)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+              >
+                Tutup
+              </button>
+            }
+          >
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h5 className="text-sm font-semibold text-slate-900">Shipping Address</h5>
+                    <p className="mt-1 text-xs text-slate-500">Pilih alamat customer yang akan dipakai untuk snapshot ongkir dan shipment.</p>
+                  </div>
+                  {displayCustomer?.id ? (
+                    <a href={`/admin/customers/${displayCustomer.id}`} className="text-xs font-medium text-emerald-700 hover:underline">
+                      Buka customer
+                    </a>
+                  ) : null}
+                </div>
+
+                {!displayOrder?.customer_id ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    Order ini belum memiliki customer.
+                  </div>
+                ) : loadingCustomerAddresses ? (
+                  <p className="mt-3 text-sm text-slate-500">Memuat alamat customer...</p>
+                ) : customerAddresses.length === 0 ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                    Customer belum punya address tersimpan. Tambahkan dulu di halaman customer sebelum memilih shipping address.
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {customerAddresses.map((address) => {
+                      const selected = selectedCustomerAddressID === address.id;
+                      return (
+                        <button
+                          key={address.id}
+                          type="button"
+                          onClick={() => setSelectedCustomerAddressID(address.id)}
+                          className={`w-full rounded-lg border px-3 py-3 text-left transition ${selected ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50 hover:bg-slate-100"}`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-semibold text-slate-900">{address.label || "Alamat"}</p>
+                                {address.is_primary ? <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-700">Primary</span> : null}
+                                {selected ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Selected</span> : null}
+                              </div>
+                              <p className="mt-1 text-xs text-slate-600">{address.receiver_name} · {address.phone_number}</p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {[address.address_line_1, address.address_line_2, address.subdistrict, address.district, address.city, address.province, address.postal_code]
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </p>
+                            </div>
+                            <div className={`mt-1 h-4 w-4 rounded-full border ${selected ? "border-emerald-500 bg-emerald-500" : "border-slate-300 bg-white"}`} />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {customerAddresses.length > 0 ? (
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSaveShippingAddressSelection}
+                      disabled={savingShippingAddress || !selectedCustomerAddressID}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                    >
+                      {savingShippingAddress ? "Menyimpan..." : "Pilih Alamat Ini"}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <h5 className="text-sm font-semibold text-slate-900">Shipping Quote</h5>
+                    <p className="mt-1 text-xs text-slate-500">Isi ongkir final dulu untuk buka pembayaran.</p>
+                  </div>
+                  {shippingQuoteMetadata?.ready ? (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">Ready</span>
+                  ) : (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">Pending</span>
+                  )}
+                </div>
+
+                {!hasShippingAddress ? (
+                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                    Alamat customer belum diisi. Lengkapi alamat dulu sebelum menyiapkan ongkir.
+                  </div>
+                ) : null}
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Ongkir</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={shippingQuoteForm.shipping_amount}
+                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, shipping_amount: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Kurir / Forwarder</span>
+                    <input
+                      value={shippingQuoteForm.carrier_name}
+                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, carrier_name: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="DHL / JNE / FedEx / Forwarder"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Service</span>
+                    <input
+                      value={shippingQuoteForm.service_name}
+                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, service_name: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Express / Economy / Air / Sea"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Resi / Tracking</span>
+                    <input
+                      value={shippingQuoteForm.tracking_number}
+                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, tracking_number: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Nomor resi / airway bill"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">ETA</span>
+                    <input
+                      value={shippingQuoteForm.estimated_delivery}
+                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, estimated_delivery: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="3-5 hari kerja / 7-14 hari"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Deskripsi Ongkir</span>
+                    <input
+                      value={shippingQuoteForm.description}
+                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, description: e.target.value }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Alasan tarif, rute, volumetrik, dll"
+                    />
+                  </label>
+                  <label className="text-sm sm:col-span-2">
+                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan Internal / Ekstra</span>
+                    <textarea
+                      value={shippingQuoteForm.notes}
+                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, notes: e.target.value }))}
+                      className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      placeholder="Catatan tambahan, bea, asuransi, dokumen ekspor, dll"
+                    />
+                  </label>
+                </div>
+
+                {shippingQuoteMetadata ? (
+                  <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700">
+                    <div className="font-semibold text-slate-900">Detail Ongkir Tersimpan</div>
+                    <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                      <div>Kurir: {String(shippingQuoteMetadata.carrier_name || "-")}</div>
+                      <div>Service: {String(shippingQuoteMetadata.service_name || "-")}</div>
+                      <div>Resi: {String(shippingQuoteMetadata.tracking_number || "-")}</div>
+                      <div>ETA: {String(shippingQuoteMetadata.estimated_delivery || "-")}</div>
+                      <div className="sm:col-span-2">Deskripsi: {String(shippingQuoteMetadata.description || "-")}</div>
+                      <div className="sm:col-span-2">Catatan: {String(shippingQuoteMetadata.notes || "-")}</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleSaveShippingQuote}
+                    disabled={savingShippingQuote || !hasShippingAddress}
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {savingShippingQuote ? "Menyimpan..." : !hasShippingAddress ? "Isi Alamat Dulu" : "Simpan Ongkir"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h5 className="text-sm font-semibold text-slate-900">Delivery / Shipments</h5>
+                    <p className="mt-1 text-xs text-slate-500">Pilih item non-digital per shipment. Satu order bisa punya banyak resi.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openCreateShipmentModal}
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+                  >
+                    Tambah Resi
+                  </button>
+                </div>
+
+                {loadingShipments ? (
+                  <p className="mt-3 text-sm text-slate-500">Memuat shipment...</p>
+                ) : shipments.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">Belum ada shipment untuk order ini.</p>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {shipments.map((shipment) => (
+                      <div key={shipment.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-sm text-slate-800">
+                            <p className="font-semibold text-slate-900">{shipment.carrier_name || "Carrier"} {shipment.service_name ? `- ${shipment.service_name}` : ""}</p>
+                            <p className="text-xs text-slate-500">Resi: {shipment.tracking_number || "-"} | Status: {shipment.status || "pending"}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">{shipment.items?.length || 0} item</span>
+                            <button
+                              type="button"
+                              onClick={() => openEditShipmentModal(shipment)}
+                              className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit Shipment
+                            </button>
+                          </div>
+                        </div>
+                        <div className="mt-2 grid gap-1 text-xs text-slate-600 sm:grid-cols-2">
+                          <div>Biaya Kirim: {money(displayOrder?.currency || "", shipment.shipping_amount || 0)}</div>
+                          <div>ETA: {shipment.estimated_delivery || "-"}</div>
+                          <div className="sm:col-span-2">Catatan: {shipment.notes || "-"}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </AdminModal>
 
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <h4 className="text-sm font-semibold text-slate-900">Invoice</h4>
@@ -1025,6 +1546,247 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                   </div>
                 ) : null}
               </div>
+            </div>
+          </AdminModal>
+
+          <AdminModal
+            open={shipmentModalOpen}
+            title="Buat Shipment / Resi"
+            onClose={() => setShipmentModalOpen(false)}
+            maxWidth="lg"
+            footer={
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShipmentModalOpen(false)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateShipment}
+                  disabled={creatingShipment}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {creatingShipment ? "Menyimpan..." : "Buat Shipment"}
+                </button>
+              </>
+            }
+          >
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Kurir</span>
+                  <input
+                    value={shipmentForm.carrier_name}
+                    onChange={(e) => setShipmentForm((prev) => ({ ...prev, carrier_name: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="JNE / DHL / FedEx"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Service</span>
+                  <input
+                    value={shipmentForm.service_name}
+                    onChange={(e) => setShipmentForm((prev) => ({ ...prev, service_name: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Reg / Express"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Resi</span>
+                  <input
+                    value={shipmentForm.tracking_number}
+                    onChange={(e) => setShipmentForm((prev) => ({ ...prev, tracking_number: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="Nomor resi"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Biaya Kirim</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={shipmentForm.shipping_amount}
+                    onChange={(e) => setShipmentForm((prev) => ({ ...prev, shipping_amount: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="text-sm sm:col-span-2">
+                  <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">ETA</span>
+                  <input
+                    value={shipmentForm.estimated_delivery}
+                    onChange={(e) => setShipmentForm((prev) => ({ ...prev, estimated_delivery: e.target.value }))}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    placeholder="3-5 hari kerja"
+                  />
+                </label>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Pilih Item untuk Shipment</p>
+                {shippableItems.length === 0 ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">Tidak ada item fisik/service yang bisa dikirim.</div>
+                ) : (
+                  <div className="max-h-56 overflow-y-auto rounded-lg border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-700">Pilih</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-slate-700">Item</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium uppercase tracking-wide text-slate-700">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 bg-white">
+                        {shippableItems.map((item) => (
+                          <tr key={item.id}>
+                            <td className="px-3 py-2 text-sm">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(selectedShipmentItemIDs[item.id])}
+                                onChange={(e) =>
+                                  setSelectedShipmentItemIDs((prev) => ({
+                                    ...prev,
+                                    [item.id]: e.target.checked,
+                                  }))
+                                }
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-sm text-slate-800">
+                              <p className="font-medium">{item.product_name || item.product_id || "-"}</p>
+                              <p className="text-xs text-slate-500">{item.product_type || "product"}</p>
+                            </td>
+                            <td className="px-3 py-2 text-right text-sm text-slate-700">{item.qty}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </AdminModal>
+
+          <AdminModal
+            open={editShipmentModalOpen}
+            title="Edit Metadata Shipment"
+            onClose={() => setEditShipmentModalOpen(false)}
+            maxWidth="lg"
+            footer={
+              <>
+                <button
+                  type="button"
+                  onClick={() => setEditShipmentModalOpen(false)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveShipmentMeta}
+                  disabled={
+                    savingShipmentMeta ||
+                    !editShipmentForm.shipment_id ||
+                    editShipmentNeedsTracking
+                  }
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {savingShipmentMeta
+                    ? "Menyimpan..."
+                    : editShipmentNeedsTracking
+                      ? "Isi Resi Dulu"
+                      : "Simpan Metadata"}
+                </button>
+              </>
+            }
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-sm">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Status</span>
+                <select
+                  value={editShipmentForm.status}
+                  onChange={(e) =>
+                    setEditShipmentForm((prev) => ({
+                      ...prev,
+                      status: e.target.value as "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+                    }))
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="pending">pending</option>
+                  <option value="processing">processing</option>
+                  <option value="shipped">shipped</option>
+                  <option value="delivered">delivered</option>
+                  <option value="cancelled">cancelled</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Kurir</span>
+                <input
+                  value={editShipmentForm.carrier_name}
+                  onChange={(e) => setEditShipmentForm((prev) => ({ ...prev, carrier_name: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Service</span>
+                <input
+                  value={editShipmentForm.service_name}
+                  onChange={(e) => setEditShipmentForm((prev) => ({ ...prev, service_name: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Resi</span>
+                <input
+                  value={editShipmentForm.tracking_number}
+                  onChange={(e) => setEditShipmentForm((prev) => ({ ...prev, tracking_number: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+                {editShipmentNeedsTracking ? (
+                  <p className="mt-1 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700">
+                    Status ini sebaiknya punya nomor resi agar riwayat shipment lebih rapi.
+                  </p>
+                ) : null}
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Biaya Kirim</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editShipmentForm.shipping_amount}
+                  onChange={(e) => setEditShipmentForm((prev) => ({ ...prev, shipping_amount: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">ETA</span>
+                <input
+                  value={editShipmentForm.estimated_delivery}
+                  onChange={(e) => setEditShipmentForm((prev) => ({ ...prev, estimated_delivery: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="3-5 hari kerja"
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Deskripsi</span>
+                <input
+                  value={editShipmentForm.description}
+                  onChange={(e) => setEditShipmentForm((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="text-sm sm:col-span-2">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Catatan</span>
+                <textarea
+                  value={editShipmentForm.notes}
+                  onChange={(e) => setEditShipmentForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  className="min-h-24 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
             </div>
           </AdminModal>
 

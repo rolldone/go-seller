@@ -224,6 +224,7 @@ export default function CustomersPage() {
 
   const formValues = selectedCustomer
     ? {
+        id: selectedCustomer.id,
         name: selectedCustomer.name,
         email: selectedCustomer.email,
         locale: selectedCustomer.locale || "id",

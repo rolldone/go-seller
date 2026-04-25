@@ -10,6 +10,7 @@ export type OrderItem = {
   product_id?: string | null;
   product_name?: string;
   sku?: string | null;
+  product_type?: string;
   discount_name?: string | null;
   qty: number;
   unit_price: number;
@@ -89,6 +90,32 @@ export type Order = {
   } | null;
 };
 
+export type OrderShipmentItem = {
+  id: string;
+  shipment_id: string;
+  order_item_id: string;
+  qty: number;
+  created_at: string;
+};
+
+export type OrderShipment = {
+  id: string;
+  order_id: string;
+  carrier_name: string;
+  service_name: string;
+  tracking_number: string;
+  shipping_amount: number;
+  estimated_delivery: string;
+  description: string;
+  notes: string;
+  status: string;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  items?: OrderShipmentItem[];
+};
+
 export type ListOrdersParams = {
   q?: string;
   business_id?: string;
@@ -128,4 +155,12 @@ export type GenerateCheckoutLinkResponse = {
 
 export type PaymentProofListResponse = {
   data: PaymentProof[];
+};
+
+export type ShipmentListResponse = {
+  data: OrderShipment[];
+};
+
+export type ShippableItemsResponse = {
+  data: OrderItem[];
 };
