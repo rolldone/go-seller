@@ -82,6 +82,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.POST("/orders", pluginregistry.RequirePermission("orders.manage"), orderHandler.AdminCreate)
 	adminOrder.PATCH("/orders/:id", pluginregistry.RequirePermission("orders.manage"), orderHandler.Update)
 	adminOrder.POST("/orders/:id/status", pluginregistry.RequirePermission("orders.manage"), orderHandler.SetStatus)
+	adminOrder.PUT("/orders/:id/extra-charges", pluginregistry.RequirePermission("orders.manage"), orderHandler.ReplaceExtraCharges)
 	adminOrder.PUT("/orders/:id/shipping", pluginregistry.RequirePermission("orders.manage"), orderHandler.UpdateShippingQuote)
 	adminOrder.POST("/orders/:id/shipping-address", pluginregistry.RequirePermission("orders.manage"), orderHandler.AdminUpdateShippingAddress)
 	adminOrder.POST("/orders/:id/items", pluginregistry.RequirePermission("orders.manage"), orderHandler.AddItem)

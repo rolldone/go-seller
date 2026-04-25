@@ -92,6 +92,7 @@ func orderToPublic(ord *ordermodels.Order) gin.H {
 		"fulfillment_type": ord.FulfillmentType,
 		"grand_total":      ord.GrandTotal,
 		"applied_coupons":  ord.OrderCoupons,
+		"extra_charges":    ord.ExtraCharges,
 		"notes":            ord.Notes,
 		"metadata":         metadata,
 		"placed_at":        ord.PlacedAt,
@@ -391,6 +392,16 @@ type updateOrderStatusReq struct {
 	Status string `json:"status" binding:"required"`
 }
 
+type replaceOrderExtraChargesReq struct {
+	AdminID string `json:"admin_id"`
+	Charges []struct {
+		Name      string  `json:"name"`
+		Amount    float64 `json:"amount"`
+		Notes     string  `json:"notes"`
+		SortOrder int     `json:"sort_order"`
+	} `json:"charges"`
+}
+
 type updateShippingQuoteReq struct {
 	ShippingAmount    float64 `json:"shipping_amount" binding:"required"`
 	CarrierName       string  `json:"carrier_name"`
@@ -415,6 +426,37 @@ func (h *OrderHandler) SetStatus(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": ord})
+}
+
+func (h *OrderHandler) ReplaceExtraCharges(c *gin.Context) {
+	orderID := c.Param("id")
+	var req replaceOrderExtraChargesReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	inputs := make([]ordersvc.ExtraChargeInput, 0, len(req.Charges))
+	for _, item := range req.Charges {
+		inputs = append(inputs, ordersvc.ExtraChargeInput{
+			Name:      item.Name,
+			Amount:    item.Amount,
+			Notes:     item.Notes,
+			SortOrder: item.SortOrder,
+		})
+	}
+
+	updated, err := h.svc.ReplaceOrderExtraCharges(c.Request.Context(), orderID, req.AdminID, inputs)
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrOrderAlreadyPaid) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
 }
 
 // UpdateShippingQuote stores/updates ongkir details; tracking number can be updated later using the same endpoint.

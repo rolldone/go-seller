@@ -56,11 +56,32 @@ type ShippingAddressSnapshot struct {
 	AddressString string
 }
 
+type ExtraChargeInput struct {
+	Name      string
+	Amount    float64
+	Notes     string
+	SortOrder int
+}
+
 const orderExpiryHoursSettingKey = "order.expiry_hours"
 const defaultOrderExpiryHours = 24
 
 func NewOrderService(db *gorm.DB) *OrderService {
 	return &OrderService{DB: db}
+}
+
+func sumOrderExtraChargesTx(tx *gorm.DB, orderID string) (float64, error) {
+	total := 0.0
+	if err := tx.Model(&models.OrderExtraCharge{}).
+		Where("order_id = ?", orderID).
+		Select("COALESCE(SUM(amount), 0)").
+		Scan(&total).Error; err != nil {
+		return 0, err
+	}
+	if total < 0 {
+		total = 0
+	}
+	return total, nil
 }
 
 // Exported sentinel errors for handlers to map to appropriate HTTP responses.
@@ -849,7 +870,11 @@ func (s *OrderService) UpdateShippingQuote(ctx context.Context, orderID string, 
 			"updated_at": now,
 		}
 		if !isPaidOrder {
-			grand := order.Subtotal - order.DiscountAmount + order.TaxAmount + details.ShippingAmount
+			extraChargeTotal, err := sumOrderExtraChargesTx(tx, orderID)
+			if err != nil {
+				return err
+			}
+			grand := order.Subtotal - order.DiscountAmount + order.TaxAmount + details.ShippingAmount + extraChargeTotal
 			if grand < 0 {
 				grand = 0
 			}
@@ -919,7 +944,12 @@ func (s *OrderService) UpdateShippingAddress(ctx context.Context, orderID string
 			return err
 		}
 
-		grand := order.Subtotal - order.DiscountAmount + order.TaxAmount
+		extraChargeTotal, err := sumOrderExtraChargesTx(tx, orderID)
+		if err != nil {
+			return err
+		}
+
+		grand := order.Subtotal - order.DiscountAmount + order.TaxAmount + extraChargeTotal
 		if grand < 0 {
 			grand = 0
 		}
@@ -1075,7 +1105,12 @@ func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now
 		return err
 	}
 	shipping := ord.ShippingAmount
-	grand := totalLineTotals + shipping - couponTotal
+	extraChargeTotal, err := sumOrderExtraChargesTx(tx, orderID)
+	if err != nil {
+		return err
+	}
+
+	grand := totalLineTotals + shipping + extraChargeTotal - couponTotal
 	if grand < 0 {
 		grand = 0
 	}
@@ -1089,7 +1124,14 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Ord
 		return nil, err
 	}
 	var o models.Order
-	if err := s.DB.WithContext(ctx).Preload("OrderItems").Preload("Payments").Preload("OrderCoupons").Preload("Customer").Where("id = ?", id).First(&o).Error; err != nil {
+	if err := s.DB.WithContext(ctx).
+		Preload("OrderItems").
+		Preload("Payments").
+		Preload("OrderCoupons").
+		Preload("ExtraCharges", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
+		Preload("Customer").
+		Where("id = ?", id).
+		First(&o).Error; err != nil {
 		return nil, err
 	}
 	// populate discount names for order items from order_discounts
@@ -1184,6 +1226,63 @@ func (s *OrderService) UpdateOrderCustomerAndFulfillment(ctx context.Context, or
 			}
 		}
 		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetOrderByID(ctx, orderID)
+}
+
+func (s *OrderService) ReplaceOrderExtraCharges(ctx context.Context, orderID string, adminID string, charges []ExtraChargeInput) (*models.Order, error) {
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		var ord models.Order
+		if err := tx.Where("id = ?", orderID).First(&ord).Error; err != nil {
+			return err
+		}
+		if isOrderLocked(ord) {
+			return ErrOrderAlreadyPaid
+		}
+
+		if err := tx.Where("order_id = ?", orderID).Delete(&models.OrderExtraCharge{}).Error; err != nil {
+			return err
+		}
+
+		trimmedAdminID := strings.TrimSpace(adminID)
+		for index, chargeInput := range charges {
+			name := strings.TrimSpace(chargeInput.Name)
+			if name == "" {
+				return errors.New("extra charge name is required")
+			}
+			if chargeInput.Amount < 0 {
+				return errors.New("extra charge amount must be >= 0")
+			}
+
+			sortOrder := chargeInput.SortOrder
+			if sortOrder == 0 {
+				sortOrder = index + 1
+			}
+
+			extraCharge := models.OrderExtraCharge{
+				ID:        uuid.NewString(),
+				OrderID:   orderID,
+				Name:      name,
+				Amount:    chargeInput.Amount,
+				Notes:     strings.TrimSpace(chargeInput.Notes),
+				SortOrder: sortOrder,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if trimmedAdminID != "" {
+				extraCharge.CreatedByAdminID = &trimmedAdminID
+			}
+
+			if err := tx.Create(&extraCharge).Error; err != nil {
+				return err
+			}
+		}
+
+		return s.recalculateOrderTotalsTx(tx, orderID, now)
 	})
 	if err != nil {
 		return nil, err

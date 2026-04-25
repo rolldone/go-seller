@@ -600,6 +600,18 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
     return Array.from(groups.values()).sort((a, b) => b.taxRate - a.taxRate || a.taxType.localeCompare(b.taxType));
   }, [displayOrder?.order_items]);
 
+  const extraCharges = useMemo(
+    () =>
+      (displayOrder?.extra_charges || [])
+        .map((item) => ({
+          id: String(item.id || ""),
+          name: String(item.name || "").trim() || "Biaya Tambahan",
+          amount: Number(item.amount || 0),
+        }))
+        .filter((item) => item.amount > 0),
+    [displayOrder?.extra_charges],
+  );
+
   const handleSaveShippingQuote = async () => {
     if (!displayOrder?.id) return;
     if (!hasShippingAddress) {
@@ -1083,7 +1095,16 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                   ) : null}
                 </div>
                 {checkoutURL ? (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 break-all">{checkoutURL}</div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700 break-all">
+                    <a
+                      href={checkoutURL}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="font-medium text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-800"
+                    >
+                      {checkoutURL}
+                    </a>
+                  </div>
                 ) : (
                   <p className="text-xs text-slate-500">TTL default: 1 jam. Link akan otomatis invalid setelah start payment pertama atau saat order sudah paid.</p>
                 )}
@@ -1822,6 +1843,12 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                 <p className="text-xs uppercase text-slate-500">Ongkir</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{money(displayOrder?.currency || "", displayOrder?.shipping_amount || 0)}</p>
               </div>
+              {extraCharges.map((charge) => (
+                <div key={charge.id || charge.name} className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs uppercase text-slate-500">{charge.name}</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">{money(displayOrder?.currency || "", charge.amount)}</p>
+                </div>
+              ))}
               <div className="rounded-lg bg-slate-50 p-3">
                 <p className="text-xs uppercase text-slate-500">Grand Total</p>
                 <p className="mt-1 text-sm font-semibold text-slate-900">{money(displayOrder?.currency || "", displayOrder?.grand_total || 0)}</p>

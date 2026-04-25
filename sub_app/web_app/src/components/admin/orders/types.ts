@@ -4,6 +4,18 @@ export type AppliedCoupon = {
   discount_amount: number;
 };
 
+export type OrderExtraCharge = {
+  id: string;
+  order_id: string;
+  name: string;
+  amount: number;
+  notes?: string | null;
+  sort_order: number;
+  created_by_admin_id?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type OrderItem = {
   id: string;
   order_id: string;
@@ -75,6 +87,7 @@ export type Order = {
   notes?: string | null;
   metadata?: unknown;
   applied_coupons?: AppliedCoupon[] | null;
+  extra_charges?: OrderExtraCharge[] | null;
   placed_at?: string | null;
   paid_at?: string | null;
   cancelled_at?: string | null;

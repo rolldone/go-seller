@@ -373,6 +373,7 @@
   "shippingAddresses": "Alamat Pengiriman",
   "shippingAddressTitle": "Alamat Pengiriman",
   "shippingCost": "Ongkir",
+  "extraChargeLabel": "Biaya Tambahan",
   "shippingLabel": "Ongkir",
   "shippingLocked": "Alamat tidak bisa diubah karena ongkir sudah dibuat.",
   "shippingUpdated": "Alamat pengiriman diperbarui. Menunggu konfirmasi ongkir baru.",

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import type { Product } from "../products/types";
-import { adminDelete, adminGet, adminPost, adminPatch } from "../entities/adminApi";
+import { adminDelete, adminGet, adminPost, adminPatch, adminPut } from "../entities/adminApi";
 import ProductSelectorModal from "./ProductSelectorModal";
-import type { AppliedCoupon, Order } from "../orders/types";
+import type { AppliedCoupon, Order, OrderExtraCharge } from "../orders/types";
 import DiscountSelector from "../discounts/DiscountSelector";
 import { formatAmount } from "../../../lib/amountFormat";
 
@@ -70,11 +70,20 @@ export default function PosPage() {
   // coupon state
   const [couponCode, setCouponCode] = useState("");
   const [couponApplying, setCouponApplying] = useState(false);
+  const [customChargeName, setCustomChargeName] = useState("");
+  const [customChargeAmount, setCustomChargeAmount] = useState("");
+  const [customChargeNotes, setCustomChargeNotes] = useState("");
+  const [savingExtraCharges, setSavingExtraCharges] = useState(false);
 
   const subtotal = useMemo(() => draftOrder?.subtotal || 0, [draftOrder]);
   const discountAmount = useMemo(() => draftOrder?.discount_amount || 0, [draftOrder]);
   const taxAmount = useMemo(() => draftOrder?.tax_amount || 0, [draftOrder]);
   const shippingAmount = useMemo(() => draftOrder?.shipping_amount || 0, [draftOrder]);
+  const extraCharges = useMemo(() => (draftOrder?.extra_charges || []) as OrderExtraCharge[], [draftOrder?.extra_charges]);
+  const extraChargeTotal = useMemo(
+    () => extraCharges.reduce((sum, charge) => sum + Number(charge.amount || 0), 0),
+    [extraCharges],
+  );
   const grandTotal = useMemo(() => draftOrder?.grand_total || 0, [draftOrder]);
   const taxBreakdown = useMemo(() => {
     const groups = new Map<string, { taxType: string; taxRate: number; amount: number }>();
@@ -316,6 +325,75 @@ export default function PosPage() {
       notifyError(err instanceof Error ? err.message : "Failed to create order");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const replaceExtraCharges = async (charges: Array<{ name: string; amount: number; notes?: string; sort_order?: number }>) => {
+    setSavingExtraCharges(true);
+    try {
+      const order = await ensureDraftOrder();
+      const adminID = readAdminIDFromToken();
+      await adminPut(`/admin/order/orders/${order.id}/extra-charges`, {
+        admin_id: adminID || undefined,
+        charges,
+      });
+      await loadOrderDetail(order.id);
+    } finally {
+      setSavingExtraCharges(false);
+    }
+  };
+
+  const handleAddCustomCharge = async () => {
+    const name = customChargeName.trim();
+    if (!name) {
+      notifyError("Nama biaya tambahan wajib diisi");
+      return;
+    }
+    const amount = Number(customChargeAmount || "0");
+    if (!Number.isFinite(amount) || amount < 0) {
+      notifyError("Nominal biaya tambahan harus angka >= 0");
+      return;
+    }
+
+    try {
+      const next = [
+        ...extraCharges.map((charge, index) => ({
+          name: String(charge.name || "").trim(),
+          amount: Number(charge.amount || 0),
+          notes: String(charge.notes || "").trim(),
+          sort_order: Number(charge.sort_order || index + 1),
+        })),
+        {
+          name,
+          amount,
+          notes: customChargeNotes.trim(),
+          sort_order: extraCharges.length + 1,
+        },
+      ];
+      await replaceExtraCharges(next);
+      setCustomChargeName("");
+      setCustomChargeAmount("");
+      setCustomChargeNotes("");
+      notifySuccess("Biaya tambahan disimpan");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal menyimpan biaya tambahan");
+    }
+  };
+
+  const handleRemoveCustomCharge = async (indexToRemove: number) => {
+    try {
+      const next = extraCharges
+        .filter((_, index) => index !== indexToRemove)
+        .map((charge, index) => ({
+          name: String(charge.name || "").trim(),
+          amount: Number(charge.amount || 0),
+          notes: String(charge.notes || "").trim(),
+          sort_order: index + 1,
+        }));
+      await replaceExtraCharges(next);
+      notifySuccess("Biaya tambahan dihapus");
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal menghapus biaya tambahan");
     }
   };
 
@@ -567,6 +645,67 @@ export default function PosPage() {
           <p className="mt-1 text-xs text-slate-400">Coupons can be combined when their categories differ: product, shipping, cashback.</p>
         </div>
 
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Biaya Tambahan Custom</h5>
+          <div className="grid gap-2 md:grid-cols-[2fr,1fr,2fr,auto]">
+            <input
+              type="text"
+              value={customChargeName}
+              onChange={(e) => setCustomChargeName(e.target.value)}
+              placeholder="Nama biaya (mis: Packing Kayu, Asuransi)"
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={customChargeAmount}
+              onChange={(e) => setCustomChargeAmount(e.target.value)}
+              placeholder="Nominal"
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <input
+              type="text"
+              value={customChargeNotes}
+              onChange={(e) => setCustomChargeNotes(e.target.value)}
+              placeholder="Catatan (opsional)"
+              className="rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={handleAddCustomCharge}
+              disabled={savingExtraCharges || submitting}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              {savingExtraCharges ? "..." : "Tambah"}
+            </button>
+          </div>
+
+          {extraCharges.length > 0 ? (
+            <div className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              {extraCharges.map((charge, index) => (
+                <div key={charge.id || `${charge.name}-${index}`} className="flex items-center justify-between gap-3 rounded bg-white px-3 py-2 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-slate-900">{charge.name}</p>
+                    {charge.notes ? <p className="truncate text-xs text-slate-500">{charge.notes}</p> : null}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-slate-800">{formatAmount(Number(charge.amount || 0), { fractionDigits: 0 })}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCustomCharge(index)}
+                      disabled={savingExtraCharges || submitting}
+                      className="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-60"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
         {/* Summary totals */}
         <div className="mt-4 border-t border-slate-200 pt-4 space-y-1.5">
           <div className="flex justify-between text-sm text-slate-600">
@@ -612,6 +751,18 @@ export default function PosPage() {
               <span>{formatAmount(shippingAmount, { fractionDigits: 0 })}</span>
             </div>
           )}
+          {extraCharges.map((charge) => (
+            <div key={charge.id} className="flex justify-between text-sm text-slate-600">
+              <span>{charge.name}</span>
+              <span>{formatAmount(Number(charge.amount || 0), { fractionDigits: 0 })}</span>
+            </div>
+          ))}
+          {extraChargeTotal > 0 ? (
+            <div className="flex justify-between text-sm text-slate-700">
+              <span>Total Biaya Tambahan</span>
+              <span>{formatAmount(extraChargeTotal, { fractionDigits: 0 })}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900">
             <span>Total</span>
             <span>{formatAmount(grandTotal, { fractionDigits: 0 })}</span>

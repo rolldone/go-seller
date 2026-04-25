@@ -484,6 +484,18 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     return Array.from(groups.values()).sort((a, b) => b.taxRate - a.taxRate || a.taxType.localeCompare(b.taxType));
   }, [order?.order_items]);
 
+  const extraCharges = useMemo(
+    () =>
+      (order?.extra_charges || [])
+        .map((item) => ({
+          id: String(item.id || ""),
+          name: String(item.name || "").trim() || t("extraChargeLabel", "Extra Charge"),
+          amount: Number(item.amount || 0),
+        }))
+        .filter((item) => item.amount > 0),
+    [order?.extra_charges, t],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
@@ -1073,6 +1085,12 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                     <span>{t("shippingLabel", "Ongkir")}</span>
                     <span className="font-medium text-slate-900">{toCurrency(order.shipping_amount, order.currency)}</span>
                   </div>
+                  {extraCharges.map((charge) => (
+                    <div key={charge.id || charge.name} className="flex items-center justify-between">
+                      <span>{charge.name}</span>
+                      <span className="font-medium text-slate-900">{toCurrency(charge.amount, order.currency)}</span>
+                    </div>
+                  ))}
                   {shippingQuote ? (
                     <CourierCard shippingQuote={shippingQuote} fallbackAmount={order.shipping_amount} currency={order.currency} />
                   ) : null}

@@ -55,6 +55,12 @@ type invoiceShippingAddressView struct {
 	Summary      string
 }
 
+type invoiceExtraChargeView struct {
+	Name   string
+	Amount float64
+	Notes  string
+}
+
 type invoiceViewData struct {
 	Store              invoiceStoreInfo
 	OrderNumber        string
@@ -76,6 +82,8 @@ type invoiceViewData struct {
 	DiscountAmount     float64
 	TaxAmount          float64
 	ShippingAmount     float64
+	ExtraCharges       []invoiceExtraChargeView
+	ExtraChargeTotal   float64
 	GrandTotal         float64
 	IsProvisional      bool
 	ProvisionalReasons []string
@@ -345,6 +353,12 @@ const invoiceHTMLTemplate = `<!doctype html>
       <div class="summary-label">Ongkir</div>
       <div class="summary-value">{{ money .Currency .ShippingAmount }}</div>
     </div>
+		{{ range .ExtraCharges }}
+		<div class="summary-row">
+			<div class="summary-label">{{ .Name }}</div>
+			<div class="summary-value">{{ money $.Currency .Amount }}</div>
+		</div>
+		{{ end }}
     <div class="summary-row summary-total">
       <div class="summary-label">Grand Total</div>
       <div class="summary-value">{{ money .Currency .GrandTotal }}</div>
@@ -519,6 +533,26 @@ func buildInvoiceHTML(order *models.Order, store invoiceStoreInfo) (string, erro
 		notes = strings.TrimSpace(*order.Notes)
 	}
 
+	extraCharges := make([]invoiceExtraChargeView, 0, len(order.ExtraCharges))
+	extraChargeTotal := 0.0
+	for _, extraCharge := range order.ExtraCharges {
+		name := strings.TrimSpace(extraCharge.Name)
+		if name == "" {
+			name = "Biaya Tambahan"
+		}
+		amount := extraCharge.Amount
+		if amount < 0 {
+			amount = 0
+		}
+		notes := strings.TrimSpace(extraCharge.Notes)
+		extraCharges = append(extraCharges, invoiceExtraChargeView{
+			Name:   name,
+			Amount: amount,
+			Notes:  notes,
+		})
+		extraChargeTotal += amount
+	}
+
 	data := invoiceViewData{
 		Store:              store,
 		OrderNumber:        order.OrderNumber,
@@ -540,6 +574,8 @@ func buildInvoiceHTML(order *models.Order, store invoiceStoreInfo) (string, erro
 		DiscountAmount:     order.DiscountAmount,
 		TaxAmount:          order.TaxAmount,
 		ShippingAmount:     order.ShippingAmount,
+		ExtraCharges:       extraCharges,
+		ExtraChargeTotal:   extraChargeTotal,
 		GrandTotal:         order.GrandTotal,
 		IsProvisional:      isProvisional,
 		ProvisionalReasons: reasons,

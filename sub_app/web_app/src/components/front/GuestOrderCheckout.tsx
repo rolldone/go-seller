@@ -56,6 +56,12 @@ type Order = {
   fulfillment_type?: string;
   grand_total: number;
   metadata?: unknown;
+  extra_charges?: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    notes?: string | null;
+  }>;
   order_items: OrderItem[];
   payments: Payment[];
 };
@@ -400,6 +406,18 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
     }
     return Array.from(groups.values()).sort((a, b) => b.taxRate - a.taxRate || a.taxType.localeCompare(b.taxType));
   }, [order?.order_items]);
+
+  const extraCharges = useMemo(
+    () =>
+      (order?.extra_charges || [])
+        .map((item) => ({
+          id: String(item.id || ""),
+          name: String(item.name || "").trim() || t("extraChargeLabel", "Extra Charge"),
+          amount: Number(item.amount || 0),
+        }))
+        .filter((item) => item.amount > 0),
+    [order?.extra_charges, t],
+  );
 
   const canStartPayment = useMemo(() => {
     if (!order) return false;
@@ -766,6 +784,12 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
             </div>
           ) : null}
           <div className="flex justify-between"><span className="text-slate-600">{t("guestOrder.shipping", "Ongkir")}</span><span>{formatAmount(order.shipping_amount, { fractionDigits: 0 })}</span></div>
+          {extraCharges.map((charge) => (
+            <div key={charge.id || charge.name} className="flex justify-between">
+              <span className="text-slate-600">{charge.name}</span>
+              <span>{formatAmount(charge.amount, { fractionDigits: 0 })}</span>
+            </div>
+          ))}
           {shippingQuote ? (
             <CourierCard shippingQuote={shippingQuote} fallbackAmount={order.shipping_amount} currency={order.currency} />
           ) : null}

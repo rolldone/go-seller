@@ -52,6 +52,20 @@ func TestBuildInvoiceHTML(t *testing.T) {
 			TaxAmount:      22000,
 			LineTotal:      240000,
 		}},
+		ExtraCharges: []ordermodels.OrderExtraCharge{
+			{
+				ID:      "ec-1",
+				OrderID: "ord-1",
+				Name:    "Biaya Packing",
+				Amount:  5000,
+			},
+			{
+				ID:      "ec-2",
+				OrderID: "ord-1",
+				Name:    "Biaya Layanan",
+				Amount:  2000,
+			},
+		},
 	}
 
 	htmlDoc, err := buildInvoiceHTML(order, invoiceStoreInfo{Name: "Toko Demo", Phone: "081234", Address: "Jl. Mawar"})
@@ -59,7 +73,21 @@ func TestBuildInvoiceHTML(t *testing.T) {
 		t.Fatalf("buildInvoiceHTML returned error: %v", err)
 	}
 
-	checks := []string{"INV-1001", "Toko Demo", "Produk A", "budi@example.com", "IDR 277000.00", "Include 10%", "Rincian Pajak", "Alamat Pengiriman", "Jl. Mawar No. 1"}
+	checks := []string{
+		"INV-1001",
+		"Toko Demo",
+		"Produk A",
+		"budi@example.com",
+		"IDR 277000.00",
+		"Include 10%",
+		"Rincian Pajak",
+		"Alamat Pengiriman",
+		"Jl. Mawar No. 1",
+		"Biaya Packing",
+		"Biaya Layanan",
+		"IDR 5000.00",
+		"IDR 2000.00",
+	}
 	for _, want := range checks {
 		if !strings.Contains(htmlDoc, want) {
 			t.Fatalf("expected HTML to contain %q", want)
