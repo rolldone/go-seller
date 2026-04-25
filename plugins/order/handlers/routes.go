@@ -83,6 +83,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.PATCH("/orders/:id", pluginregistry.RequirePermission("orders.manage"), orderHandler.Update)
 	adminOrder.POST("/orders/:id/status", pluginregistry.RequirePermission("orders.manage"), orderHandler.SetStatus)
 	adminOrder.PUT("/orders/:id/shipping", pluginregistry.RequirePermission("orders.manage"), orderHandler.UpdateShippingQuote)
+	adminOrder.POST("/orders/:id/shipping-address", pluginregistry.RequirePermission("orders.manage"), orderHandler.AdminUpdateShippingAddress)
 	adminOrder.POST("/orders/:id/items", pluginregistry.RequirePermission("orders.manage"), orderHandler.AddItem)
 	adminOrder.DELETE("/orders/:id/items/:item_id", pluginregistry.RequirePermission("orders.manage"), orderHandler.DeleteItem)
 	adminOrder.POST("/orders/:id/items/:item_id/discount", pluginregistry.RequirePermission("orders.manage"), orderHandler.ApplyItemDiscount)
@@ -91,6 +92,15 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.POST("/orders/:id/coupon", pluginregistry.RequirePermission("orders.manage"), orderHandler.ApplyCoupon)
 	adminOrder.DELETE("/orders/:id/coupon/:code", pluginregistry.RequirePermission("orders.manage"), orderHandler.RemoveCoupon)
 	adminOrder.POST("/orders/:id/guest-token", pluginregistry.RequirePermission("orders.manage"), guestCheckoutHandler.GenerateToken)
+
+	// Shipment routes (per resi, per order)
+	shipmentHandler := NewShipmentHandler(s.Shipment)
+	adminOrder.GET("/orders/:id/shipments", pluginregistry.RequirePermission("orders.view"), shipmentHandler.ListShipments)
+	adminOrder.GET("/orders/:id/shippable-items", pluginregistry.RequirePermission("orders.view"), shipmentHandler.ShippableItems)
+	adminOrder.POST("/orders/:id/shipments", pluginregistry.RequirePermission("orders.manage"), shipmentHandler.CreateShipment)
+	adminOrder.PATCH("/shipments/:shipment_id", pluginregistry.RequirePermission("orders.manage"), shipmentHandler.UpdateShipment)
+	adminOrder.DELETE("/shipments/:shipment_id", pluginregistry.RequirePermission("orders.manage"), shipmentHandler.DeleteShipment)
+	adminOrder.GET("/shipments/:shipment_id", pluginregistry.RequirePermission("orders.view"), shipmentHandler.GetShipment)
 
 	customerOrder := apiOrder.Group("/orders")
 	customerOrder.Use(RequireOrderCustomerJWT())

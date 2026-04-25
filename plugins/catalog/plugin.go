@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go_framework/internal/plugins"
 	"go_framework/internal/storage"
+	authhandlers "go_framework/plugins/auth/handlers"
 	pluginhandlers "go_framework/plugins/catalog/handlers"
 	pluginservices "go_framework/plugins/catalog/services"
 
@@ -106,6 +107,15 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminCatalog.PUT("/assets/:id", assetHandler.Update)
 	adminCatalog.DELETE("/assets/:id", assetHandler.Delete)
 
+	// Digital file routes (admin)
+	digitalFileHandler := pluginhandlers.NewDigitalFileHandler(p.service)
+	adminCatalog.GET("/digital-files", digitalFileHandler.List)
+	adminCatalog.POST("/digital-files", digitalFileHandler.Create)
+	adminCatalog.POST("/digital-files/upload", digitalFileHandler.Upload)
+	adminCatalog.GET("/digital-files/:id", digitalFileHandler.GetByID)
+	adminCatalog.PATCH("/digital-files/:id", digitalFileHandler.Update)
+	adminCatalog.DELETE("/digital-files/:id", digitalFileHandler.Delete)
+
 	// Attribute Groups routes
 	adminCatalog.POST("/attribute-groups", variationHandler.CreateAttributeGroup)
 	adminCatalog.GET("/attribute-groups", variationHandler.ListAttributeGroups)
@@ -173,6 +183,9 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	apiCatalog.GET("/variations", variationHandler.ListProductVariations)
 	// Product Variations public lookup
 	apiCatalog.GET("/variations/by-attributes", variationHandler.GetVariationByAttributes)
+
+	// Digital file download — customer must have paid order for this product
+	apiCatalog.GET("/digital-files/:id/download", authhandlers.RequireCustomerJWT(), digitalFileHandler.CustomerDownload)
 	return nil
 }
 

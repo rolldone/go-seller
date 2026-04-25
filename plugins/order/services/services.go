@@ -13,6 +13,7 @@ type Services struct {
 	Wishlist *WishlistService
 	Payment  *PaymentService
 	Catalog  *catalogservices.CatalogService
+	Shipment *ShipmentService
 }
 
 func NewServices(db *gorm.DB, store storage.Store) *Services {
@@ -22,5 +23,6 @@ func NewServices(db *gorm.DB, store storage.Store) *Services {
 		Wishlist: NewWishlistService(db),
 		Payment:  NewPaymentService(db, store),
 		Catalog:  catalogservices.New(db, store),
+		Shipment: NewShipmentService(db),
 	}
 }

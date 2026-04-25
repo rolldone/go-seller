@@ -330,6 +330,27 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 		if err := tx.Create(&ord).Error; err != nil {
 			return err
 		}
+		hasOrderItemProductTypeColumn := tx.Migrator().HasColumn(&models.OrderItem{}, "product_type")
+		productTypeByID := map[string]string{}
+		productIDs := make([]string, 0, len(items))
+		for _, it := range items {
+			if it.ProductID == nil || strings.TrimSpace(*it.ProductID) == "" {
+				continue
+			}
+			productIDs = append(productIDs, strings.TrimSpace(*it.ProductID))
+		}
+		if len(productIDs) > 0 {
+			var products []catalogmodels.Product
+			if err := tx.Where("id IN ?", productIDs).Find(&products).Error; err == nil {
+				for _, p := range products {
+					pt := strings.TrimSpace(p.ProductType)
+					if pt == "" {
+						pt = "product"
+					}
+					productTypeByID[p.ID] = pt
+				}
+			}
+		}
 		for _, it := range items {
 			pit := previewByCartItemID[it.ID]
 			productID := it.ProductID
@@ -341,12 +362,22 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			if strings.TrimSpace(pit.ProductName) != "" {
 				productName = strings.TrimSpace(pit.ProductName)
 			}
+			productType := "product"
+			if productID != nil {
+				pid := strings.TrimSpace(*productID)
+				if pid != "" {
+					if pt, ok := productTypeByID[pid]; ok && pt != "" {
+						productType = pt
+					}
+				}
+			}
 			oi := models.OrderItem{
 				ID:             uuid.NewString(),
 				OrderID:        ord.ID,
 				ProductID:      productID,
 				ProductName:    productName,
 				SKU:            it.SKU,
+				ProductType:    productType,
 				Qty:            it.Qty,
 				UnitPrice:      it.UnitPrice,
 				DiscountAmount: pit.DiscountAmount,
@@ -360,6 +391,9 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			createTx := tx.Session(&gorm.Session{})
 			if !hasOrderItemTaxColumns {
 				createTx = createTx.Omit("TaxType", "TaxRate")
+			}
+			if !hasOrderItemProductTypeColumn {
+				createTx = createTx.Omit("ProductType")
 			}
 			if err := createTx.Create(&oi).Error; err != nil {
 				return err
@@ -502,13 +536,29 @@ func (s *OrderService) AddItemToOrder(ctx context.Context, orderID string, item 
 			return ErrOrderAlreadyPaid
 		}
 		now := time.Now()
+		hasOrderItemProductTypeColumn := tx.Migrator().HasColumn(&models.OrderItem{}, "product_type")
 		item.ID = uuid.NewString()
 		item.OrderID = orderID
+		if strings.TrimSpace(item.ProductType) == "" {
+			item.ProductType = "product"
+		}
+		if item.ProductID != nil && strings.TrimSpace(*item.ProductID) != "" {
+			var p catalogmodels.Product
+			if err := tx.Select("id", "product_type").Where("id = ?", strings.TrimSpace(*item.ProductID)).First(&p).Error; err == nil {
+				if strings.TrimSpace(p.ProductType) != "" {
+					item.ProductType = strings.TrimSpace(p.ProductType)
+				}
+			}
+		}
 		item.DiscountAmount = 0
 		item.LineTotal = float64(item.Qty)*item.UnitPrice - item.DiscountAmount + item.TaxAmount
 		item.CreatedAt = now
 		item.UpdatedAt = now
-		if err := tx.Create(&item).Error; err != nil {
+		createTx := tx.Session(&gorm.Session{})
+		if !hasOrderItemProductTypeColumn {
+			createTx = createTx.Omit("ProductType")
+		}
+		if err := createTx.Create(&item).Error; err != nil {
 			return err
 		}
 		if err := s.recalculateOrderTotalsTx(tx, orderID, now); err != nil {

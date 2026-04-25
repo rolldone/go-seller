@@ -172,6 +172,55 @@ type updateShippingAddressReq struct {
 	AddressID string `json:"address_id" binding:"required"`
 }
 
+func (h *OrderHandler) AdminUpdateShippingAddress(c *gin.Context) {
+	if h.authSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "auth service not configured"})
+		return
+	}
+
+	var req updateShippingAddressReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ord, err := h.svc.GetOrderByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if ord.CustomerID == nil || strings.TrimSpace(*ord.CustomerID) == "" {
+		c.JSON(http.StatusConflict, gin.H{"error": "order customer is required"})
+		return
+	}
+
+	addr, err := h.authSvc.GetCustomerAddressByID(c.Request.Context(), strings.TrimSpace(*ord.CustomerID), req.AddressID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "address not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.UpdateShippingAddress(c.Request.Context(), ord.ID, *shippingAddressSnapshotFromCustomerAddress(addr))
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrOrderAlreadyPaid) || errors.Is(err, ordersvc.ErrShippingAddressLocked) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
 func (h *OrderHandler) AddItem(c *gin.Context) {
 	orderID := c.Param("id")
 	var req addOrderItemReq
