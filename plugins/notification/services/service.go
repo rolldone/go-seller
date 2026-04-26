@@ -110,6 +110,14 @@ var defaultTemplates = map[string]TemplateConfig{
 		Subject:    "Reset password akun GoSeller",
 		Body:       "Halo {{.customer_name}}, kami menerima permintaan reset password. Klik tautan berikut untuk melanjutkan: {{.reset_url}}. Tautan ini berlaku 15 menit.",
 	},
+	"member_forgot_password": {
+		Name:       "Member Forgot Password",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.member_email}}",
+		Subject:    "Reset password akun member GoSeller",
+		Body:       "Halo {{.member_name}}, kami menerima permintaan reset password untuk akun member kamu. Klik tautan berikut untuk melanjutkan: {{.reset_url}}. Tautan ini berlaku 15 menit.",
+	},
 	"proof_uploaded_admin": {
 		Name:       "Proof Uploaded",
 		Audience:   "admin",
@@ -117,6 +125,30 @@ var defaultTemplates = map[string]TemplateConfig{
 		Recipients: "admin@goseller.local",
 		Subject:    "[Bukti Transfer Baru] {{.order_number}}",
 		Body:       "Bukti transfer baru sudah diupload untuk order {{.order_number}}. Silakan cek panel admin.",
+	},
+	"member_setup_admin": {
+		Name:       "Member Setup Admin",
+		Audience:   "admin",
+		Enabled:    true,
+		Recipients: "admin@goseller.local",
+		Subject:    "[Member Baru] {{.full_name}} - {{.business_name}}",
+		Body:       "Member baru berhasil dibuat. Nama: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Menunggu verifikasi email.",
+	},
+	"member_setup_member": {
+		Name:       "Member Setup Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.member_email}}",
+		Subject:    "Verifikasi email akun member - {{.business_name}}",
+		Body:       "Member baru berhasil dibuat. Nama: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Menunggu verifikasi email.",
+	},
+	"member_setup_failed_admin": {
+		Name:       "Member Setup Failed",
+		Audience:   "admin",
+		Enabled:    true,
+		Recipients: "admin@goseller.local",
+		Subject:    "Verifikasi email akun member - {{.business_name}}",
+		Body:       "Halo {{.full_name}}, akun member kamu sudah dibuat untuk business {{.business_name}}. Silakan verifikasi email lewat {{.activation_url}}. Setelah itu login via {{.login_url}} menggunakan email dan password yang kamu buat saat setup.",
 	},
 }
 
@@ -169,6 +201,14 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Subject:    "Reset GoSeller account password",
 		Body:       "Hi {{.customer_name}}, we received a password reset request for your account. Click this link to continue: {{.reset_url}}. This link is valid for 15 minutes.",
 	},
+	"member_forgot_password": {
+		Name:       "Member Forgot Password",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.member_email}}",
+		Subject:    "Reset GoSeller member account password",
+		Body:       "Hi {{.member_name}}, we received a password reset request for your member account. Click this link to continue: {{.reset_url}}. This link is valid for 15 minutes.",
+	},
 	"proof_uploaded_admin": {
 		Name:       "Proof Uploaded",
 		Audience:   "admin",
@@ -176,6 +216,30 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Recipients: "admin@goseller.local",
 		Subject:    "[New Transfer Proof] {{.order_number}}",
 		Body:       "A new transfer proof has been uploaded for order {{.order_number}}. Please check the admin panel.",
+	},
+	"member_setup_admin": {
+		Name:       "Member Setup Admin",
+		Audience:   "admin",
+		Enabled:    true,
+		Recipients: "admin@goseller.local",
+		Subject:    "[New Member] {{.full_name}} - {{.business_name}}",
+		Body:       "A new member has been created. Name: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Waiting for email verification.",
+	},
+	"member_setup_member": {
+		Name:       "Member Setup Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.member_email}}",
+		Subject:    "Verify your member email - {{.business_name}}",
+		Body:       "A new member has been created. Name: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Waiting for email verification.",
+	},
+	"member_setup_failed_admin": {
+		Name:       "Member Setup Failed",
+		Audience:   "admin",
+		Enabled:    true,
+		Recipients: "admin@goseller.local",
+		Subject:    "Verify your member email - {{.business_name}}",
+		Body:       "Hi {{.full_name}}, your member account for {{.business_name}} is ready. Please verify your email via {{.activation_url}}. After that, login via {{.login_url}} using the email and password you created during setup.",
 	},
 }
 

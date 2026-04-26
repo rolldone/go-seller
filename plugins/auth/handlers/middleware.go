@@ -60,6 +60,31 @@ func RequireCustomerJWT() gin.HandlerFunc {
 	}
 }
 
+func RequireMemberJWT() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authz := strings.TrimSpace(c.GetHeader("Authorization"))
+		if !strings.HasPrefix(strings.ToLower(authz), "bearer ") {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing bearer token"})
+			return
+		}
+
+		token := strings.TrimSpace(authz[len("Bearer "):])
+		claims, err := internalauth.ParseAccessTokenClaims(token)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+			return
+		}
+		if claims.Level != "member" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "insufficient access level"})
+			return
+		}
+
+		c.Set("member_id", claims.AdminID)
+		c.Set("member_level", claims.Level)
+		c.Next()
+	}
+}
+
 // RequirePermission enforces granular permission checks for admin routes.
 // It expects admin identity from RequireAdminJWT and falls back to token parsing.
 func RequirePermission(svc *authservices.AuthService, permission string) gin.HandlerFunc {

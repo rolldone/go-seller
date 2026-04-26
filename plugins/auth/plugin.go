@@ -45,6 +45,8 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminHandler := pluginhandlers.NewAdminHandler(p.service)
 	userHandler := pluginhandlers.NewUserHandler(p.service)
 	customerHandler := pluginhandlers.NewCustomerHandler(p.service)
+	memberAuthHandler := pluginhandlers.NewMemberAuthHandler(p.service)
+	memberSetupHandler := pluginhandlers.NewMemberSetupHandler(p.service)
 	addressHandler := pluginhandlers.NewCustomerAddressHandler(p.service)
 	rbacHandler := pluginhandlers.NewRBACHandler(p.service)
 
@@ -72,6 +74,15 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	customerAuth.DELETE("/addresses/:address_id", pluginhandlers.RequireCustomerJWT(), addressHandler.MeDelete)
 	customerAuth.POST("/addresses/:address_id/set-primary", pluginhandlers.RequireCustomerJWT(), addressHandler.MeSetPrimary)
 	customerAuth.POST("/logout", customerHandler.Logout)
+
+	member := api.Group("/member")
+	memberAuth := api.Group("/member/auth")
+	memberAuth.POST("/login", loginLimiter, memberAuthHandler.Login)
+	memberAuth.GET("/me", memberAuthHandler.Me)
+	memberAuth.POST("/forgot-password", forgotLimiter, memberAuthHandler.ForgotPassword)
+	memberAuth.POST("/reset-password", memberAuthHandler.ResetPassword)
+	memberAuth.GET("/verify", memberAuthHandler.VerifyEmail)
+	member.POST("/setup", memberSetupHandler.Setup)
 
 	adminAdmins := admin.Group("/admins")
 	adminAdmins.Use(pluginhandlers.RequireAdminJWT())

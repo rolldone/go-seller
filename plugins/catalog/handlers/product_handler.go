@@ -298,6 +298,447 @@ func (h *ProductHandler) Create(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, productResponse{Product: *p, CategoryIDs: categoryIDs, TagIDs: tagIDs})
 }
+func (h *ProductHandler) MemberList(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return
+	}
+
+	filter := catalogservices.ProductListFilter{
+		Query:       c.Query("q"),
+		SKU:         c.Query("sku"),
+		Slug:        c.Query("slug"),
+		Status:      c.Query("status"),
+		StockStatus: c.Query("stock_status"),
+		BusinessID:  c.Query("business_id"),
+		CategoryID:  c.Query("category_id"),
+		TagID:       c.Query("tag_id"),
+		ProductType: c.Query("product_type"),
+		Page:        parseIntParam(c.Query("page"), 1),
+		Limit:       parseIntParam(c.Query("limit"), 20),
+	}
+	if visible, err := parseBoolParam(c.Query("is_visible")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid is_visible value"})
+		return
+	} else {
+		filter.IsVisible = visible
+	}
+
+	items, total, err := h.svc.ListProductsForMember(c.Request.Context(), memberID, filter)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
+}
+
+func (h *ProductHandler) MemberCreate(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return
+	}
+
+	var req createProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.SKU == "" || req.Name == "" || req.Price < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "sku, name are required and price must be >= 0"})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("weight", req.Weight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_length", req.DimensionsLength); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_width", req.DimensionsWidth); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_height", req.DimensionsHeight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ownedIDs, err := h.svc.ListBusinessIDsForMember(c.Request.Context(), memberID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if req.BusinessID == nil || strings.TrimSpace(*req.BusinessID) == "" {
+		if len(ownedIDs) == 1 {
+			businessID := ownedIDs[0]
+			req.BusinessID = &businessID
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+			return
+		}
+	} else if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, strings.TrimSpace(*req.BusinessID)); err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "business is not owned by current member"})
+		return
+	}
+
+	id, err := uuid.New()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
+		return
+	}
+
+	blocksJSON, err := normalizeRawJSON(req.DescriptionBlocks)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	p := &catalogmodels.Product{
+		ID:                id,
+		SKU:               req.SKU,
+		Name:              req.Name,
+		Slug:              req.Slug,
+		Description:       req.Description,
+		DescriptionHTML:   req.DescriptionHTML,
+		DescriptionPlain:  req.DescriptionPlain,
+		DescriptionBlocks: blocksJSON,
+		ShortDescription:  req.ShortDescription,
+		Price:             req.Price,
+		SalePrice:         req.SalePrice,
+		Status:            req.Status,
+		StockStatus:       req.StockStatus,
+		BusinessID:        req.BusinessID,
+		SEOContent:        req.SEOContent,
+		Attributes:        req.Attributes,
+		ProductType:       req.ProductType,
+		TaxType:           req.TaxType,
+		TaxRate:           req.TaxRate,
+		CustomTax:         req.CustomTax,
+		PriceOverride:     req.PriceOverride,
+		Weight:            req.Weight,
+		DimensionsLength:  req.DimensionsLength,
+		DimensionsWidth:   req.DimensionsWidth,
+		DimensionsHeight:  req.DimensionsHeight,
+	}
+	if req.IsVisible != nil {
+		p.IsVisible = *req.IsVisible
+	} else {
+		p.IsVisible = true
+	}
+	if req.IsNegotiate != nil {
+		p.IsNegotiate = *req.IsNegotiate
+	}
+	if strings.TrimSpace(p.ProductType) == "" {
+		p.ProductType = "product"
+	}
+	if p.ProductType != "product" && p.ProductType != "service" && p.ProductType != "digital" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid product_type"})
+		return
+	}
+
+	if err := h.svc.CreateProduct(c.Request.Context(), p, req.CategoryIDs, req.TagIDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	categoryIDs, err := h.svc.GetCategoryIDsByProductID(c.Request.Context(), p.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	tagIDs, err := h.svc.GetTagIDsByProductID(c.Request.Context(), p.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, productResponse{Product: *p, CategoryIDs: categoryIDs, TagIDs: tagIDs})
+}
+
+func (h *ProductHandler) MemberGetByID(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return
+	}
+
+	product, err := h.svc.GetProductByIDForMember(c.Request.Context(), memberID, c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	categoryIDs, err := h.svc.GetCategoryIDsByProductID(c.Request.Context(), product.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	tagIDs, err := h.svc.GetTagIDsByProductID(c.Request.Context(), product.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, productResponse{Product: *product, CategoryIDs: categoryIDs, TagIDs: tagIDs})
+}
+
+func (h *ProductHandler) MemberUpdate(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return
+	}
+
+	var req updateProductRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	product, err := h.svc.GetProductByIDForMember(c.Request.Context(), memberID, c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if req.SKU != nil {
+		product.SKU = *req.SKU
+	}
+	if req.Name != nil {
+		product.Name = *req.Name
+	}
+	if req.Slug != nil {
+		product.Slug = *req.Slug
+	}
+	if req.Description != nil {
+		product.Description = req.Description
+	}
+	if req.DescriptionHTML != nil {
+		product.DescriptionHTML = req.DescriptionHTML
+	}
+	if req.DescriptionPlain != nil {
+		product.DescriptionPlain = req.DescriptionPlain
+	}
+	if len(req.DescriptionBlocks) > 0 {
+		blocksJSON, err := normalizeRawJSON(req.DescriptionBlocks)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		product.DescriptionBlocks = blocksJSON
+	}
+	if req.ShortDescription != nil {
+		product.ShortDescription = req.ShortDescription
+	}
+	if req.Price != nil {
+		if *req.Price < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "price must be >= 0"})
+			return
+		}
+		product.Price = *req.Price
+	}
+	if req.SalePrice != nil {
+		if *req.SalePrice < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "sale_price must be >= 0"})
+			return
+		}
+		product.SalePrice = req.SalePrice
+	}
+	if req.Status != nil {
+		product.Status = *req.Status
+	}
+	if req.StockStatus != nil {
+		product.StockStatus = *req.StockStatus
+	}
+	if req.IsVisible != nil {
+		product.IsVisible = *req.IsVisible
+	}
+	if req.IsNegotiate != nil {
+		product.IsNegotiate = *req.IsNegotiate
+	}
+	if req.BusinessID != nil {
+		trimmed := strings.TrimSpace(*req.BusinessID)
+		if trimmed == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+			return
+		}
+		if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, trimmed); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "business is not owned by current member"})
+			return
+		}
+		product.BusinessID = &trimmed
+	}
+	if req.ProductType != nil {
+		pt := strings.TrimSpace(*req.ProductType)
+		if pt == "" {
+			pt = "product"
+		}
+		if pt != "product" && pt != "service" && pt != "digital" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid product_type"})
+			return
+		}
+		product.ProductType = pt
+	}
+	if req.TaxType != nil {
+		product.TaxType = *req.TaxType
+	}
+	if req.TaxRate != nil {
+		product.TaxRate = *req.TaxRate
+	}
+	if req.CustomTax != nil {
+		product.CustomTax = *req.CustomTax
+	}
+	if req.PriceOverride != nil {
+		product.PriceOverride = *req.PriceOverride
+	}
+	if err := validateOptionalNonNegativeFloat("weight", req.Weight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_length", req.DimensionsLength); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_width", req.DimensionsWidth); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateOptionalNonNegativeFloat("dimensions_height", req.DimensionsHeight); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Weight != nil {
+		product.Weight = req.Weight
+	}
+	if req.DimensionsLength != nil {
+		product.DimensionsLength = req.DimensionsLength
+	}
+	if req.DimensionsWidth != nil {
+		product.DimensionsWidth = req.DimensionsWidth
+	}
+	if req.DimensionsHeight != nil {
+		product.DimensionsHeight = req.DimensionsHeight
+	}
+	if len(req.SEOContent) > 0 {
+		product.SEOContent = req.SEOContent
+	}
+	if len(req.Attributes) > 0 {
+		product.Attributes = req.Attributes
+	}
+
+	categoryIDs, err := h.svc.GetCategoryIDsByProductID(c.Request.Context(), product.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if req.CategoryIDs != nil {
+		categoryIDs = *req.CategoryIDs
+	}
+	tagIDs, err := h.svc.GetTagIDsByProductID(c.Request.Context(), product.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if req.TagIDs != nil {
+		tagIDs = *req.TagIDs
+	}
+
+	if err := h.svc.UpdateProduct(c.Request.Context(), product, categoryIDs, tagIDs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	categoryIDs, err = h.svc.GetCategoryIDsByProductID(c.Request.Context(), product.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	tagIDs, err = h.svc.GetTagIDsByProductID(c.Request.Context(), product.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, productResponse{Product: *product, CategoryIDs: categoryIDs, TagIDs: tagIDs})
+}
+
+func (h *ProductHandler) MemberDelete(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return
+	}
+
+	affected, err := h.svc.DeleteProductByIDForMember(c.Request.Context(), memberID, c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if affected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": affected})
+}
+
+func (h *ProductHandler) MemberPublish(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return
+	}
+
+	affected, err := h.svc.SetProductPublishStateForMember(c.Request.Context(), memberID, c.Param("id"), true)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if affected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"updated": affected, "status": "published"})
+}
+
+func (h *ProductHandler) MemberUnpublish(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return
+	}
+
+	affected, err := h.svc.SetProductPublishStateForMember(c.Request.Context(), memberID, c.Param("id"), false)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if affected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"updated": affected, "status": "draft"})
+}
 
 func (h *ProductHandler) List(c *gin.Context) {
 	isVisible, err := parseBoolParam(c.Query("is_visible"))

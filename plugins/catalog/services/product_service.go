@@ -231,6 +231,53 @@ func (s *CatalogService) ListProducts(ctx context.Context, f ProductListFilter) 
 	return products, total, nil
 }
 
+func (s *CatalogService) ListProductsForMember(ctx context.Context, memberID string, f ProductListFilter) ([]catalogmodels.Product, int64, error) {
+	if strings.TrimSpace(f.BusinessID) != "" {
+		if _, err := s.GetBusinessByIDForMember(ctx, memberID, strings.TrimSpace(f.BusinessID)); err != nil {
+			return nil, 0, err
+		}
+	} else if len(f.BusinessIDs) == 0 {
+		businessIDs, err := s.ListBusinessIDsForMember(ctx, memberID)
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(businessIDs) == 0 {
+			return []catalogmodels.Product{}, 0, nil
+		}
+		f.BusinessIDs = businessIDs
+	}
+
+	return s.ListProducts(ctx, f)
+}
+
+func (s *CatalogService) GetProductByIDForMember(ctx context.Context, memberID, id string) (*catalogmodels.Product, error) {
+	product, err := s.GetProductByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if product.BusinessID == nil || strings.TrimSpace(*product.BusinessID) == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if _, err := s.GetBusinessByIDForMember(ctx, memberID, strings.TrimSpace(*product.BusinessID)); err != nil {
+		return nil, err
+	}
+	return product, nil
+}
+
+func (s *CatalogService) DeleteProductByIDForMember(ctx context.Context, memberID, id string) (int64, error) {
+	if _, err := s.GetProductByIDForMember(ctx, memberID, id); err != nil {
+		return 0, err
+	}
+	return s.DeleteProductByID(ctx, id)
+}
+
+func (s *CatalogService) SetProductPublishStateForMember(ctx context.Context, memberID, id string, isPublished bool) (int64, error) {
+	if _, err := s.GetProductByIDForMember(ctx, memberID, id); err != nil {
+		return 0, err
+	}
+	return s.SetProductPublishState(ctx, id, isPublished)
+}
+
 // UpdateProduct updates a product record and ensures slug constraints.
 func (s *CatalogService) UpdateProduct(ctx context.Context, p *catalogmodels.Product, categoryIDs, tagIDs []string) error {
 	if err := s.normalizeProductBusinessID(ctx, p); err != nil {

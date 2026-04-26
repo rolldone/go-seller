@@ -22,6 +22,14 @@ type BusinessHandler struct {
 	svc *catalogservices.CatalogService
 }
 
+func memberIDFromContext(c *gin.Context) (string, bool) {
+	memberID := strings.TrimSpace(c.GetString("member_id"))
+	if memberID == "" {
+		return "", false
+	}
+	return memberID, true
+}
+
 type businessRequest struct {
 	Name              string          `json:"name"`
 	Slug              string          `json:"slug"`
@@ -267,6 +275,258 @@ func (h *BusinessHandler) Update(c *gin.Context) {
 func (h *BusinessHandler) Delete(c *gin.Context) {
 	affected, err := h.svc.DeleteBusinessByID(c.Request.Context(), c.Param("business_id"))
 	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if affected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": affected})
+}
+
+func (h *BusinessHandler) MemberList(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	page := parseIntParam(c.Query("page"), 1)
+	limit := parseIntParam(c.Query("limit"), 20)
+
+	items, total, err := h.svc.ListBusinessesForMember(c.Request.Context(), memberID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
+}
+
+func (h *BusinessHandler) MemberGetByID(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	item, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, c.Param("business_id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *BusinessHandler) MemberCreate(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	var req businessRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	id, err := uuid.New()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
+		return
+	}
+	highlightsJSON, err := normalizeRawJSON(req.Highlights)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	blocksJSON, err := normalizeRawJSON(req.DescriptionBlocks)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	operationalJSON, err := normalizeRawJSON(req.OperationalHours)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	showEmail := true
+	if req.ShowContactEmail != nil {
+		showEmail = *req.ShowContactEmail
+	}
+	showPhone := true
+	if req.ShowPhone != nil {
+		showPhone = *req.ShowPhone
+	}
+	item := &catalogmodels.Business{
+		ID:                id,
+		Name:              req.Name,
+		Slug:              req.Slug,
+		Description:       req.Description,
+		ShortDescription:  req.ShortDescription,
+		DescriptionHTML:   req.DescriptionHTML,
+		DescriptionPlain:  req.DescriptionPlain,
+		DescriptionBlocks: blocksJSON,
+		Highlights:        highlightsJSON,
+		OwnerName:         req.OwnerName,
+		OwnerRole:         req.OwnerRole,
+		FoundedYear:       req.FoundedYear,
+		Address:           req.Address,
+		OperationalHours:  operationalJSON,
+		ChatResponseTime:  req.ChatResponseTime,
+		Email:             req.Email,
+		Phone:             req.Phone,
+		Facebook:          req.Facebook,
+		Instagram:         req.Instagram,
+		XTwitter:          req.XTwitter,
+		Tiktok:            req.Tiktok,
+		WhatsApp:          req.WhatsApp,
+		ShowContactEmail:  showEmail,
+		ShowPhone:         showPhone,
+	}
+	if err := h.svc.CreateBusinessForMember(c.Request.Context(), memberID, item); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, item)
+}
+
+func (h *BusinessHandler) MemberUpdate(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	item, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, c.Param("business_id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var req businessRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Name != "" {
+		item.Name = req.Name
+	}
+	if req.Slug != "" {
+		item.Slug = req.Slug
+	}
+	item.Description = req.Description
+	if req.ShortDescription != nil {
+		item.ShortDescription = req.ShortDescription
+	}
+	if req.DescriptionHTML != nil {
+		item.DescriptionHTML = req.DescriptionHTML
+	}
+	if req.DescriptionPlain != nil {
+		item.DescriptionPlain = req.DescriptionPlain
+	}
+	if len(req.DescriptionBlocks) > 0 {
+		blocksJSON, err := normalizeRawJSON(req.DescriptionBlocks)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		item.DescriptionBlocks = blocksJSON
+	}
+	if len(req.Highlights) > 0 {
+		highlightsJSON, err := normalizeRawJSON(req.Highlights)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		item.Highlights = highlightsJSON
+	}
+	if req.OwnerName != nil {
+		item.OwnerName = req.OwnerName
+	}
+	if req.OwnerRole != nil {
+		item.OwnerRole = req.OwnerRole
+	}
+	if req.FoundedYear != nil {
+		item.FoundedYear = req.FoundedYear
+	}
+	if req.Address != nil {
+		item.Address = req.Address
+	}
+	if len(req.OperationalHours) > 0 {
+		operationalJSON, err := normalizeRawJSON(req.OperationalHours)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		item.OperationalHours = operationalJSON
+	}
+	if req.ChatResponseTime != nil {
+		item.ChatResponseTime = req.ChatResponseTime
+	}
+	if req.Email != nil {
+		item.Email = req.Email
+	}
+	if req.Phone != nil {
+		item.Phone = req.Phone
+	}
+	if req.Facebook != nil {
+		item.Facebook = req.Facebook
+	}
+	if req.Instagram != nil {
+		item.Instagram = req.Instagram
+	}
+	if req.XTwitter != nil {
+		item.XTwitter = req.XTwitter
+	}
+	if req.Tiktok != nil {
+		item.Tiktok = req.Tiktok
+	}
+	if req.WhatsApp != nil {
+		item.WhatsApp = req.WhatsApp
+	}
+	if req.ShowContactEmail != nil {
+		item.ShowContactEmail = *req.ShowContactEmail
+	}
+	if req.ShowPhone != nil {
+		item.ShowPhone = *req.ShowPhone
+	}
+	if err := h.svc.UpdateBusinessForMember(c.Request.Context(), memberID, item); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *BusinessHandler) MemberDelete(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	affected, err := h.svc.DeleteBusinessByIDForMember(c.Request.Context(), memberID, c.Param("business_id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

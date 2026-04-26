@@ -11,6 +11,7 @@ type User struct {
 	ID            string         `gorm:"type:uuid;primaryKey" json:"id"`
 	FullName      string         `gorm:"size:100" json:"full_name"`
 	Email         string         `gorm:"size:255;uniqueIndex" json:"email"`
+	PasswordHash  *string        `gorm:"column:password_hash;type:text" json:"-"`
 	PhoneNumber   string         `gorm:"size:20" json:"phone_number"`
 	IsActive      bool           `gorm:"default:true" json:"is_active"`
 	CreatedAt     time.Time      `gorm:"autoCreateTime" json:"created_at"`

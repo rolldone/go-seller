@@ -78,6 +78,19 @@
     "description": "Template reset password customer (Indonesia)"
   },
   {
+    "key": "notifications.member_forgot_password.id",
+    "scope": "global",
+    "value": {
+      "name": "Member Forgot Password",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.member_email}}",
+      "subject": "Reset password akun member GoSeller",
+      "body": "Halo {{.member_name}}, kami menerima permintaan reset password untuk akun member kamu. Klik tautan berikut untuk melanjutkan: {{.reset_url}}. Tautan ini berlaku 15 menit."
+    },
+    "description": "Template reset password member (Indonesia)"
+  },
+  {
     "key": "notifications.proof_uploaded_admin.id",
     "scope": "global",
     "value": {
@@ -89,6 +102,45 @@
       "body": "Bukti transfer baru sudah diupload untuk order {{.order_number}}. Silakan cek panel admin."
     },
     "description": "Template notifikasi admin saat bukti transfer diupload (Indonesia)"
+  },
+  {
+    "key": "notifications.member_setup_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Member Setup Admin",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local",
+      "subject": "[Member Baru] {{.full_name}} - {{.business_name}}",
+      "body": "Member baru berhasil dibuat. Nama: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Menunggu verifikasi email."
+    },
+    "description": "Template notifikasi admin saat member baru berhasil dibuat (Indonesia)"
+  },
+  {
+    "key": "notifications.member_setup_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Member Setup Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.member_email}}",
+      "subject": "Verifikasi email akun member - {{.business_name}}",
+      "body": "Halo {{.full_name}}, akun member kamu sudah dibuat untuk business {{.business_name}}. Silakan verifikasi email lewat {{.activation_url}}. Setelah itu login via {{.login_url}} menggunakan email dan password yang kamu buat saat setup."
+    },
+    "description": "Template email onboarding member setelah setup berhasil (Indonesia)"
+  },
+  {
+    "key": "notifications.member_setup_failed_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Member Setup Failed",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local",
+      "subject": "[Member Setup Gagal] {{.full_name}}",
+      "body": "Setup member gagal untuk {{.full_name}} ({{.member_email}}) pada business {{.business_name}}. Status: {{.setup_status}}. Pesan: {{.setup_message}}."
+    },
+    "description": "Template notifikasi admin saat setup member gagal (Indonesia)"
   },
   {
     "key": "notifications.new_order_admin.en",
@@ -169,6 +221,19 @@
     "description": "Customer password reset template (English)"
   },
   {
+    "key": "notifications.member_forgot_password.en",
+    "scope": "global",
+    "value": {
+      "name": "Member Forgot Password",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.member_email}}",
+      "subject": "Reset GoSeller member account password",
+      "body": "Hi {{.member_name}}, we received a password reset request for your member account. Click this link to continue: {{.reset_url}}. This link is valid for 15 minutes."
+    },
+    "description": "Member password reset template (English)"
+  },
+  {
     "key": "notifications.proof_uploaded_admin.en",
     "scope": "global",
     "value": {
@@ -180,8 +245,46 @@
       "body": "A new transfer proof has been uploaded for order {{.order_number}}. Please check the admin panel."
     },
     "description": "Admin notification template when payment proof is uploaded (English)"
-  }
-  ,
+  },
+  {
+    "key": "notifications.member_setup_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Member Setup Admin",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local",
+      "subject": "[New Member] {{.full_name}} - {{.business_name}}",
+      "body": "A new member has been created. Name: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Waiting for email verification."
+    },
+    "description": "Admin notification template when a new member is created (English)"
+  },
+  {
+    "key": "notifications.member_setup_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Member Setup Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.member_email}}",
+      "subject": "Verify your member email - {{.business_name}}",
+      "body": "Hi {{.full_name}}, your member account for {{.business_name}} is ready. Please verify your email via {{.activation_url}}. After that, login via {{.login_url}} using the email and password you created during setup."
+    },
+    "description": "Member onboarding email after setup success (English)"
+  },
+  {
+    "key": "notifications.member_setup_failed_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Member Setup Failed",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local",
+      "subject": "[Member Setup Failed] {{.full_name}}",
+      "body": "Member setup failed for {{.full_name}} ({{.member_email}}) in {{.business_name}}. Status: {{.setup_status}}. Message: {{.setup_message}}."
+    },
+    "description": "Admin notification template when member setup fails (English)"
+  },
   {
     "key": "notifications.subscription_confirmation_customer.id",
     "scope": "global",

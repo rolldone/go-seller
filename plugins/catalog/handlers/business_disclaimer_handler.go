@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -91,6 +92,65 @@ func (h *BusinessDisclaimerHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, d)
 }
 
+func (h *BusinessDisclaimerHandler) MemberCreate(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, businessID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var req createDisclaimerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	id, err := uuid.New()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
+		return
+	}
+	metadataJSON, err := normalizeRawJSON(req.Metadata)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	d := &catalogmodels.BusinessDisclaimer{
+		ID:           id,
+		BusinessID:   businessID,
+		Title:        req.Title,
+		ContentHTML:  req.ContentHTML,
+		ContentPlain: req.ContentPlain,
+		IconKey:      req.IconKey,
+		Metadata:     metadataJSON,
+	}
+	if req.SortOrder != nil {
+		d.SortOrder = *req.SortOrder
+	}
+	if req.IsActive != nil {
+		d.IsActive = *req.IsActive
+	} else {
+		d.IsActive = true
+	}
+
+	if err := h.svc.CreateBusinessDisclaimer(c.Request.Context(), d); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, d)
+}
+
 func (h *BusinessDisclaimerHandler) List(c *gin.Context) {
 	businessID := strings.TrimSpace(c.Param("business_id"))
 	page := parseIntParam(c.Query("page"), 1)
@@ -102,6 +162,238 @@ func (h *BusinessDisclaimerHandler) List(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
+}
+
+func (h *BusinessDisclaimerHandler) MemberList(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, businessID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	page := parseIntParam(c.Query("page"), 1)
+	limit := parseIntParam(c.Query("limit"), 50)
+
+	items, total, err := h.svc.ListBusinessDisclaimers(c.Request.Context(), businessID, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
+}
+
+func (h *BusinessDisclaimerHandler) MemberGetByID(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	item, err := h.svc.GetBusinessDisclaimerByID(c.Request.Context(), strings.TrimSpace(c.Param("disclaimer_id")))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, item.BusinessID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *BusinessDisclaimerHandler) MemberUpdate(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	item, err := h.svc.GetBusinessDisclaimerByID(c.Request.Context(), strings.TrimSpace(c.Param("disclaimer_id")))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, item.BusinessID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var req upsertBusinessDisclaimerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.Title != nil {
+		item.Title = req.Title
+	}
+	if req.ContentHTML != nil {
+		item.ContentHTML = req.ContentHTML
+	}
+	if req.ContentPlain != nil {
+		item.ContentPlain = req.ContentPlain
+	}
+	if req.IconKey != nil {
+		v := strings.TrimSpace(*req.IconKey)
+		item.IconKey = &v
+	}
+	if req.SortOrder != nil {
+		item.SortOrder = *req.SortOrder
+	}
+	if req.IsActive != nil {
+		item.IsActive = *req.IsActive
+	}
+	if len(req.Metadata) > 0 {
+		metadataJSON, err := normalizeRawJSON(req.Metadata)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		item.Metadata = metadataJSON
+	}
+
+	if err := h.svc.UpdateBusinessDisclaimer(c.Request.Context(), item); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *BusinessDisclaimerHandler) MemberDelete(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	item, err := h.svc.GetBusinessDisclaimerByID(c.Request.Context(), strings.TrimSpace(c.Param("disclaimer_id")))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, item.BusinessID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	affected, err := h.svc.DeleteBusinessDisclaimerByID(c.Request.Context(), item.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if affected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": affected})
+}
+
+func (h *BusinessDisclaimerHandler) MemberListTranslations(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	item, err := h.svc.GetBusinessDisclaimerByID(c.Request.Context(), strings.TrimSpace(c.Param("disclaimer_id")))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, item.BusinessID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	items, err := h.svc.ListBusinessDisclaimerTranslations(c.Request.Context(), item.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+func (h *BusinessDisclaimerHandler) MemberUpsertTranslation(c *gin.Context) {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	item, err := h.svc.GetBusinessDisclaimerByID(c.Request.Context(), strings.TrimSpace(c.Param("disclaimer_id")))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := h.svc.GetBusinessByIDForMember(c.Request.Context(), memberID, item.BusinessID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "disclaimer not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	locale := strings.TrimSpace(c.Param("locale"))
+	var req upsertBusinessDisclaimerTranslationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	out, err := h.svc.UpsertBusinessDisclaimerTranslation(c.Request.Context(), item.ID, locale, req.Title, req.ContentHTML, req.ContentPlain)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 func (h *BusinessDisclaimerHandler) GetByID(c *gin.Context) {
