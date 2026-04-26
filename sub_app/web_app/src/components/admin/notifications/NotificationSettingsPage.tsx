@@ -7,7 +7,7 @@ import type { TestNotificationResponse } from "./api";
 import type { SettingItem } from "../settings/types";
 import AdminModal from "../ui/AdminModal";
 
-type NotificationAudience = "admin" | "customer";
+type NotificationAudience = "admin" | "member" | "customer";
 type Locale = "id" | "en";
 
 type NotificationTemplate = {
@@ -25,6 +25,19 @@ const LOCALES: Array<{ value: Locale; label: string }> = [
   { value: "id", label: "Indonesia (id)" },
   { value: "en", label: "English (en)" },
 ];
+
+const AUDIENCE_OPTIONS: Array<{ value: "all" | NotificationAudience; label: string }> = [
+  { value: "all", label: "All audiences" },
+  { value: "admin", label: "Admin" },
+  { value: "member", label: "Member" },
+  { value: "customer", label: "Customer" },
+];
+
+const AUDIENCE_ORDER: Record<NotificationAudience, number> = {
+  admin: 0,
+  member: 1,
+  customer: 2,
+};
 
 const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience" | "description">> = [
   {
@@ -68,6 +81,24 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     name: "Proof Uploaded",
     audience: "admin",
     description: "Notifikasi saat bukti transfer diupload.",
+  },
+  {
+    id: "member_setup_admin",
+    name: "Member Setup Admin",
+    audience: "admin",
+    description: "Notifikasi saat member dan business baru berhasil dibuat.",
+  },
+  {
+    id: "member_setup_member",
+    name: "Member Setup Member",
+    audience: "member",
+    description: "Email onboarding ke member setelah setup berhasil.",
+  },
+  {
+    id: "member_setup_failed_admin",
+    name: "Member Setup Failed",
+    audience: "admin",
+    description: "Notifikasi saat setup member gagal.",
   },
   {
     id: "subscription_confirmation_customer",
@@ -121,6 +152,27 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[Bukti Transfer Baru] {{.order_number}}",
       body: "Bukti transfer baru sudah diupload untuk order {{.order_number}}. Silakan cek panel admin.",
     },
+    member_setup_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local",
+      subject: "[Member Baru] {{.full_name}} - {{.business_name}}",
+      body:
+        "Member baru berhasil dibuat. Nama: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Menunggu verifikasi email.",
+    },
+    member_setup_member: {
+      enabled: true,
+      recipients: "{{.member_email}}",
+      subject: "Verifikasi email akun member - {{.business_name}}",
+      body:
+        "Halo {{.full_name}}, akun member kamu sudah dibuat untuk business {{.business_name}}. Silakan verifikasi email lewat {{.activation_url}}. Setelah itu login via {{.login_url}} menggunakan email dan password yang kamu buat saat setup.",
+    },
+    member_setup_failed_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local",
+      subject: "[Member Setup Gagal] {{.full_name}}",
+      body:
+        "Setup member gagal untuk {{.full_name}} ({{.member_email}}) pada business {{.business_name}}. Status: {{.setup_status}}. Pesan: {{.setup_message}}.",
+    },
     subscription_confirmation_customer: {
       enabled: true,
       recipients: "{{.email}}",
@@ -171,6 +223,27 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[New Transfer Proof] {{.order_number}}",
       body: "A new transfer proof has been uploaded for order {{.order_number}}. Please check the admin panel.",
     },
+    member_setup_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local",
+      subject: "[New Member] {{.full_name}} - {{.business_name}}",
+      body:
+        "A new member has been created. Name: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Waiting for email verification.",
+    },
+    member_setup_member: {
+      enabled: true,
+      recipients: "{{.member_email}}",
+      subject: "Verify your member email - {{.business_name}}",
+      body:
+        "Hi {{.full_name}}, your member account for {{.business_name}} is ready. Please verify your email via {{.activation_url}}. After that, login via {{.login_url}} using the email and password you created during setup.",
+    },
+    member_setup_failed_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local",
+      subject: "[Member Setup Failed] {{.full_name}}",
+      body:
+        "Member setup failed for {{.full_name}} ({{.member_email}}) in {{.business_name}}. Status: {{.setup_status}}. Message: {{.setup_message}}.",
+    },
     subscription_confirmation_customer: {
       enabled: true,
       recipients: "{{.email}}",
@@ -184,11 +257,18 @@ const placeholders = [
   "{{.order_number}}",
   "{{.customer_name}}",
   "{{.customer_email}}",
+  "{{.full_name}}",
+  "{{.member_email}}",
   "{{.business_name}}",
+  "{{.business_slug}}",
   "{{.payment_status}}",
   "{{.grand_total}}",
   "{{.currency}}",
   "{{.order_link}}",
+  "{{.login_url}}",
+  "{{.activation_url}}",
+  "{{.setup_status}}",
+  "{{.setup_message}}",
   "{{.reset_url}}",
   "{{.reset_token}}",
   "{{.ConfirmLink}}",
@@ -206,8 +286,15 @@ const DEFAULT_TEST_VARS = {
   currency: "IDR",
   customer_name: "Test Customer",
   customer_email: "test@example.com",
+  full_name: "Test Member",
+  member_email: "member@example.com",
   business_name: "Go Seller",
+  business_slug: "go-seller",
   order_link: "/admin/orders",
+  login_url: "https://example.com/login",
+  activation_url: "https://example.com/activate?token=TEST-ACTIVATION-TOKEN",
+  setup_status: "success",
+  setup_message: "member created successfully",
   reset_token: "TEST-RESET-TOKEN",
   reset_url: `${(import.meta.env.PUBLIC_APP_URL ?? "https://example.com").replace(/\/+$/, "")}/customer/auth/reset-password?token=TEST-RESET-TOKEN`,
   ConfirmLink: `${(import.meta.env.PUBLIC_APP_URL ?? "https://example.com").replace(/\/+$/, "")}/subscribe/confirm?token=TEST-CONFIRM-TOKEN`,
@@ -283,7 +370,8 @@ export default function NotificationSettingsPage() {
   );
 
   const filteredTemplates = useMemo(() => {
-    return templates.filter((item) => {
+    return templates
+      .filter((item) => {
       if (audienceFilter !== "all" && item.audience !== audienceFilter) return false;
       if (!query.trim()) return true;
       const q = query.trim().toLowerCase();
@@ -292,7 +380,12 @@ export default function NotificationSettingsPage() {
         item.description.toLowerCase().includes(q) ||
         item.subject.toLowerCase().includes(q)
       );
-    });
+      })
+      .sort((left, right) => {
+        const audienceDiff = AUDIENCE_ORDER[left.audience] - AUDIENCE_ORDER[right.audience];
+        if (audienceDiff !== 0) return audienceDiff;
+        return left.name.localeCompare(right.name);
+      });
   }, [templates, query, audienceFilter]);
 
   const isDirty = useMemo(
@@ -512,9 +605,11 @@ export default function NotificationSettingsPage() {
           value={audienceFilter}
           onChange={(e) => setAudienceFilter(e.target.value as "all" | NotificationAudience)}
         >
-          <option value="all">All audiences</option>
-          <option value="admin">Admin</option>
-          <option value="customer">Customer</option>
+          {AUDIENCE_OPTIONS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
         </select>
         <button
           type="button"
@@ -555,7 +650,9 @@ export default function NotificationSettingsPage() {
                       className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                         item.audience === "admin"
                           ? "bg-violet-100 text-violet-700"
-                          : "bg-emerald-100 text-emerald-700"
+                          : item.audience === "member"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-emerald-100 text-emerald-700"
                       }`}
                     >
                       {item.audience}

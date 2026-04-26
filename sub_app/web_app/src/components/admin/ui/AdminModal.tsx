@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+/** @jsxRuntime classic */
+import React, { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 type Props = {

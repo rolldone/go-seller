@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+/** @jsxRuntime classic */
+import React, { type ReactNode } from "react";
 import type { EntityColumn } from "./types";
 
 type WithID = { id: string };
