@@ -1,0 +1,287 @@
+---
+import "../styles/front.css";
+import AlertContainer from "../components/ui/AlertContainer";
+import MemberAuthGate from "../components/member/auth/MemberAuthGate";
+import MemberLogoutButton from "../components/member/MemberLogoutButton";
+import { buildLocalizedPath } from "../lib/siteLocale";
+
+interface Props {
+	title?: string;
+	subtitle?: string;
+	locale?: string;
+}
+
+const { title = "Member Dashboard", subtitle = "Kelola toko dan operasional harian dari satu tempat.", locale } = Astro.props as Props;
+const pathname = Astro.url.pathname;
+const dashboardPath = buildLocalizedPath("/member", locale);
+const businessesPath = buildLocalizedPath("/member/businesses", locale);
+const businessAssetsPath = buildLocalizedPath("/member/business-assets", locale);
+const productsPath = buildLocalizedPath("/member/products", locale);
+
+const menus = [
+	{ href: dashboardPath, label: "Dashboard", icon: "dashboard", group: "overview" },
+	{ href: businessesPath, label: "Toko Saya", icon: "store", group: "business" },
+	{ href: businessAssetsPath, label: "Aset Toko", icon: "assets", group: "business" },
+	{ href: productsPath, label: "Produk", icon: "products", group: "operations" },
+	{ href: buildLocalizedPath("/member#orders", locale), label: "Orders", icon: "orders", group: "operations" },
+	{ href: buildLocalizedPath("/member#reports", locale), label: "Laporan", icon: "reports", group: "operations" },
+	{ href: buildLocalizedPath("/member#settings", locale), label: "Pengaturan", icon: "settings", group: "account" },
+	{ href: buildLocalizedPath("/member#support", locale), label: "Bantuan", icon: "support", group: "account" },
+];
+
+const menuGroups = [
+	{ key: "overview", label: "Overview" },
+	{ key: "business", label: "Business" },
+	{ key: "operations", label: "Operations" },
+	{ key: "account", label: "Account" },
+];
+
+const groupedMenus = menuGroups
+	.map((group) => ({
+		...group,
+		items: menus.filter((menu) => menu.group === group.key),
+	}))
+	.filter((group) => group.items.length > 0);
+---
+
+<html lang={locale ?? "id"}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>{title}</title>
+	</head>
+	<body class="min-h-screen bg-[#f7f7f5] text-slate-900">
+		<div class="grid min-h-screen grid-cols-1 md:grid-cols-[240px_1fr]">
+			<aside class="hidden border-r border-[#e8e0d6] bg-[#fbfaf7] md:block">
+				<div class="border-b border-[#e8e0d6] px-5 py-4">
+					<p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Member Space</p>
+					<h1 class="mt-1 text-lg font-semibold text-slate-900">Member Portal</h1>
+					<p class="mt-1 text-xs text-slate-500">Dashboard operasional toko</p>
+				</div>
+
+				<nav class="px-3 py-4">
+					<div class="space-y-4">
+						{groupedMenus.map((group) => (
+							<section>
+								<div class="flex items-center justify-between px-3">
+									<p class="pb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{group.label}</p>
+									<button
+										class="group rounded px-2 py-1 text-xs text-slate-500 hover:bg-[#f2ede5]"
+										data-toggle={group.key}
+										aria-expanded="true"
+										type="button"
+									>
+										<svg class="h-3 w-3 transition-transform group-hover:text-slate-700" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+											<path d="M6 8l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+										</svg>
+									</button>
+								</div>
+								<ul class="space-y-1" data-group={group.key}>
+									{group.items.map((menu) => {
+										const isActive = (menu.href === dashboardPath && pathname === dashboardPath) || (menu.href === businessesPath && pathname === businessesPath) || (menu.href === businessAssetsPath && pathname === businessAssetsPath) || (menu.href === productsPath && pathname === productsPath);
+										return (
+											<li>
+												<a
+													href={menu.href}
+													aria-current={isActive ? "page" : undefined}
+													class:list={[
+														"block rounded-lg px-3 py-2 text-sm font-medium transition",
+														isActive ? "bg-emerald-600 text-white shadow-sm" : "text-slate-700 hover:bg-[#f2ede5]",
+													]}
+												>
+													{menu.icon === "dashboard" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<rect x="3" y="3" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.5"/>
+															<rect x="13" y="3" width="8" height="4" rx="1" stroke="currentColor" stroke-width="1.5"/>
+															<rect x="13" y="9" width="8" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/>
+														</svg>
+													)}
+
+													{menu.icon === "products" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.5"/>
+															<path d="M8 11h8M8 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+														</svg>
+													)}
+
+													{menu.icon === "orders" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/>
+															<path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+														</svg>
+													)}
+
+													{menu.icon === "reports" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<path d="M4 19h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+															<path d="M7 17V11M12 17V7M17 17v-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+														</svg>
+													)}
+
+													{menu.icon === "store" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<path d="M4 20V7l8-3 8 3v13" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+															<path d="M9 10h1M9 14h1M14 10h1M14 14h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+														</svg>
+													)}
+
+													{menu.icon === "assets" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<path d="M4 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+															<path d="M8 12h8M8 15h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+														</svg>
+													)}
+
+													{menu.icon === "settings" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+															<path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9h.1a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1v.1a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6V15z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+													</svg>
+													)}
+
+													{menu.icon === "support" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+															<path d="M9.5 9a2.5 2.5 0 1 1 4.2 1.8c-.9.8-1.7 1.3-1.7 2.7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+															<circle cx="12" cy="17" r="1" fill="currentColor"/>
+														</svg>
+													)}
+
+													{menu.label}
+												</a>
+											</li>
+										);
+									})}
+								</ul>
+							</section>
+						))}
+					</div>
+				</nav>
+			</aside>
+
+			<div class="flex min-h-screen flex-col">
+				<header class="sticky top-0 z-10 border-b border-[#e8e0d6] bg-white/90 backdrop-blur">
+					<div class="flex items-center gap-3 px-4 py-3 sm:px-6">
+						<div>
+							<p class="text-xs uppercase tracking-wide text-emerald-600">Member</p>
+							<h2 class="text-sm font-semibold text-slate-900">{title}</h2>
+							<p class="text-xs text-slate-500">{subtitle}</p>
+						</div>
+						<MemberLogoutButton client:load locale={locale} />
+					</div>
+				</header>
+
+				<main class="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+					<div class="mx-auto max-w-7xl space-y-6">
+						<slot />
+					</div>
+				</main>
+			</div>
+		</div>
+
+		<MemberAuthGate client:load locale={locale} />
+		<AlertContainer client:load />
+		<style>
+			.member-group-collapse {
+				overflow: hidden;
+				transition: max-height 240ms ease;
+			}
+			.member-toggle svg {
+				transition: transform 200ms ease;
+				transform-origin: 50% 50%;
+			}
+			.member-toggle[aria-expanded="false"] svg {
+				transform: rotate(-90deg);
+			}
+			.member-toggle[aria-expanded="true"] svg {
+				transform: rotate(0deg);
+			}
+		</style>
+		<script>
+			// @ts-nocheck
+			(function () {
+				const defaults = { overview: true, operations: true, account: false };
+				const getState = (key) => {
+					try {
+						const value = localStorage.getItem(`member_menu_group_${key}`);
+						if (value === null) return defaults[key] ?? false;
+						return value === "1";
+					} catch {
+						return defaults[key] ?? false;
+					}
+				};
+				const setState = (key, value) => {
+					try {
+						localStorage.setItem(`member_menu_group_${key}`, value ? "1" : "0");
+					} catch {
+					}
+				};
+
+				const collapse = (element) => {
+					element.style.maxHeight = element.scrollHeight + "px";
+					void element.offsetHeight;
+					requestAnimationFrame(() => {
+						element.style.maxHeight = "0px";
+					});
+				};
+
+				const expand = (element) => {
+					element.style.maxHeight = element.scrollHeight + "px";
+					const onEnd = () => {
+						element.style.maxHeight = "";
+						element.removeEventListener("transitionend", onEnd);
+					};
+					element.addEventListener("transitionend", onEnd);
+				};
+
+				const setGroup = (key, show) => {
+					const list = document.querySelector(`[data-group="${key}"]`);
+					const btn = document.querySelector(`[data-toggle="${key}"]`);
+					if (!list || !btn) return;
+					list.classList.add("member-group-collapse");
+					if (show) {
+						expand(list);
+						btn.setAttribute("aria-expanded", "true");
+					} else {
+						collapse(list);
+						btn.setAttribute("aria-expanded", "false");
+					}
+					setState(key, show);
+				};
+
+				document.addEventListener("DOMContentLoaded", function () {
+					document.querySelectorAll("[data-toggle]").forEach((button) => {
+						const key = button.getAttribute("data-toggle");
+						if (!key) return;
+						button.classList.add("member-toggle");
+						button.addEventListener("click", () => {
+							const list = document.querySelector(`[data-group="${key}"]`);
+							if (!list) return;
+							const expanded = button.getAttribute("aria-expanded") === "true";
+							setGroup(key, !expanded);
+						});
+					});
+
+					document.querySelectorAll("[data-group]").forEach((element) => {
+						const key = element.getAttribute("data-group");
+						if (!key) return;
+						const show = getState(key);
+						element.classList.add("member-group-collapse");
+						if (show) {
+							element.style.maxHeight = element.scrollHeight + "px";
+							setTimeout(() => {
+								element.style.maxHeight = "";
+							}, 300);
+							const btn = document.querySelector(`[data-toggle="${key}"]`);
+							if (btn) btn.setAttribute("aria-expanded", "true");
+						} else {
+							element.style.maxHeight = "0px";
+							const btn = document.querySelector(`[data-toggle="${key}"]`);
+							if (btn) btn.setAttribute("aria-expanded", "false");
+						}
+					});
+				});
+			})();
+		</script>
+	</body>
+</html>

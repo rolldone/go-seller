@@ -1,0 +1,18 @@
+---
+import "../../../../styles/front.css";
+import MemberLoginPage from "../../../../components/member/auth/MemberLoginPage";
+
+const locale = Astro.params.lang ?? "id";
+export const prerender = false;
+---
+
+<html lang={locale}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Member Access | GoSeller</title>
+	</head>
+	<body>
+		<MemberLoginPage client:only="react" locale={locale} />
+	</body>
+</html>

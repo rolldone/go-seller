@@ -1,0 +1,18 @@
+---
+import "../../../../styles/front.css";
+import MemberVerifyEmailPage from "../../../../components/member/auth/MemberVerifyEmailPage";
+
+const locale = Astro.params.lang ?? "id";
+export const prerender = false;
+---
+
+<html lang={locale}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Verify Member Email | GoSeller</title>
+	</head>
+	<body>
+		<MemberVerifyEmailPage client:only="react" locale={locale} />
+	</body>
+</html>

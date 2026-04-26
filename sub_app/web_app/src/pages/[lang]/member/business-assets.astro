@@ -1,0 +1,10 @@
+---
+import MemberLayout from "../../../../layouts/MemberLayout.astro";
+import MemberBusinessAssetsPage from "../../../../components/member/business-assets/BusinessAssetsPage";
+
+const { lang } = Astro.params;
+---
+
+<MemberLayout title="Aset Toko" subtitle="Kelola aset publik yang dimiliki member ini" locale={lang}>
+	<MemberBusinessAssetsPage client:load />
+</MemberLayout>

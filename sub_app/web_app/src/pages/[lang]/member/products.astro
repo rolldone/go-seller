@@ -1,0 +1,10 @@
+---
+import MemberLayout from "../../../layouts/MemberLayout.astro";
+import MemberProductsPage from "../../../components/member/products/ProductsPage";
+
+const { lang } = Astro.params;
+---
+
+<MemberLayout title="Products" subtitle="Kelola product milik member" locale={lang}>
+	<MemberProductsPage client:load />
+</MemberLayout>

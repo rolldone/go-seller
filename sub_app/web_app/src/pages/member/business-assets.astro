@@ -1,0 +1,8 @@
+---
+import MemberLayout from "../../layouts/MemberLayout.astro";
+import MemberBusinessAssetsPage from "../../components/member/business-assets/BusinessAssetsPage";
+---
+
+<MemberLayout title="Aset Toko" subtitle="Kelola aset publik yang dimiliki member ini">
+	<MemberBusinessAssetsPage client:load />
+</MemberLayout>
