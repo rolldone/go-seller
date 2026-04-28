@@ -597,7 +597,7 @@ func (h *BusinessHandler) PublicGetBySlug(c *gin.Context) {
 		for _, p := range products {
 			prodIDs = append(prodIDs, p.ID)
 		}
-		discountMap, _ := h.svc.GetActiveDiscountsForProductIDs(c.Request.Context(), prodIDs)
+		discountMap, _ := h.svc.GetActiveDiscountsForProductIDs(c.Request.Context(), prodIDs, item.ID)
 
 		// preload gallery assets (usage_tag = 'gallery') for these products
 		assetMap, _ := h.svc.GetProductAssetsForProductIDs(c.Request.Context(), prodIDs, "gallery")

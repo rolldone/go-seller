@@ -82,6 +82,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	memberAuth.POST("/forgot-password", forgotLimiter, memberAuthHandler.ForgotPassword)
 	memberAuth.POST("/reset-password", memberAuthHandler.ResetPassword)
 	memberAuth.GET("/verify", memberAuthHandler.VerifyEmail)
+	memberAuth.POST("/team/invites/setup", memberSetupHandler.SetupFromInvite)
 	member.POST("/setup", memberSetupHandler.Setup)
 
 	adminAdmins := admin.Group("/admins")

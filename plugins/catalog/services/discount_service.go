@@ -15,6 +15,7 @@ type DiscountListFilter struct {
 	Query      string
 	ProductID  string
 	CustomerID string
+	BusinessID string
 	IsActive   *bool
 	Page       int
 	Limit      int
@@ -53,6 +54,9 @@ func (s *CatalogService) ListDiscounts(ctx context.Context, f DiscountListFilter
 	}
 	if f.CustomerID != "" {
 		db = db.Where("customer_id = ?", f.CustomerID)
+	}
+	if businessID := strings.TrimSpace(f.BusinessID); businessID != "" {
+		db = db.Where("business_id = ?", businessID)
 	}
 	if f.IsActive != nil {
 		db = db.Where("is_active = ?", *f.IsActive)
@@ -154,7 +158,7 @@ func (s *CatalogService) buildDiscountProductMap(ctx context.Context, discountID
 }
 
 // GetActiveDiscountsForProductIDs returns active discounts grouped by product ID.
-func (s *CatalogService) GetActiveDiscountsForProductIDs(ctx context.Context, productIDs []string) (map[string][]catalogmodels.Discount, error) {
+func (s *CatalogService) GetActiveDiscountsForProductIDs(ctx context.Context, productIDs []string, businessID string) (map[string][]catalogmodels.Discount, error) {
 	result := make(map[string][]catalogmodels.Discount)
 	if len(productIDs) == 0 {
 		return result, nil
@@ -163,9 +167,13 @@ func (s *CatalogService) GetActiveDiscountsForProductIDs(ctx context.Context, pr
 	now := time.Now().UTC()
 
 	// First get active discounts in time window
+	q := s.DB.WithContext(ctx).
+		Where("is_active = ? AND start_at <= ? AND (end_at IS NULL OR end_at >= ?)", true, now, now)
+	if businessID = strings.TrimSpace(businessID); businessID != "" {
+		q = q.Where("business_id = ?", businessID)
+	}
 	var activeDiscounts []catalogmodels.Discount
-	if err := s.DB.WithContext(ctx).
-		Where("is_active = ? AND start_at <= ? AND (end_at IS NULL OR end_at >= ?)", true, now, now).
+	if err := q.
 		Order("priority DESC, created_at DESC").
 		Find(&activeDiscounts).Error; err != nil {
 		return nil, err

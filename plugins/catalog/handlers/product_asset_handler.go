@@ -54,6 +54,206 @@ func (h *ProductAssetHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, item)
 }
 
+func (h *ProductAssetHandler) memberOwnedProduct(c *gin.Context, productID string) bool {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return false
+	}
+	if _, err := h.svc.GetProductByIDForMember(c.Request.Context(), memberID, productID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return false
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return false
+	}
+	return true
+}
+
+func (h *ProductAssetHandler) MemberList(c *gin.Context) {
+	productID := c.Param("product_id")
+	if productID == "" {
+		productID = c.Query("product_id")
+	}
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "product_id is required"})
+		return
+	}
+	if !h.memberOwnedProduct(c, productID) {
+		return
+	}
+	h.List(c)
+}
+
+func (h *ProductAssetHandler) MemberGetByID(c *gin.Context) {
+	item, err := h.svc.GetProductAssetByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.memberOwnedProduct(c, item.ProductID) {
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *ProductAssetHandler) MemberCreate(c *gin.Context) {
+	var req createProductAssetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.ProductID == "" || req.FilePath == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "product_id and file_path are required"})
+		return
+	}
+	if !h.memberOwnedProduct(c, req.ProductID) {
+		return
+	}
+	id, err := uuid.New()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
+		return
+	}
+	item := &catalogmodels.ProductAsset{ID: id, ProductID: req.ProductID, FilePath: req.FilePath, FileType: req.FileType, IsMain: req.IsMain, DisplayOrder: req.DisplayOrder, UsageTag: req.UsageTag}
+	if err := h.svc.CreateProductAsset(c.Request.Context(), item); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, item)
+}
+
+func (h *ProductAssetHandler) MemberUpdate(c *gin.Context) {
+	item, err := h.svc.GetProductAssetByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.memberOwnedProduct(c, item.ProductID) {
+		return
+	}
+	var payload map[string]interface{}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if v, ok := payload["product_id"].(string); ok && v != "" {
+		if !h.memberOwnedProduct(c, v) {
+			return
+		}
+		item.ProductID = v
+	}
+	if v, ok := payload["file_path"].(string); ok && v != "" {
+		item.FilePath = v
+	}
+	if v, ok := payload["file_type"].(string); ok && v != "" {
+		item.FileType = v
+	}
+	if v, exists := payload["usage_tag"]; exists {
+		if v == nil {
+			item.UsageTag = ""
+		} else if s, ok := v.(string); ok {
+			item.UsageTag = s
+		}
+	}
+	if v, exists := payload["is_main"]; exists {
+		if b, ok := v.(bool); ok {
+			item.IsMain = b
+		} else if n, ok := v.(float64); ok {
+			item.IsMain = n != 0
+		}
+	}
+	if v, exists := payload["display_order"]; exists {
+		switch t := v.(type) {
+		case float64:
+			item.DisplayOrder = int(t)
+		case int:
+			item.DisplayOrder = t
+		}
+	}
+	if err := h.svc.UpdateProductAsset(c.Request.Context(), item); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *ProductAssetHandler) MemberDelete(c *gin.Context) {
+	item, err := h.svc.GetProductAssetByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "asset not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.memberOwnedProduct(c, item.ProductID) {
+		return
+	}
+	if err := h.svc.DeleteProductAssetWithFile(c.Request.Context(), c.Param("id")); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "asset deleted successfully"})
+}
+
+func (h *ProductAssetHandler) MemberUpload(c *gin.Context) {
+	productID := c.PostForm("product_id")
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "product_id is required"})
+		return
+	}
+	if !h.memberOwnedProduct(c, productID) {
+		return
+	}
+
+	fileType := c.PostForm("file_type")
+	isMain := c.PostForm("is_main") == "true"
+	displayOrder := parseIntParam(c.PostForm("display_order"), 0)
+	usageTag := c.PostForm("usage_tag")
+
+	fileHeader, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
+		return
+	}
+
+	maxSize := int64(10 * 1024 * 1024)
+	if fileHeader.Size > maxSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "file size exceeds 10MB limit"})
+		return
+	}
+
+	asset, err := h.svc.UploadProductAsset(c.Request.Context(), productID, fileHeader, fileType, isMain, displayOrder, usageTag)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if asset != nil {
+		if asset.PublicURL != "" && strings.HasPrefix(asset.PublicURL, "/") {
+			base := strings.TrimRight(os.Getenv("APP_URL"), "/")
+			asset.PublicURL = base + asset.PublicURL
+		} else if asset.FilePath != "" {
+			if full, err := h.svc.Store.PublicURL(c.Request.Context(), asset.FilePath); err == nil {
+				asset.PublicURL = full
+			}
+		}
+	}
+
+	c.JSON(http.StatusCreated, asset)
+}
+
 func (h *ProductAssetHandler) List(c *gin.Context) {
 	productID := c.Query("product_id")
 	page := parseIntParam(c.Query("page"), 1)

@@ -37,6 +37,38 @@ func (h *DigitalFileHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": files})
 }
 
+func (h *DigitalFileHandler) memberOwnedProduct(c *gin.Context, productID string) bool {
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "member context unavailable"})
+		return false
+	}
+	if _, err := h.svc.GetProductByIDForMember(c.Request.Context(), memberID, productID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "product not found"})
+			return false
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return false
+	}
+	return true
+}
+
+func (h *DigitalFileHandler) MemberList(c *gin.Context) {
+	productID := c.Param("product_id")
+	if productID == "" {
+		productID = c.Query("product_id")
+	}
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "product_id is required"})
+		return
+	}
+	if !h.memberOwnedProduct(c, productID) {
+		return
+	}
+	h.List(c)
+}
+
 // Upload POST /admin/catalog/digital-files/upload  (multipart)
 func (h *DigitalFileHandler) Upload(c *gin.Context) {
 	productID := c.PostForm("product_id")
@@ -90,6 +122,18 @@ func (h *DigitalFileHandler) Upload(c *gin.Context) {
 	c.JSON(http.StatusCreated, f)
 }
 
+func (h *DigitalFileHandler) MemberUpload(c *gin.Context) {
+	productID := c.PostForm("product_id")
+	if productID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "product_id is required"})
+		return
+	}
+	if !h.memberOwnedProduct(c, productID) {
+		return
+	}
+	h.Upload(c)
+}
+
 type createDigitalFileReq struct {
 	ProductID     string `json:"product_id" binding:"required"`
 	FilePath      string `json:"file_path" binding:"required"`
@@ -130,6 +174,38 @@ func (h *DigitalFileHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, f)
 }
 
+func (h *DigitalFileHandler) MemberCreate(c *gin.Context) {
+	var req createDigitalFileReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.memberOwnedProduct(c, req.ProductID) {
+		return
+	}
+	id, err := uuid.New()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
+		return
+	}
+	f := &catalogmodels.ProductDigitalFile{
+		ID:            id,
+		ProductID:     req.ProductID,
+		FilePath:      req.FilePath,
+		FileName:      req.FileName,
+		MimeType:      req.MimeType,
+		FileSize:      req.FileSize,
+		DownloadLimit: req.DownloadLimit,
+		SortOrder:     req.SortOrder,
+		IsActive:      true,
+	}
+	if err := h.svc.CreateDigitalFile(c.Request.Context(), f); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, f)
+}
+
 // GetByID GET /admin/catalog/digital-files/:id
 func (h *DigitalFileHandler) GetByID(c *gin.Context) {
 	f, err := h.svc.GetDigitalFileByID(c.Request.Context(), c.Param("id"))
@@ -139,6 +215,22 @@ func (h *DigitalFileHandler) GetByID(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, f)
+}
+
+func (h *DigitalFileHandler) MemberGetByID(c *gin.Context) {
+	f, err := h.svc.GetDigitalFileByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.memberOwnedProduct(c, f.ProductID) {
 		return
 	}
 	c.JSON(http.StatusOK, f)
@@ -182,6 +274,52 @@ func (h *DigitalFileHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, f)
 }
 
+func (h *DigitalFileHandler) MemberUpdate(c *gin.Context) {
+	f, err := h.svc.GetDigitalFileByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.memberOwnedProduct(c, f.ProductID) {
+		return
+	}
+	var payload map[string]interface{}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if v, ok := payload["product_id"].(string); ok && v != "" {
+		if !h.memberOwnedProduct(c, v) {
+			return
+		}
+		f.ProductID = v
+	}
+	if v, ok := payload["file_name"].(string); ok {
+		f.FileName = v
+	}
+	if v, ok := payload["mime_type"].(string); ok {
+		f.MimeType = v
+	}
+	if v, ok := payload["is_active"].(bool); ok {
+		f.IsActive = v
+	}
+	if v, ok := payload["download_limit"].(float64); ok {
+		f.DownloadLimit = int(v)
+	}
+	if v, ok := payload["sort_order"].(float64); ok {
+		f.SortOrder = int(v)
+	}
+	if err := h.svc.UpdateDigitalFile(c.Request.Context(), f); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, f)
+}
+
 // Delete DELETE /admin/catalog/digital-files/:id
 func (h *DigitalFileHandler) Delete(c *gin.Context) {
 	if err := h.svc.DeleteDigitalFile(c.Request.Context(), c.Param("id")); err != nil {
@@ -189,6 +327,22 @@ func (h *DigitalFileHandler) Delete(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
+}
+
+func (h *DigitalFileHandler) MemberDelete(c *gin.Context) {
+	f, err := h.svc.GetDigitalFileByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if !h.memberOwnedProduct(c, f.ProductID) {
+		return
+	}
+	h.Delete(c)
 }
 
 // CustomerDownload GET /api/catalog/digital-files/:id/download

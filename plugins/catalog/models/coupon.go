@@ -12,6 +12,7 @@ type Coupon struct {
 	Code              string         `gorm:"size:100;uniqueIndex" json:"code"`
 	Name              string         `gorm:"size:255" json:"name"`
 	Description       *string        `gorm:"type:text" json:"description,omitempty"`
+	BusinessID        *string        `gorm:"type:uuid;index" json:"business_id,omitempty"`
 	Category          string         `gorm:"size:50;default:'discount'" json:"category"`
 	DiscountType      string         `gorm:"size:20;default:'percentage'" json:"discount_type"`
 	DiscountValue     float64        `gorm:"type:numeric(15,2)" json:"discount_value"`

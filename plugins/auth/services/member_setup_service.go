@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"go_framework/internal/uuid"
 	authmodels "go_framework/plugins/auth/models"
@@ -76,6 +77,7 @@ func (s *AuthService) SetupMemberWithBusiness(ctx context.Context, in MemberSetu
 	}
 
 	ownerRole := "Owner"
+	now := time.Now()
 	verificationToken, _, err := s.GenerateMemberEmailVerificationToken(userID)
 	if err != nil {
 		return nil, err
@@ -98,11 +100,13 @@ func (s *AuthService) SetupMemberWithBusiness(ctx context.Context, in MemberSetu
 		OwnerRole: &ownerRole,
 	}
 	membership := &catalogmodels.BusinessMember{
-		ID:         membershipID,
-		BusinessID: businessID,
-		UserID:     userID,
-		IsOwner:    true,
-		Role:       &ownerRole,
+		ID:              membershipID,
+		BusinessID:      businessID,
+		UserID:          userID,
+		IsOwner:         true,
+		Role:            &ownerRole,
+		Status:          "active",
+		StatusChangedAt: &now,
 	}
 
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -126,6 +130,86 @@ func (s *AuthService) SetupMemberWithBusiness(ctx context.Context, in MemberSetu
 	pluginregistry.SendTemplateEventAsync(ctx, s.DB, "member_setup_member", s.buildMemberSetupNotificationPayload(user, business, membership, activationURL, "pending_verification", "member created successfully"))
 
 	return &MemberSetupResult{User: user, Business: business, Membership: membership}, nil
+}
+
+func (s *AuthService) SetupMemberFromTeamInvite(ctx context.Context, token, fullName, password, phoneNumber string) (*MemberSetupResult, error) {
+	claims, err := ParseTeamInviteClaims(token)
+	if err != nil {
+		return nil, err
+	}
+	email := strings.ToLower(strings.TrimSpace(claims.Email))
+	businessID := strings.TrimSpace(claims.BusinessID)
+	if email == "" || businessID == "" {
+		return nil, errors.New("invalid invite token")
+	}
+	if strings.TrimSpace(fullName) == "" || strings.TrimSpace(password) == "" {
+		return nil, errors.New("full_name and password are required")
+	}
+	if existing, err := s.GetUserByEmail(ctx, email); err == nil && existing != nil {
+		return nil, errors.New("member account already exists")
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	var business catalogmodels.Business
+	if err := s.DB.WithContext(ctx).Where("id = ?", businessID).First(&business).Error; err != nil {
+		return nil, err
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(strings.TrimSpace(password)), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	passwordHash := string(hashedPassword)
+	userID, err := uuid.New()
+	if err != nil {
+		return nil, err
+	}
+	membershipID, err := uuid.New()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	user := &authmodels.User{
+		ID:           userID,
+		FullName:     strings.TrimSpace(fullName),
+		Email:        email,
+		PasswordHash: &passwordHash,
+		PhoneNumber:  strings.TrimSpace(phoneNumber),
+		IsActive:     false,
+	}
+	membership := &catalogmodels.BusinessMember{
+		ID:              membershipID,
+		BusinessID:      businessID,
+		UserID:          userID,
+		IsOwner:         false,
+		Role:            stringPtrOrNil(strings.TrimSpace(claims.Role)),
+		Status:          "active",
+		InvitedAt:       &now,
+		StatusChangedAt: &now,
+		InvitedBy:       stringPtrOrNil(strings.TrimSpace(claims.InvitedBy)),
+	}
+
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(membership).Error; err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	verificationToken, _, err := s.GenerateMemberEmailVerificationToken(userID)
+	if err != nil {
+		return nil, err
+	}
+	activationURL := buildMemberVerificationURL(verificationToken)
+	pluginregistry.SendTemplateEventAsync(ctx, s.DB, "member_setup_member", s.buildMemberSetupNotificationPayload(user, &business, membership, activationURL, "pending_verification", "member created from team invite"))
+
+	return &MemberSetupResult{User: user, Business: &business, Membership: membership}, nil
 }
 
 var nonSlugChars = regexp.MustCompile(`[^a-z0-9]+`)
@@ -221,6 +305,14 @@ func getEnvOrDefault(key string, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func stringPtrOrNil(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func valueOrEmptyString[T any](value *T, getter func(*T) string) string {

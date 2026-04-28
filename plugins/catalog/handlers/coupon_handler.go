@@ -30,6 +30,7 @@ type createCouponRequest struct {
 	Name              string   `json:"name"`
 	Category          string   `json:"category"`
 	Description       *string  `json:"description"`
+	BusinessID        *string  `json:"business_id"`
 	DiscountType      string   `json:"discount_type"`
 	DiscountValue     float64  `json:"discount_value"`
 	MaxDiscountAmount *float64 `json:"max_discount_amount"`
@@ -51,6 +52,7 @@ type updateCouponRequest struct {
 	Name              *string   `json:"name"`
 	Category          *string   `json:"category"`
 	Description       *string   `json:"description"`
+	BusinessID        *string   `json:"business_id"`
 	DiscountType      *string   `json:"discount_type"`
 	DiscountValue     *float64  `json:"discount_value"`
 	MaxDiscountAmount *float64  `json:"max_discount_amount"`
@@ -101,6 +103,7 @@ func (h *CouponHandler) Create(c *gin.Context) {
 		ID:                id,
 		Code:              strings.TrimSpace(req.Code),
 		Name:              strings.TrimSpace(req.Name),
+		BusinessID:        trimCouponStringPtr(req.BusinessID),
 		Category:          normalizeCouponCategory(req.Category),
 		Description:       trimCouponStringPtr(req.Description),
 		DiscountType:      defaultCouponType(req.DiscountType),
@@ -137,6 +140,7 @@ func (h *CouponHandler) List(c *gin.Context) {
 		Query:      c.Query("q"),
 		ProductID:  c.Query("product_id"),
 		CustomerID: c.Query("customer_id"),
+		BusinessID: c.Query("business_id"),
 		IsActive:   isActive,
 		Page:       page,
 		Limit:      limit,
@@ -187,6 +191,9 @@ func (h *CouponHandler) Update(c *gin.Context) {
 	}
 	if req.Description != nil {
 		updates["description"] = trimCouponStringPtr(req.Description)
+	}
+	if req.BusinessID != nil {
+		updates["business_id"] = trimCouponStringPtr(req.BusinessID)
 	}
 	if req.DiscountType != nil {
 		updates["discount_type"] = defaultCouponType(*req.DiscountType)
@@ -262,6 +269,283 @@ func (h *CouponHandler) Update(c *gin.Context) {
 }
 
 func (h *CouponHandler) Delete(c *gin.Context) {
+	affected, err := h.svc.DeleteCouponByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if affected == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"deleted": affected})
+}
+
+func (h *CouponHandler) MemberBusinessList(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if !requireMemberBusinessAccess(c, h.svc, businessID) {
+		return
+	}
+
+	isActive, err := parseCouponBoolQuery(c.Query("is_active"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid is_active"})
+		return
+	}
+	page := parseIntParam(c.Query("page"), 1)
+	limit := parseIntParam(c.Query("limit"), 20)
+	items, total, err := h.svc.ListCoupons(c.Request.Context(), catalogservices.CouponListFilter{
+		Query:      c.Query("q"),
+		BusinessID: businessID,
+		IsActive:   isActive,
+		Page:       page,
+		Limit:      limit,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items, "total": total, "page": page, "limit": limit})
+}
+
+func (h *CouponHandler) MemberBusinessCreate(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if !requireMemberBusinessAccess(c, h.svc, businessID) {
+		return
+	}
+
+	var req createCouponRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.BusinessID != nil && strings.TrimSpace(*req.BusinessID) != businessID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id mismatch"})
+		return
+	}
+	if strings.TrimSpace(req.Code) == "" || strings.TrimSpace(req.Name) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "code and name are required"})
+		return
+	}
+	if req.DiscountValue < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "discount_value must be non-negative"})
+		return
+	}
+	startAt, err := parseCouponTime(req.StartAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "start_at must be RFC3339"})
+		return
+	}
+	endAt, err := parseOptionalCouponTime(req.EndAt)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "end_at must be RFC3339"})
+		return
+	}
+	productIDs := catalogservices.NormalizeCouponProductIDs(req.ProductIDs)
+	id, err := uuid.New()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
+		return
+	}
+	coupon := &catalogmodels.Coupon{
+		ID:                id,
+		Code:              strings.TrimSpace(req.Code),
+		Name:              strings.TrimSpace(req.Name),
+		BusinessID:        &businessID,
+		Category:          normalizeCouponCategory(req.Category),
+		Description:       trimCouponStringPtr(req.Description),
+		DiscountType:      defaultCouponType(req.DiscountType),
+		DiscountValue:     req.DiscountValue,
+		MaxDiscountAmount: req.MaxDiscountAmount,
+		StartAt:           startAt,
+		EndAt:             endAt,
+		ProductIDs:        productIDs,
+		ProductMinQty:     req.ProductMinQty,
+		ProductQtyLimit:   req.ProductQtyLimit,
+		MinOrderAmount:    req.MinOrderAmount,
+		PerUserOnly:       optCouponBoolValue(req.PerUserOnly, false),
+		CustomerID:        trimCouponStringPtr(req.CustomerID),
+		UsageLimit:        req.UsageLimit,
+		UsageLimitPerUser: req.UsageLimitPerUser,
+		IsActive:          optCouponBoolValue(req.IsActive, true),
+	}
+	if err := h.svc.CreateCoupon(c.Request.Context(), coupon); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, coupon)
+}
+
+func (h *CouponHandler) MemberBusinessGetByID(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if !requireMemberBusinessAccess(c, h.svc, businessID) {
+		return
+	}
+
+	coupon, err := h.svc.GetCouponByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if coupon.BusinessID == nil || strings.TrimSpace(*coupon.BusinessID) != businessID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+		return
+	}
+	c.JSON(http.StatusOK, coupon)
+}
+
+func (h *CouponHandler) MemberBusinessUpdate(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if !requireMemberBusinessAccess(c, h.svc, businessID) {
+		return
+	}
+
+	coupon, err := h.svc.GetCouponByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if coupon.BusinessID == nil || strings.TrimSpace(*coupon.BusinessID) != businessID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+		return
+	}
+
+	var req updateCouponRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if req.BusinessID != nil && strings.TrimSpace(*req.BusinessID) != businessID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id mismatch"})
+		return
+	}
+	updates := map[string]interface{}{}
+	if req.Code != nil {
+		if strings.TrimSpace(*req.Code) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "code cannot be empty"})
+			return
+		}
+		updates["code"] = strings.TrimSpace(*req.Code)
+	}
+	if req.Name != nil {
+		if strings.TrimSpace(*req.Name) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "name cannot be empty"})
+			return
+		}
+		updates["name"] = strings.TrimSpace(*req.Name)
+	}
+	if req.Category != nil {
+		updates["category"] = normalizeCouponCategory(*req.Category)
+	}
+	if req.Description != nil {
+		updates["description"] = trimCouponStringPtr(req.Description)
+	}
+	updates["business_id"] = businessID
+	if req.DiscountType != nil {
+		updates["discount_type"] = defaultCouponType(*req.DiscountType)
+	}
+	if req.DiscountValue != nil {
+		if *req.DiscountValue < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "discount_value must be non-negative"})
+			return
+		}
+		updates["discount_value"] = *req.DiscountValue
+	}
+	if req.MaxDiscountAmount != nil {
+		updates["max_discount_amount"] = req.MaxDiscountAmount
+	}
+	if req.StartAt != nil {
+		start, err := parseCouponTime(*req.StartAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "start_at must be RFC3339"})
+			return
+		}
+		updates["start_at"] = start
+	}
+	if req.EndAt != nil {
+		end, err := parseOptionalCouponTime(req.EndAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "end_at must be RFC3339"})
+			return
+		}
+		updates["end_at"] = end
+	}
+	if req.ProductMinQty != nil {
+		updates["product_min_qty"] = req.ProductMinQty
+	}
+	if req.ProductQtyLimit != nil {
+		updates["product_qty_limit"] = req.ProductQtyLimit
+	}
+	if req.MinOrderAmount != nil {
+		updates["min_order_amount"] = req.MinOrderAmount
+	}
+	if req.PerUserOnly != nil {
+		updates["per_user_only"] = *req.PerUserOnly
+	}
+	if req.CustomerID != nil {
+		updates["customer_id"] = trimCouponStringPtr(req.CustomerID)
+	}
+	if req.UsageLimit != nil {
+		updates["usage_limit"] = req.UsageLimit
+	}
+	if req.UsageLimitPerUser != nil {
+		updates["usage_limit_per_user"] = req.UsageLimitPerUser
+	}
+	if req.IsActive != nil {
+		updates["is_active"] = *req.IsActive
+	}
+	if len(updates) > 0 {
+		if _, err := h.svc.UpdateCouponByID(c.Request.Context(), c.Param("id"), updates); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	if req.ProductIDs != nil {
+		if err := h.svc.SetCouponProductIDs(c.Request.Context(), c.Param("id"), catalogservices.NormalizeCouponProductIDs(*req.ProductIDs)); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+	}
+	coupon, err = h.svc.GetCouponByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if coupon.BusinessID == nil || strings.TrimSpace(*coupon.BusinessID) != businessID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+		return
+	}
+	c.JSON(http.StatusOK, coupon)
+}
+
+func (h *CouponHandler) MemberBusinessDelete(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if !requireMemberBusinessAccess(c, h.svc, businessID) {
+		return
+	}
+
+	coupon, err := h.svc.GetCouponByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if coupon.BusinessID == nil || strings.TrimSpace(*coupon.BusinessID) != businessID {
+		c.JSON(http.StatusNotFound, gin.H{"error": "coupon not found"})
+		return
+	}
+
 	affected, err := h.svc.DeleteCouponByID(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

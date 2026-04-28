@@ -46,6 +46,28 @@ type TemplateConfig struct {
 	Description string `json:"description,omitempty"`
 }
 
+var notificationTemplateAliases = map[string]string{
+	"team_member_invited_member":   "team_member_invited_admin",
+	"team_member_invited_admin":    "team_member_invited_member",
+	"team_member_suspended_member": "team_member_suspended_admin",
+	"team_member_suspended_admin":  "team_member_suspended_member",
+}
+
+func templateEventKeyCandidates(eventKey string) []string {
+	trimmed := strings.TrimSpace(eventKey)
+	if trimmed == "" {
+		return nil
+	}
+	candidates := []string{trimmed}
+	if alias, ok := notificationTemplateAliases[trimmed]; ok {
+		alias = strings.TrimSpace(alias)
+		if alias != "" && alias != trimmed {
+			candidates = append(candidates, alias)
+		}
+	}
+	return candidates
+}
+
 type inlineMail struct {
 	subject  string
 	htmlBody string
@@ -149,6 +171,22 @@ var defaultTemplates = map[string]TemplateConfig{
 		Recipients: "admin@goseller.local",
 		Subject:    "Verifikasi email akun member - {{.business_name}}",
 		Body:       "Halo {{.full_name}}, akun member kamu sudah dibuat untuk business {{.business_name}}. Silakan verifikasi email lewat {{.activation_url}}. Setelah itu login via {{.login_url}} menggunakan email dan password yang kamu buat saat setup.",
+	},
+	"team_member_invited_member": {
+		Name:       "Team Member Invited",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.member_email}}",
+		Subject:    "[Team Invite] {{.business_name}}",
+		Body:       "Hi {{.member_name}}, you have been invited to join {{.business_name}} as {{.role}}. Click here to accept the invitation: {{.invite_url}}.",
+	},
+	"team_member_suspended_member": {
+		Name:       "Team Member Suspended",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.member_email}}",
+		Subject:    "[Access Suspended] {{.business_name}}",
+		Body:       "Hi {{.member_name}}, your team access for {{.business_name}} has been suspended. Reason: {{.reason}}. If you think this is a mistake, please contact the inviter.",
 	},
 }
 
@@ -255,13 +293,15 @@ func NormalizeLocale(value string) string {
 
 func (s *Service) defaultTemplateFor(eventKey string, locale string) TemplateConfig {
 	locale = NormalizeLocale(locale)
-	if locale == "en" {
-		if cfg, ok := defaultTemplatesEN[eventKey]; ok {
+	for _, candidate := range templateEventKeyCandidates(eventKey) {
+		if locale == "en" {
+			if cfg, ok := defaultTemplatesEN[candidate]; ok {
+				return cfg
+			}
+		}
+		if cfg, ok := defaultTemplates[candidate]; ok {
 			return cfg
 		}
-	}
-	if cfg, ok := defaultTemplates[eventKey]; ok {
-		return cfg
 	}
 	return TemplateConfig{}
 }
@@ -342,20 +382,26 @@ func (s *Service) BuildTestPayload(overrides map[string]string) map[string]inter
 		overrides = map[string]string{}
 	}
 	payload := map[string]interface{}{
-		"order_id":        "test-order",
-		"order_number":    "TEST-1001",
-		"order_status":    "pending",
-		"payment_status":  "paid",
-		"grand_total":     "123.45",
-		"currency":        "IDR",
-		"customer_name":   "Test Customer",
-		"customer_email":  "test@example.com",
-		"customer_locale": "id",
-		"business_name":   "Go Seller",
-		"order_link":      "/admin/orders",
-		"reset_token":     "TEST-RESET-TOKEN",
-		"reset_url":       "https://example.com/customer/auth/reset-password?token=TEST-RESET-TOKEN",
-		"app_name":        "Go Seller",
+		"order_id":         "test-order",
+		"order_number":     "TEST-1001",
+		"order_status":     "pending",
+		"payment_status":   "paid",
+		"grand_total":      "123.45",
+		"currency":         "IDR",
+		"customer_name":    "Test Customer",
+		"customer_email":   "test@example.com",
+		"customer_locale":  "id",
+		"business_name":    "Go Seller",
+		"member_name":      "Test Member",
+		"role":             "Editor",
+		"invited_by_name":  "Owner Name",
+		"invited_by_email": "owner@example.com",
+		"invite_url":       "https://example.com/member/auth/team-invite?token=TEST-INVITE-TOKEN",
+		"reason":           "access suspended for review",
+		"order_link":       "/admin/orders",
+		"reset_token":      "TEST-RESET-TOKEN",
+		"reset_url":        "https://example.com/customer/auth/reset-password?token=TEST-RESET-TOKEN",
+		"app_name":         "Go Seller",
 	}
 	for key, value := range overrides {
 		if strings.TrimSpace(key) == "" {
@@ -478,13 +524,14 @@ func (s *Service) dispatchTemplate(ctx context.Context, db *gorm.DB, eventKey st
 func (s *Service) loadConfig(ctx context.Context, db *gorm.DB, eventKey string, customerLocale string, defaultLocale string) (TemplateConfig, error) {
 	customerLocale = NormalizeLocale(customerLocale)
 	defaultLocale = NormalizeLocale(defaultLocale)
-	keys := []string{
-		"notifications." + strings.TrimSpace(eventKey) + "." + customerLocale,
+	keys := make([]string, 0, 6)
+	for _, candidate := range templateEventKeyCandidates(eventKey) {
+		keys = append(keys, "notifications."+strings.TrimSpace(candidate)+"."+customerLocale)
+		if defaultLocale != customerLocale {
+			keys = append(keys, "notifications."+strings.TrimSpace(candidate)+"."+defaultLocale)
+		}
+		keys = append(keys, "notifications."+strings.TrimSpace(candidate))
 	}
-	if defaultLocale != customerLocale {
-		keys = append(keys, "notifications."+strings.TrimSpace(eventKey)+"."+defaultLocale)
-	}
-	keys = append(keys, "notifications."+strings.TrimSpace(eventKey))
 
 	var lastErr error
 	for _, key := range keys {

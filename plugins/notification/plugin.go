@@ -1,16 +1,20 @@
 package notification
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strings"
+	"time"
 
 	internaldb "go_framework/internal/db"
 	"go_framework/internal/plugins"
+	uuid "go_framework/internal/uuid"
 	pluginhandlers "go_framework/plugins/notification/handlers"
 	pluginservices "go_framework/plugins/notification/services"
 	pluginregistry "go_framework/plugins/plugin_registry"
+	settingmodels "go_framework/plugins/setting/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
@@ -132,5 +136,85 @@ func (p *Plugin) ConsoleCommands() []*cobra.Command {
 	testCmd.Flags().StringVar(&subject, "subject", "", "email subject")
 	testCmd.Flags().StringVar(&body, "body", "", "email body")
 
-	return []*cobra.Command{helloCmd, seedCmd, testCmd}
+	var apply bool
+	cleanupCmd := &cobra.Command{
+		Use:   "notification:cleanup-templates",
+		Short: "migrate legacy notification template keys to member-facing keys",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := p.ensureService(true); err != nil {
+				return err
+			}
+			legacyToNew := map[string]string{
+				"notifications.team_member_invited_admin.id":   "notifications.team_member_invited_member.id",
+				"notifications.team_member_invited_admin.en":   "notifications.team_member_invited_member.en",
+				"notifications.team_member_suspended_admin.id": "notifications.team_member_suspended_member.id",
+				"notifications.team_member_suspended_admin.en": "notifications.team_member_suspended_member.en",
+			}
+			legacyKeys := make([]string, 0, len(legacyToNew))
+			for legacyKey := range legacyToNew {
+				legacyKeys = append(legacyKeys, legacyKey)
+			}
+
+			var rows []settingmodels.Setting
+			if err := p.service.DB.Order("key asc").Where("scope = ? AND key IN ?", "global", legacyKeys).Find(&rows).Error; err != nil {
+				return err
+			}
+			if len(rows) == 0 {
+				cmd.Println("no legacy notification template keys found")
+				return nil
+			}
+
+			for _, row := range rows {
+				targetKey := legacyToNew[row.Key]
+				if strings.TrimSpace(targetKey) == "" {
+					continue
+				}
+				cmd.Printf("%s -> %s\n", row.Key, targetKey)
+			}
+
+			if !apply {
+				cmd.Println("dry run only; pass --apply to move data")
+				return nil
+			}
+
+			now := time.Now()
+			return p.service.DB.Transaction(func(tx *gorm.DB) error {
+				for _, row := range rows {
+					targetKey := legacyToNew[row.Key]
+					if strings.TrimSpace(targetKey) == "" {
+						continue
+					}
+
+					var target settingmodels.Setting
+					err := tx.Where("scope = ? AND key = ?", row.Scope, targetKey).First(&target).Error
+					if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+						return err
+					}
+
+					if errors.Is(err, gorm.ErrRecordNotFound) {
+						created := settingmodels.Setting{
+							ID:          uuid.NewString(),
+							Scope:       row.Scope,
+							Key:         targetKey,
+							Value:       row.Value,
+							Description: row.Description,
+							CreatedAt:   now,
+							UpdatedAt:   now,
+						}
+						if err := tx.Create(&created).Error; err != nil {
+							return err
+						}
+					}
+
+					if err := tx.Delete(&settingmodels.Setting{}, "scope = ? AND key = ?", row.Scope, row.Key).Error; err != nil {
+						return err
+					}
+				}
+				return nil
+			})
+		},
+	}
+	cleanupCmd.Flags().BoolVar(&apply, "apply", false, "actually migrate legacy keys instead of dry-run")
+
+	return []*cobra.Command{helloCmd, seedCmd, testCmd, cleanupCmd}
 }

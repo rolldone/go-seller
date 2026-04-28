@@ -11,6 +11,7 @@ type Discount struct {
 	ID                string         `gorm:"type:uuid;primaryKey" json:"id"`
 	Name              string         `gorm:"size:255" json:"name"`
 	Description       *string        `gorm:"type:text" json:"description,omitempty"`
+	BusinessID        *string        `gorm:"type:uuid;index" json:"business_id,omitempty"`
 	DiscountType      string         `gorm:"type:discount_type_enum;default:'percentage'" json:"discount_type"`
 	DiscountValue     float64        `gorm:"type:numeric(15,2);default:0" json:"discount_value"`
 	MaxDiscountAmount *float64       `gorm:"type:numeric(15,2)" json:"max_discount_amount,omitempty"`

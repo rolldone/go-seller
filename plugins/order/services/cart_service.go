@@ -407,9 +407,13 @@ func (s *CartService) PreviewCartForCustomer(ctx context.Context, customerID str
 	discountMap := make(map[string][]catalogmodels.Discount)
 	if len(productIDs) > 0 {
 		now := time.Now().UTC()
+		discountQuery := s.DB.WithContext(ctx).
+			Where("is_active = ? AND start_at <= ? AND (end_at IS NULL OR end_at >= ?)", true, now, now)
+		if businessID != nil && strings.TrimSpace(*businessID) != "" {
+			discountQuery = discountQuery.Where("business_id = ?", strings.TrimSpace(*businessID))
+		}
 		var activeDiscounts []catalogmodels.Discount
-		if err := s.DB.WithContext(ctx).
-			Where("is_active = ? AND start_at <= ? AND (end_at IS NULL OR end_at >= ?)", true, now, now).
+		if err := discountQuery.
 			Order("priority DESC, created_at DESC").
 			Find(&activeDiscounts).Error; err != nil {
 			return nil, err
@@ -505,7 +509,11 @@ func (s *CartService) PreviewCartForCustomer(ctx context.Context, customerID str
 	if couponCode != nil && strings.TrimSpace(*couponCode) != "" {
 		code := strings.TrimSpace(*couponCode)
 		var coupon catalogmodels.Coupon
-		if err := s.DB.WithContext(ctx).Where("UPPER(code) = UPPER(?)", code).First(&coupon).Error; err != nil {
+		couponQuery := s.DB.WithContext(ctx).Where("UPPER(code) = UPPER(?)", code)
+		if businessID != nil && strings.TrimSpace(*businessID) != "" {
+			couponQuery = couponQuery.Where("business_id = ?", strings.TrimSpace(*businessID))
+		}
+		if err := couponQuery.First(&coupon).Error; err != nil {
 			return nil, errors.New("coupon not found")
 		}
 		now := time.Now()

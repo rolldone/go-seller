@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"go_framework/internal/uuid"
 	catalogmodels "go_framework/plugins/catalog/models"
@@ -56,7 +57,23 @@ func (s *CatalogService) listBusinessesForMemberQuery(ctx context.Context, membe
 	return s.DB.WithContext(ctx).
 		Model(&catalogmodels.Business{}).
 		Joins("JOIN business_members bm ON bm.business_id = businesses.id AND bm.deleted_at IS NULL").
-		Where("bm.user_id = ? AND bm.is_owner = ?", memberID, true)
+		Select("businesses.*, CASE WHEN bm.invited_by IS NOT NULL AND bm.is_owner = FALSE THEN TRUE ELSE FALSE END AS member_invited").
+		Where("bm.user_id = ? AND (bm.is_owner = TRUE OR COALESCE(NULLIF(bm.status, ''), 'active') IN ('active', 'invited'))", memberID)
+}
+
+func (s *CatalogService) listBusinessesForMemberAccessQuery(ctx context.Context, memberID string) *gorm.DB {
+	return s.DB.WithContext(ctx).
+		Model(&catalogmodels.Business{}).
+		Joins("JOIN business_members bm ON bm.business_id = businesses.id AND bm.deleted_at IS NULL").
+		Select("businesses.*, CASE WHEN bm.invited_by IS NOT NULL AND bm.is_owner = FALSE THEN TRUE ELSE FALSE END AS member_invited").
+		Where("bm.user_id = ? AND (bm.is_owner = TRUE OR COALESCE(NULLIF(bm.status, ''), 'active') = 'active')", memberID)
+}
+
+func (s *CatalogService) listBusinessesForMemberOwnerQuery(ctx context.Context, memberID string) *gorm.DB {
+	return s.DB.WithContext(ctx).
+		Model(&catalogmodels.Business{}).
+		Joins("JOIN business_members bm ON bm.business_id = businesses.id AND bm.deleted_at IS NULL").
+		Where("bm.user_id = ? AND bm.is_owner = TRUE", memberID)
 }
 
 func (s *CatalogService) ListBusinessesForMember(ctx context.Context, memberID string, page, limit int) ([]catalogmodels.Business, int64, error) {
@@ -76,7 +93,7 @@ func (s *CatalogService) ListBusinessesForMember(ctx context.Context, memberID s
 
 	offset := (page - 1) * limit
 	var rows []catalogmodels.Business
-	if err := base.Select("businesses.*").Order("businesses.created_at desc").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
+	if err := base.Select("businesses.*, COALESCE(NULLIF(bm.status, ''), 'active') AS member_status, CASE WHEN bm.invited_by IS NOT NULL AND bm.is_owner = FALSE THEN TRUE ELSE FALSE END AS member_invited").Order("businesses.created_at desc").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	return rows, total, nil
@@ -102,7 +119,39 @@ func (s *CatalogService) GetBusinessByID(ctx context.Context, id string) (*catal
 
 func (s *CatalogService) GetBusinessByIDForMember(ctx context.Context, memberID, id string) (*catalogmodels.Business, error) {
 	var out catalogmodels.Business
-	if err := s.listBusinessesForMemberQuery(ctx, memberID).
+	if err := s.listBusinessesForMemberAccessQuery(ctx, memberID).
+		Select("businesses.*").
+		Where("businesses.id = ?", id).
+		First(&out).Error; err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *CatalogService) ListBusinessIDsForMemberAccess(ctx context.Context, memberID string) ([]string, error) {
+	var ids []string
+	if err := s.listBusinessesForMemberAccessQuery(ctx, memberID).
+		Distinct().
+		Pluck("businesses.id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (s *CatalogService) GetBusinessByIDForMemberAccess(ctx context.Context, memberID, id string) (*catalogmodels.Business, error) {
+	var out catalogmodels.Business
+	if err := s.listBusinessesForMemberAccessQuery(ctx, memberID).
+		Select("businesses.*").
+		Where("businesses.id = ?", id).
+		First(&out).Error; err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *CatalogService) GetBusinessByIDForMemberOwner(ctx context.Context, memberID, id string) (*catalogmodels.Business, error) {
+	var out catalogmodels.Business
+	if err := s.listBusinessesForMemberOwnerQuery(ctx, memberID).
 		Select("businesses.*").
 		Where("businesses.id = ?", id).
 		First(&out).Error; err != nil {
@@ -126,12 +175,15 @@ func (s *CatalogService) CreateBusinessForMember(ctx context.Context, memberID s
 		return err
 	}
 	ownerRole := "Owner"
+	now := time.Now()
 	membership := &catalogmodels.BusinessMember{
-		ID:         membershipID,
-		BusinessID: b.ID,
-		UserID:     memberID,
-		IsOwner:    true,
-		Role:       &ownerRole,
+		ID:              membershipID,
+		BusinessID:      b.ID,
+		UserID:          memberID,
+		IsOwner:         true,
+		Role:            &ownerRole,
+		Status:          "active",
+		StatusChangedAt: &now,
 	}
 
 	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

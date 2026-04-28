@@ -15,6 +15,7 @@ type CouponListFilter struct {
 	Query      string
 	ProductID  string
 	CustomerID string
+	BusinessID string
 	IsActive   *bool
 	Page       int
 	Limit      int
@@ -52,6 +53,9 @@ func (s *CatalogService) ListCoupons(ctx context.Context, f CouponListFilter) ([
 	}
 	if f.CustomerID != "" {
 		db = db.Where("customer_id = ?", f.CustomerID)
+	}
+	if businessID := strings.TrimSpace(f.BusinessID); businessID != "" {
+		db = db.Where("business_id = ?", businessID)
 	}
 	if f.IsActive != nil {
 		db = db.Where("is_active = ?", *f.IsActive)

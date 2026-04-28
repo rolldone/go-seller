@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	authmodels "go_framework/plugins/auth/models"
 	catalogmodels "go_framework/plugins/catalog/models"
 	"go_framework/plugins/order/models"
 	pluginregistry "go_framework/plugins/plugin_registry"
@@ -464,24 +465,26 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 			return err
 		}
 		ord := models.Order{
-			ID:               uuid.NewString(),
-			OrderNumber:      "POS-" + uuid.NewString(),
-			UserID:           userID,
-			CustomerID:       customerID,
-			BusinessID:       businessID,
-			Channel:          "pos",
-			CreatedByAdminID: &adminID,
-			Status:           "pending",
-			PaymentStatus:    "unpaid",
-			Currency:         currency,
-			Subtotal:         subtotal,
-			DiscountAmount:   0,
-			TaxAmount:        0,
-			ShippingAmount:   0,
-			FulfillmentType:  normalizedFulfillmentType,
-			GrandTotal:       subtotal,
-			CreatedAt:        now,
-			UpdatedAt:        now,
+			ID:              uuid.NewString(),
+			OrderNumber:     "POS-" + uuid.NewString(),
+			UserID:          userID,
+			CustomerID:      customerID,
+			BusinessID:      businessID,
+			Channel:         "pos",
+			Status:          "pending",
+			PaymentStatus:   "unpaid",
+			Currency:        currency,
+			Subtotal:        subtotal,
+			DiscountAmount:  0,
+			TaxAmount:       0,
+			ShippingAmount:  0,
+			FulfillmentType: normalizedFulfillmentType,
+			GrandTotal:      subtotal,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		if trimmedAdminID := strings.TrimSpace(adminID); trimmedAdminID != "" {
+			ord.CreatedByAdminID = &trimmedAdminID
 		}
 		if err := tx.Create(&ord).Error; err != nil {
 			return err
@@ -519,24 +522,26 @@ func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID stri
 		return nil, err
 	}
 	ord := &models.Order{
-		ID:               uuid.NewString(),
-		OrderNumber:      "POS-" + uuid.NewString(),
-		UserID:           userID,
-		CustomerID:       customerID,
-		BusinessID:       businessID,
-		Channel:          "pos",
-		CreatedByAdminID: &adminID,
-		Status:           "draft",
-		PaymentStatus:    "unpaid",
-		Currency:         currency,
-		Subtotal:         0,
-		DiscountAmount:   0,
-		TaxAmount:        0,
-		ShippingAmount:   0,
-		FulfillmentType:  normalizedFulfillmentType,
-		GrandTotal:       0,
-		CreatedAt:        now,
-		UpdatedAt:        now,
+		ID:              uuid.NewString(),
+		OrderNumber:     "POS-" + uuid.NewString(),
+		UserID:          userID,
+		CustomerID:      customerID,
+		BusinessID:      businessID,
+		Channel:         "pos",
+		Status:          "draft",
+		PaymentStatus:   "unpaid",
+		Currency:        currency,
+		Subtotal:        0,
+		DiscountAmount:  0,
+		TaxAmount:       0,
+		ShippingAmount:  0,
+		FulfillmentType: normalizedFulfillmentType,
+		GrandTotal:      0,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if trimmedAdminID := strings.TrimSpace(adminID); trimmedAdminID != "" {
+		ord.CreatedByAdminID = &trimmedAdminID
 	}
 	if err := s.DB.WithContext(ctx).Create(ord).Error; err != nil {
 		return nil, err
@@ -1466,6 +1471,116 @@ type OrderListFilter struct {
 	Page          int
 	Limit         int
 	Sort          string
+}
+
+// BusinessCustomerHistoryItem summarizes a customer that has prior orders for a business.
+type BusinessCustomerHistoryItem struct {
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Email       string     `json:"email"`
+	Phone       string     `json:"phone"`
+	Locale      string     `json:"locale"`
+	IsActive    bool       `json:"is_active"`
+	IsBanned    bool       `json:"is_banned"`
+	OrderCount  int64      `json:"order_count"`
+	LastOrderAt *time.Time `json:"last_order_at,omitempty"`
+}
+
+type businessCustomerHistoryRow struct {
+	CustomerID  string     `gorm:"column:customer_id"`
+	OrderCount  int64      `gorm:"column:order_count"`
+	LastOrderAt *time.Time `gorm:"column:last_order_at"`
+}
+
+// ListBusinessCustomerHistory returns distinct customers who have at least one non-draft order for a business.
+func (s *OrderService) ListBusinessCustomerHistory(ctx context.Context, businessID string, query string, page, limit int) ([]BusinessCustomerHistoryItem, int64, error) {
+	trimmedBusinessID := strings.TrimSpace(businessID)
+	if trimmedBusinessID == "" {
+		return nil, 0, errors.New("business_id is required")
+	}
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	search := strings.TrimSpace(query)
+	baseSQL := `
+		FROM orders o
+		JOIN customers c ON c.id = o.customer_id
+		WHERE o.business_id = ?
+		  AND o.customer_id IS NOT NULL
+		  AND o.status <> 'draft'
+	`
+	args := []any{trimmedBusinessID}
+	if search != "" {
+		like := "%" + search + "%"
+		baseSQL += ` AND (c.name ILIKE ? OR c.email ILIKE ? OR c.phone ILIKE ? OR c.id = ?)`
+		args = append(args, like, like, like, search)
+	}
+
+	var total int64
+	countSQL := `SELECT COUNT(*) FROM (SELECT o.customer_id ` + baseSQL + ` GROUP BY o.customer_id) AS customer_history`
+	if err := s.DB.WithContext(ctx).Raw(countSQL, args...).Scan(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var rows []businessCustomerHistoryRow
+	listSQL := `
+		SELECT
+			o.customer_id AS customer_id,
+			COUNT(*) AS order_count,
+			MAX(COALESCE(o.placed_at, o.created_at)) AS last_order_at
+		` + baseSQL + `
+		GROUP BY o.customer_id
+		ORDER BY MAX(COALESCE(o.placed_at, o.created_at)) DESC, o.customer_id ASC
+		LIMIT ? OFFSET ?
+	`
+	listArgs := append(args, limit, (page-1)*limit)
+	if err := s.DB.WithContext(ctx).Raw(listSQL, listArgs...).Scan(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+
+	customerIDs := make([]string, 0, len(rows))
+	for _, row := range rows {
+		customerIDs = append(customerIDs, row.CustomerID)
+	}
+
+	var customers []authmodels.Customer
+	if len(customerIDs) > 0 {
+		if err := s.DB.WithContext(ctx).Where("id IN ?", customerIDs).Find(&customers).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+	customerByID := make(map[string]authmodels.Customer, len(customers))
+	for _, customer := range customers {
+		customerByID[customer.ID] = customer
+	}
+
+	items := make([]BusinessCustomerHistoryItem, 0, len(rows))
+	for _, row := range rows {
+		customer, ok := customerByID[row.CustomerID]
+		if !ok {
+			continue
+		}
+		items = append(items, BusinessCustomerHistoryItem{
+			ID:          customer.ID,
+			Name:        customer.Name,
+			Email:       customer.Email,
+			Phone:       customer.Phone,
+			Locale:      customer.Locale,
+			IsActive:    customer.IsActive,
+			IsBanned:    customer.IsBanned,
+			OrderCount:  row.OrderCount,
+			LastOrderAt: row.LastOrderAt,
+		})
+	}
+
+	return items, total, nil
 }
 
 // ListOrders returns orders matching the provided filter and total count.

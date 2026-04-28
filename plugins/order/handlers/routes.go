@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	authhandlers "go_framework/plugins/auth/handlers"
 	authservices "go_framework/plugins/auth/services"
 	"go_framework/plugins/order/services"
 	pluginregistry "go_framework/plugins/plugin_registry"
@@ -47,6 +48,8 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 
 	// payment handlers
 	paymentHandler := NewPaymentHandler(s.Payment)
+	memberOrderHandler := NewMemberOrderHandler(s.Order, s.Payment, s.Catalog, authSvc)
+	memberShipmentHandler := NewMemberShipmentHandler(s.Shipment, s.Order, s.Catalog)
 	adminPayment := adminOrder.Group("/payments")
 	adminPayment.POST("", paymentHandler.Create)
 	adminPayment.POST("/:id/status", paymentHandler.UpdateStatus)
@@ -112,6 +115,34 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	customerOrder.POST("/me/:id/start-payment", orderHandler.MeStartPayment)
 	customerOrder.GET("/me/:id/payments/:payment_id/proofs", orderHandler.MeListPaymentProofs)
 	customerOrder.GET("/me/:id/payments/:payment_id/proofs/:proof_id/access", orderHandler.MePaymentProofAccess)
+
+	memberOrder := api.Group("/member")
+	memberOrder.Use(authhandlers.RequireMemberJWT())
+	memberBusinessOrders := memberOrder.Group("/businesses/:business_id/orders")
+	memberBusinessReports := memberOrder.Group("/businesses/:business_id/reports")
+	memberBusinessOrders.GET("", memberOrderHandler.List)
+	memberBusinessOrders.GET("/customers", memberOrderHandler.ListCustomers)
+	memberBusinessOrders.POST("", memberOrderHandler.CreateDraft)
+	memberBusinessOrders.GET("/:id", memberOrderHandler.GetByID)
+	memberBusinessOrders.GET("/:id/invoice", memberOrderHandler.DownloadInvoice)
+	memberBusinessOrders.PATCH("/:id", memberOrderHandler.Update)
+	memberBusinessOrders.POST("/:id/items", memberOrderHandler.AddItem)
+	memberBusinessOrders.DELETE("/:id/items/:item_id", memberOrderHandler.DeleteItem)
+	memberBusinessOrders.POST("/:id/items/:item_id/discount", memberOrderHandler.ApplyItemDiscount)
+	memberBusinessOrders.DELETE("/:id/items/:item_id/discount", memberOrderHandler.RemoveItemDiscount)
+	memberBusinessOrders.POST("/:id/finalize", memberOrderHandler.Finalize)
+	memberBusinessOrders.POST("/:id/coupon", memberOrderHandler.ApplyCoupon)
+	memberBusinessOrders.DELETE("/:id/coupon/:code", memberOrderHandler.RemoveCoupon)
+	memberBusinessOrders.POST("/:id/shipping-address", memberOrderHandler.UpdateShippingAddress)
+	memberBusinessOrders.PUT("/:id/extra-charges", memberOrderHandler.ReplaceExtraCharges)
+	memberBusinessOrders.PUT("/:id/shipping", memberOrderHandler.UpdateShippingQuote)
+	memberBusinessOrders.GET("/:id/shipments", memberShipmentHandler.ListShipments)
+	memberBusinessOrders.GET("/:id/shippable-items", memberShipmentHandler.ShippableItems)
+	memberBusinessOrders.POST("/:id/shipments", memberShipmentHandler.CreateShipment)
+	memberBusinessReports.GET("/pdf", memberOrderHandler.DownloadReportPDF)
+	memberBusinessOrders.GET("/:id/shipments/:shipment_id", memberShipmentHandler.GetShipment)
+	memberBusinessOrders.PATCH("/:id/shipments/:shipment_id", memberShipmentHandler.UpdateShipment)
+	memberBusinessOrders.DELETE("/:id/shipments/:shipment_id", memberShipmentHandler.DeleteShipment)
 
 	// Server-to-server callback endpoint — payload is AES-GCM encrypted with shared S2S_KEY.
 	callbackHandler := NewCallbackHandler(s.Order)
