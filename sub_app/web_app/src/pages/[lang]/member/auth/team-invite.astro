@@ -1,0 +1,18 @@
+---
+import "../../../../styles/front.css";
+import MemberTeamInvitePage from "../../../../components/member/auth/MemberTeamInvitePage";
+
+const locale = Astro.params.lang ?? "id";
+export const prerender = false;
+---
+
+<html lang={locale}>
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width" />
+		<title>Team Invitation | GoSeller</title>
+	</head>
+	<body class="bg-[#f7f7f5]">
+		<MemberTeamInvitePage client:only="react" locale={locale} />
+	</body>
+</html>

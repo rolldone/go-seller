@@ -8,9 +8,10 @@ type Props = {
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   onClose: () => void;
+  businessID?: string | null;
 };
 
-const ProductPickerModal = ({ open, selectedIds, onChange, onClose }: Props) => {
+const ProductPickerModal = ({ open, selectedIds, onChange, onClose, businessID }: Props) => {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -30,6 +31,7 @@ const ProductPickerModal = ({ open, selectedIds, onChange, onClose }: Props) => 
     try {
       const res = await listProducts({
         q: query,
+        business_id: businessID || undefined,
         page,
         limit,
       });
@@ -40,7 +42,7 @@ const ProductPickerModal = ({ open, selectedIds, onChange, onClose }: Props) => 
     } finally {
       setLoading(false);
     }
-  }, [limit, open, page, query]);
+  }, [businessID, limit, open, page, query]);
 
   useEffect(() => {
     if (!open) {

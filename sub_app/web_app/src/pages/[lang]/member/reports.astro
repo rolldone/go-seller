@@ -1,0 +1,11 @@
+---
+import MemberLayout from "../../../layouts/MemberLayout.astro";
+import ReportsPage from "../../../components/member/reports/ReportsPage";
+
+const locale = Astro.params.lang === "en" ? "en" : "id";
+export const prerender = false;
+---
+
+<MemberLayout title={locale === "en" ? "Reports" : "Laporan"} subtitle={locale === "en" ? "Store performance and order overview." : "Ringkasan performa toko dan order."} locale={locale}>
+	<ReportsPage client:load locale={locale} />
+</MemberLayout>

@@ -4,6 +4,7 @@ export type Business = {
 	id: string;
 	name: string;
 	slug: string;
+	member_invited?: boolean;
 	short_description?: string | null;
 	description?: string | null;
 	description_html?: string | null;

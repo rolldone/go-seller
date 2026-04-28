@@ -5,6 +5,7 @@ export type Coupon = {
   id: string;
   code: string;
   name: string;
+  business_id?: string | null;
   category: CouponCategory;
   description?: string | null;
   discount_type: CouponType;
@@ -34,6 +35,7 @@ export type CouponListParams = {
   q?: string;
   product_id?: string;
   customer_id?: string;
+  business_id?: string;
   is_active?: "true" | "false" | "";
   page: number;
   limit: number;
@@ -42,6 +44,7 @@ export type CouponListParams = {
 export type CouponPayload = {
   code: string;
   name: string;
+  business_id?: string | null;
   category: CouponCategory;
   description?: string;
   discount_type: CouponType;

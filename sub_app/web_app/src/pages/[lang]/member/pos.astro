@@ -1,0 +1,11 @@
+---
+import MemberLayout from "../../../layouts/MemberLayout.astro";
+import PosPage from "../../../components/member/pos/PosPage";
+
+const locale = Astro.params.lang === "en" ? "en" : "id";
+export const prerender = false;
+---
+
+<MemberLayout title={locale === "en" ? "POS" : "POS"} subtitle={locale === "en" ? "Draft order builder for members." : "Draft order builder untuk member."} locale={locale}>
+	<PosPage client:load />
+</MemberLayout>

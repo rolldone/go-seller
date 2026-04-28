@@ -1,0 +1,10 @@
+---
+import MemberLayout from "../../../layouts/MemberLayout.astro";
+import BusinessDiscountsPage from "../../../components/member/business-discounts/BusinessDiscountsPage";
+
+const { lang } = Astro.params;
+---
+
+<MemberLayout title="Diskon Toko" subtitle="Kelola discount yang terikat ke business milikmu." locale={lang}>
+	<BusinessDiscountsPage client:load />
+</MemberLayout>

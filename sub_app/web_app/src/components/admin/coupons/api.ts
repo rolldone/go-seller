@@ -6,6 +6,7 @@ export async function listCoupons(params: CouponListParams): Promise<CouponListR
   if (params.q) query.set("q", params.q);
   if (params.product_id) query.set("product_id", params.product_id);
   if (params.customer_id) query.set("customer_id", params.customer_id);
+  if (params.business_id) query.set("business_id", params.business_id);
   if (params.is_active) query.set("is_active", params.is_active);
   query.set("page", String(params.page));
   query.set("limit", String(params.limit));

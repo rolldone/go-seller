@@ -4,6 +4,7 @@ export type Discount = {
   id: string;
   name: string;
   description?: string;
+  business_id?: string | null;
   discount_type: DiscountType;
   discount_value: number;
   product_ids?: string[];
@@ -27,6 +28,7 @@ export type Discount = {
 export type DiscountPayload = {
   name: string;
   description?: string;
+  business_id?: string | null;
   discount_type: DiscountType;
   discount_value: number;
   product_ids?: string[];
@@ -49,6 +51,7 @@ export type DiscountListParams = {
   q?: string;
   is_active?: "true" | "false" | "";
   product_id?: string;
+  business_id?: string;
   page: number;
   limit: number;
 };

@@ -27,21 +27,23 @@ export default function MemberModal({ open, isOpen, title, onClose, maxWidth = "
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-3 sm:items-center"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/40 p-3 overflow-y-auto"
       style={{ paddingTop: "4vh" }}
     >
-      <div ref={panelRef} className={`flex max-h-[80vh] w-full flex-col rounded-xl bg-white shadow-lg ${maxWidthClass[maxWidth]}`} role="dialog" aria-modal="true">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
+      <div ref={panelRef} className={`w-full rounded-xl bg-white shadow-lg ${maxWidthClass[maxWidth]} flex flex-col max-h-[80vh]`} role="dialog" aria-modal="true">
+        <div className="sticky top-0 z-10 p-5 border-b border-slate-100 flex items-center justify-between bg-white">
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
           <button type="button" onClick={onClose} className="rounded bg-slate-100 px-2 py-1 text-sm text-slate-700 hover:bg-slate-200">
             Close
           </button>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-5">{children}</div>
+        <div className="p-5 overflow-y-auto flex-1 min-h-0">
+          {children}
+        </div>
 
         {footer ? (
-          <div className="sticky bottom-0 z-10 border-t border-slate-100 bg-white p-4">
+          <div className="sticky bottom-0 z-10 border-t border-slate-100 p-4 bg-white">
             <div className="flex justify-end gap-2">{footer}</div>
           </div>
         ) : null}

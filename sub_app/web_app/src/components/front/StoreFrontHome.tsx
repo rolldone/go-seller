@@ -20,7 +20,7 @@ export default function StoreFrontHome({ customerSession = null, locale, initial
         <BusinessPageNav business={null} customerSession={customerSession} locale={locale} initialBusinesses={initialBusinesses} />
 
         <main className="mt-8 flex-1 space-y-10 pb-8">
-          <HomeHeroSection locale={locale} />
+          <HomeHeroSection locale={locale} customerSession={customerSession} />
           <HomeFeaturedStoresSection />
           <HomeFeaturedProductsSection />
           <HomeCategoryProductsSection />

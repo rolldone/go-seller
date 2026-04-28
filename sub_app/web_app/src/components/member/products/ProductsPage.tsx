@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
-import { buildLocalizedPath } from "../../../lib/siteLocale";
 import { formatAmount } from "../../../lib/amountFormat";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import ProductDeleteModal from "./ProductDeleteModal";
-import ProductFormModal from "./ProductFormModal";
 import ProductTranslationsModal from "./ProductTranslationsModal";
-import { createMemberProduct, deleteMemberProduct, listMemberBusinesses, listMemberProducts, publishMemberProduct, unpublishMemberProduct, updateMemberProduct } from "./api";
-import type { BusinessOption, Product, ProductListResponse, ProductPayload } from "./types";
+import ProductFormModal from "./ProductFormModal.tsx";
+import ProductDiscountsModal from "../discounts/ProductDiscountsModal";
+import { createMemberProduct, deleteMemberProduct, listMemberBusinesses, listMemberCategories, listMemberProducts, listMemberTags, publishMemberProduct, unpublishMemberProduct, updateMemberProduct } from "./api";
+import type { BusinessOption, CategoryOption, Product, ProductPayload, TagOption } from "./types";
 
 const perPageOptions = [10, 20, 50];
 
 export default function MemberProductsPage() {
-	const locale = typeof window !== "undefined" && window.location.pathname.startsWith("/en/") ? "en" : typeof window !== "undefined" && window.location.pathname.startsWith("/id/") ? "id" : undefined;
 	const [items, setItems] = useState<Product[]>([]);
 	const [total, setTotal] = useState(0);
 	const [loading, setLoading] = useState(true);
@@ -23,10 +23,16 @@ export default function MemberProductsPage() {
 	const [status, setStatus] = useState("");
 	const [stockStatus, setStockStatus] = useState("");
 	const [businessID, setBusinessID] = useState("");
+	const [categoryID, setCategoryID] = useState("");
+	const [tagID, setTagID] = useState("");
 	const [productType, setProductType] = useState("");
 	const [visible, setVisible] = useState<"" | "true" | "false">("");
 	const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
 	const [businessNameByID, setBusinessNameByID] = useState<Record<string, string>>({});
+	const [categories, setCategories] = useState<CategoryOption[]>([]);
+	const [categoryNameByID, setCategoryNameByID] = useState<Record<string, string>>({});
+	const [tags, setTags] = useState<TagOption[]>([]);
+	const [tagNameByID, setTagNameByID] = useState<Record<string, string>>({});
 	const [selected, setSelected] = useState<Product | null>(null);
 	const [formOpen, setFormOpen] = useState(false);
 	const [formMode, setFormMode] = useState<"create" | "edit">("create");
@@ -34,8 +40,56 @@ export default function MemberProductsPage() {
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [translationOpen, setTranslationOpen] = useState(false);
 	const [translationProduct, setTranslationProduct] = useState<Product | null>(null);
+	const [discountsOpen, setDiscountsOpen] = useState(false);
+	const [discountProduct, setDiscountProduct] = useState<Product | null>(null);
+	const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
+	const [menuCoords, setMenuCoords] = useState<{ top: number; left: number } | null>(null);
 
 	const totalPages = Math.max(1, Math.ceil(total / limit));
+
+	useEffect(() => {
+		const onDocClick = () => setOpenMenuFor(null);
+		document.addEventListener("click", onDocClick);
+		return () => document.removeEventListener("click", onDocClick);
+	}, []);
+
+	useEffect(() => {
+		if (!openMenuFor) return;
+		const update = () => {
+			const btn = document.querySelector(`[data-menu-button="${openMenuFor}"]`) as HTMLElement | null;
+			if (!btn) {
+				setOpenMenuFor(null);
+				setMenuCoords(null);
+				return;
+			}
+			const rect = btn.getBoundingClientRect();
+			const MENU_WIDTH = 160;
+			const top = rect.bottom + window.scrollY + 8;
+			const left = rect.right + window.scrollX - MENU_WIDTH;
+			setMenuCoords({ top, left });
+		};
+
+		update();
+
+		const onScroll = () => update();
+		const onResize = () => update();
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				setOpenMenuFor(null);
+				setMenuCoords(null);
+			}
+		};
+
+		window.addEventListener("scroll", onScroll, true);
+		window.addEventListener("resize", onResize);
+		document.addEventListener("keydown", onKey);
+
+		return () => {
+			window.removeEventListener("scroll", onScroll, true);
+			window.removeEventListener("resize", onResize);
+			document.removeEventListener("keydown", onKey);
+		};
+	}, [openMenuFor]);
 
 	useEffect(() => {
 		if (typeof window === "undefined") return;
@@ -43,11 +97,15 @@ export default function MemberProductsPage() {
 		const bid = params.get("business_id") || "";
 		const st = params.get("status") || "";
 		const stock = params.get("stock_status") || "";
+		const cid = params.get("category_id") || "";
+		const tid = params.get("tag_id") || "";
 		const pt = params.get("product_type") || "";
 		const vis = params.get("is_visible") || "";
 		if (bid) setBusinessID(bid);
 		if (st) setStatus(st);
 		if (stock) setStockStatus(stock);
+		if (cid) setCategoryID(cid);
+		if (tid) setTagID(tid);
 		if (pt) setProductType(pt);
 		if (vis === "true" || vis === "false") setVisible(vis);
 	}, []);
@@ -58,12 +116,14 @@ export default function MemberProductsPage() {
 		if (businessID) params.set("business_id", businessID); else params.delete("business_id");
 		if (status) params.set("status", status); else params.delete("status");
 		if (stockStatus) params.set("stock_status", stockStatus); else params.delete("stock_status");
+		if (categoryID) params.set("category_id", categoryID); else params.delete("category_id");
+		if (tagID) params.set("tag_id", tagID); else params.delete("tag_id");
 		if (productType) params.set("product_type", productType); else params.delete("product_type");
 		if (visible) params.set("is_visible", visible); else params.delete("is_visible");
 		const query = params.toString();
 		const nextUrl = query ? `${window.location.pathname}?${query}` : window.location.pathname;
 		window.history.replaceState(null, "", nextUrl);
-	}, [businessID, status, stockStatus, productType, visible]);
+	}, [businessID, status, stockStatus, categoryID, tagID, productType, visible]);
 
 	const loadData = async () => {
 		setLoading(true);
@@ -74,6 +134,8 @@ export default function MemberProductsPage() {
 				status,
 				stock_status: stockStatus,
 				business_id: businessID,
+				category_id: categoryID,
+				tag_id: tagID,
 				product_type: productType,
 				is_visible: visible,
 				page,
@@ -90,7 +152,7 @@ export default function MemberProductsPage() {
 
 	useEffect(() => {
 		void loadData();
-	}, [page, limit, q, status, stockStatus, businessID, productType, visible]);
+	}, [page, limit, q, status, stockStatus, businessID, categoryID, tagID, productType, visible]);
 
 	useEffect(() => {
 		void (async () => {
@@ -106,6 +168,36 @@ export default function MemberProductsPage() {
 			} catch {
 				setBusinesses([]);
 				setBusinessNameByID({});
+			}
+		})();
+	}, []);
+
+	useEffect(() => {
+		void (async () => {
+			try {
+				const rows = await listMemberCategories();
+				const map: Record<string, string> = {};
+				for (const category of rows) map[category.id] = category.name;
+				setCategories(rows);
+				setCategoryNameByID(map);
+			} catch {
+				setCategories([]);
+				setCategoryNameByID({});
+			}
+		})();
+	}, []);
+
+	useEffect(() => {
+		void (async () => {
+			try {
+				const rows = await listMemberTags();
+				const map: Record<string, string> = {};
+				for (const tag of rows) map[tag.id] = tag.name;
+				setTags(rows);
+				setTagNameByID(map);
+			} catch {
+				setTags([]);
+				setTagNameByID({});
 			}
 		})();
 	}, []);
@@ -132,6 +224,11 @@ export default function MemberProductsPage() {
 	const handleTranslations = (item: Product) => {
 		setTranslationProduct(item);
 		setTranslationOpen(true);
+	};
+
+	const handleDiscounts = (item: Product) => {
+		setDiscountProduct(item);
+		setDiscountsOpen(true);
 	};
 
 	const handleSubmit = async (payload: ProductPayload, productID?: string): Promise<Product> => {
@@ -197,6 +294,32 @@ export default function MemberProductsPage() {
 
 	const rows = useMemo(() => items, [items]);
 
+	const clearFilters = () => {
+		setPage(1);
+		setQ("");
+		setStatus("");
+		setStockStatus("");
+		setBusinessID("");
+		setCategoryID("");
+		setTagID("");
+		setProductType("");
+		setVisible("");
+	};
+
+	const renderLabels = (ids: string[] | undefined, map: Record<string, string>, fallback = "-") => {
+		if (!ids || ids.length === 0) return fallback;
+		const names = ids.map((id) => map[id] || id);
+		const visibleNames = names.slice(0, 3);
+		return (
+			<div className="flex flex-wrap gap-1">
+				{visibleNames.map((name) => (
+					<span key={name} className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{name}</span>
+				))}
+				{names.length > visibleNames.length ? <span className="text-xs text-slate-400">+{names.length - visibleNames.length}</span> : null}
+			</div>
+		);
+	};
+
 	return (
 		<div className="space-y-4">
 			<div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -215,7 +338,7 @@ export default function MemberProductsPage() {
 			</div>
 
 			<div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-				<div className="grid gap-4 lg:grid-cols-4">
+				<div className="grid gap-4 lg:grid-cols-4 xl:grid-cols-5">
 					<label className="space-y-2 text-sm">
 						<span className="font-medium text-slate-700">Search</span>
 						<input className="w-full rounded-lg border border-slate-300 px-3 py-2" value={q} onChange={(e) => { setPage(1); setQ(e.target.value); }} placeholder="Search products" />
@@ -245,6 +368,20 @@ export default function MemberProductsPage() {
 						</select>
 					</label>
 					<label className="space-y-2 text-sm">
+						<span className="font-medium text-slate-700">Category</span>
+						<select className="w-full rounded-lg border border-slate-300 px-3 py-2" value={categoryID} onChange={(e) => { setPage(1); setCategoryID(e.target.value); }}>
+							<option value="">All categories</option>
+							{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+						</select>
+					</label>
+					<label className="space-y-2 text-sm">
+						<span className="font-medium text-slate-700">Tag</span>
+						<select className="w-full rounded-lg border border-slate-300 px-3 py-2" value={tagID} onChange={(e) => { setPage(1); setTagID(e.target.value); }}>
+							<option value="">All tags</option>
+							{tags.map((tag) => <option key={tag.id} value={tag.id}>{tag.name}</option>)}
+						</select>
+					</label>
+					<label className="space-y-2 text-sm">
 						<span className="font-medium text-slate-700">Type</span>
 						<select className="w-full rounded-lg border border-slate-300 px-3 py-2" value={productType} onChange={(e) => { setPage(1); setProductType(e.target.value); }}>
 							<option value="">All types</option>
@@ -269,7 +406,7 @@ export default function MemberProductsPage() {
 					</label>
 				</div>
 				<div className="mt-4 flex justify-end">
-					<button type="button" onClick={() => { setPage(1); setQ(""); setStatus(""); setStockStatus(""); setBusinessID(""); setProductType(""); setVisible(""); }} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+						<button type="button" onClick={clearFilters} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
 						Reset Filters
 					</button>
 				</div>
@@ -291,6 +428,8 @@ export default function MemberProductsPage() {
 								<th className="px-3 py-2">Price</th>
 								<th className="px-3 py-2">Type</th>
 								<th className="px-3 py-2">Business</th>
+								<th className="px-3 py-2">Categories</th>
+								<th className="px-3 py-2">Tags</th>
 								<th className="px-3 py-2">Status</th>
 								<th className="px-3 py-2">Visible</th>
 								<th className="px-3 py-2">Updated</th>
@@ -308,15 +447,54 @@ export default function MemberProductsPage() {
 									<td className="px-3 py-2 text-slate-800">{formatAmount(item.price, { fractionDigits: 0 })}</td>
 									<td className="px-3 py-2 text-slate-700"><span className="rounded bg-slate-50 px-2 py-0.5 text-xs text-slate-800 capitalize">{item.product_type || "product"}</span></td>
 									<td className="px-3 py-2 text-slate-700">{item.business_id ? <span className="rounded bg-amber-50 px-2 py-0.5 text-xs text-amber-800">{businessNameByID[item.business_id] || item.business_id}</span> : <span className="text-xs text-slate-400">-</span>}</td>
+									<td className="px-3 py-2 text-slate-700">{renderLabels(item.category_ids, categoryNameByID)}</td>
+									<td className="px-3 py-2 text-slate-700">{renderLabels(item.tag_ids, tagNameByID)}</td>
 									<td className="px-3 py-2 text-slate-700">{item.status}</td>
 									<td className="px-3 py-2 text-slate-700">{item.is_visible ? "Yes" : "No"}</td>
 									<td className="px-3 py-2 text-slate-700">{new Date(item.updated_at).toLocaleString()}</td>
 									<td className="px-3 py-2">
-										<div className="flex flex-wrap gap-2">
-											<button type="button" onClick={() => handleEdit(item)} className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">Edit</button>
-											<button type="button" onClick={() => handleTranslations(item)} className="rounded bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-200">Translation</button>
-											<button type="button" onClick={() => void handleTogglePublish(item)} className="rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200">{item.status === "published" ? "Unpublish" : "Publish"}</button>
-											<button type="button" onClick={() => handleDelete(item)} className="rounded bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-200">Delete</button>
+										<div className="relative inline-block">
+											<button
+												data-menu-button={item.id}
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													const btn = e.currentTarget as HTMLElement;
+													if (openMenuFor === item.id) {
+														setOpenMenuFor(null);
+														setMenuCoords(null);
+														return;
+													}
+													const rect = btn.getBoundingClientRect();
+													const MENU_WIDTH = 160;
+													const top = rect.bottom + window.scrollY + 8;
+													const left = rect.right + window.scrollX - MENU_WIDTH;
+													setMenuCoords({ top, left });
+													setOpenMenuFor(item.id);
+												}}
+												className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+												aria-haspopup="true"
+												aria-expanded={openMenuFor === item.id}
+											>
+												⋯
+											</button>
+
+											{openMenuFor === item.id && menuCoords && typeof document !== "undefined"
+												? createPortal(
+													<div
+														onClick={(e) => e.stopPropagation()}
+														style={{ position: "absolute", top: menuCoords.top, left: menuCoords.left, width: 160 }}
+														className="z-50 rounded-lg border border-slate-200 bg-white shadow-sm"
+													>
+														<button type="button" onClick={() => { handleEdit(item); setOpenMenuFor(null); setMenuCoords(null); }} className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">Edit</button>
+														<button type="button" onClick={() => { void handleTogglePublish(item); setOpenMenuFor(null); setMenuCoords(null); }} className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50">{item.status === "published" ? "Unpublish" : "Publish"}</button>
+														<button type="button" onClick={() => { handleDelete(item); setOpenMenuFor(null); setMenuCoords(null); }} className="w-full px-3 py-2 text-left text-sm text-rose-700 hover:bg-rose-50">Delete</button>
+														<button type="button" onClick={() => { handleDiscounts(item); setOpenMenuFor(null); setMenuCoords(null); }} className="w-full px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50">Discounts</button>
+														<button type="button" onClick={() => { handleTranslations(item); setOpenMenuFor(null); setMenuCoords(null); }} className="w-full rounded-b px-3 py-2 text-left text-sm text-sky-700 hover:bg-sky-50">Translation</button>
+													</div>,
+													document.body,
+												)
+												: null}
 										</div>
 									</td>
 								</tr>
@@ -336,9 +514,10 @@ export default function MemberProductsPage() {
 				</div>
 			</div>
 
-			<ProductFormModal open={formOpen} mode={formMode} initialData={selected} businesses={businesses} submitting={submitting} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} />
+			<ProductFormModal open={formOpen} mode={formMode} initialData={selected} businesses={businesses} categories={categories} tags={tags} submitting={submitting} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} />
 			<ProductDeleteModal open={deleteOpen} product={selected} submitting={submitting} onClose={() => setDeleteOpen(false)} onConfirm={handleConfirmDelete} />
 			<ProductTranslationsModal open={translationOpen} product={translationProduct} onClose={() => setTranslationOpen(false)} />
+			<ProductDiscountsModal open={discountsOpen} product={discountProduct} onClose={() => setDiscountsOpen(false)} />
 		</div>
 	);
 }

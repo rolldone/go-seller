@@ -6,6 +6,7 @@ export async function listDiscounts(params: DiscountListParams): Promise<Discoun
   if (params.q) query.set("q", params.q);
   if (params.is_active !== undefined) query.set("is_active", params.is_active);
   if (params.product_id) query.set("product_id", params.product_id);
+  if (params.business_id) query.set("business_id", params.business_id);
   query.set("page", String(params.page));
   query.set("limit", String(params.limit));
 

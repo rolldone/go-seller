@@ -1,0 +1,10 @@
+---
+import MemberLayout from "../../layouts/MemberLayout.astro";
+import ReportsPage from "../../components/member/reports/ReportsPage";
+
+const locale = "id";
+---
+
+<MemberLayout title="Laporan" subtitle="Ringkasan performa toko dan order." locale={locale}>
+	<ReportsPage client:load locale={locale} />
+</MemberLayout>

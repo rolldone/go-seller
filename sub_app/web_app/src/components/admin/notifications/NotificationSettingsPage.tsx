@@ -21,6 +21,11 @@ type NotificationTemplate = {
   body: string;
 };
 
+const LEGACY_TEMPLATE_IDS: Record<string, string[]> = {
+  team_member_invited_member: ["team_member_invited_admin"],
+  team_member_suspended_member: ["team_member_suspended_admin"],
+};
+
 const LOCALES: Array<{ value: Locale; label: string }> = [
   { value: "id", label: "Indonesia (id)" },
   { value: "en", label: "English (en)" },
@@ -101,6 +106,18 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     description: "Notifikasi saat setup member gagal.",
   },
   {
+    id: "team_member_invited_member",
+    name: "Team Member Invited",
+    audience: "member",
+    description: "Notifikasi email undangan untuk member.",
+  },
+  {
+    id: "team_member_suspended_member",
+    name: "Team Member Suspended",
+    audience: "member",
+    description: "Notifikasi email saat akses member ditangguhkan.",
+  },
+  {
     id: "subscription_confirmation_customer",
     name: "Subscription Confirmation",
     audience: "customer",
@@ -173,6 +190,20 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       body:
         "Setup member gagal untuk {{.full_name}} ({{.member_email}}) pada business {{.business_name}}. Status: {{.setup_status}}. Pesan: {{.setup_message}}.",
     },
+    team_member_invited_member: {
+      enabled: true,
+      recipients: "{{.member_email}}",
+      subject: "[Undangan Tim] {{.business_name}}",
+      body:
+        "Halo {{.member_name}}, kamu diundang untuk bergabung ke {{.business_name}} sebagai {{.role}}. Klik tautan berikut untuk menerima undangan: {{.invite_url}}.",
+    },
+    team_member_suspended_member: {
+      enabled: true,
+      recipients: "{{.member_email}}",
+      subject: "[Akses Ditangguhkan] {{.business_name}}",
+      body:
+        "Halo {{.member_name}}, akses team kamu di {{.business_name}} telah ditangguhkan. Alasan: {{.reason}}. Jika ini terasa keliru, silakan hubungi tim yang mengundangmu.",
+    },
     subscription_confirmation_customer: {
       enabled: true,
       recipients: "{{.email}}",
@@ -244,6 +275,20 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       body:
         "Member setup failed for {{.full_name}} ({{.member_email}}) in {{.business_name}}. Status: {{.setup_status}}. Message: {{.setup_message}}.",
     },
+    team_member_invited_member: {
+      enabled: true,
+      recipients: "{{.member_email}}",
+      subject: "[Team Invite] {{.business_name}}",
+      body:
+        "Hi {{.member_name}}, you have been invited to join {{.business_name}} as {{.role}}. Click here to accept the invitation: {{.invite_url}}.",
+    },
+    team_member_suspended_member: {
+      enabled: true,
+      recipients: "{{.member_email}}",
+      subject: "[Access Suspended] {{.business_name}}",
+      body:
+        "Hi {{.member_name}}, your team access for {{.business_name}} has been suspended. Reason: {{.reason}}. If you think this is a mistake, please contact the inviter.",
+    },
     subscription_confirmation_customer: {
       enabled: true,
       recipients: "{{.email}}",
@@ -258,9 +303,16 @@ const placeholders = [
   "{{.customer_name}}",
   "{{.customer_email}}",
   "{{.full_name}}",
+  "{{.member_name}}",
   "{{.member_email}}",
   "{{.business_name}}",
   "{{.business_slug}}",
+  "{{.role}}",
+  "{{.invited_by_name}}",
+  "{{.invited_by_email}}",
+  "{{.invite_url}}",
+  "{{.reason}}",
+  "{{.status}}",
   "{{.payment_status}}",
   "{{.grand_total}}",
   "{{.currency}}",
@@ -290,6 +342,12 @@ const DEFAULT_TEST_VARS = {
   member_email: "member@example.com",
   business_name: "Go Seller",
   business_slug: "go-seller",
+  member_name: "Test Member",
+  role: "Editor",
+  invited_by_name: "Owner Name",
+  invited_by_email: "owner@example.com",
+  invite_url: "https://example.com/member/auth/team-invite?token=TEST-INVITE-TOKEN",
+  reason: "access suspended for review",
   order_link: "/admin/orders",
   login_url: "https://example.com/login",
   activation_url: "https://example.com/activate?token=TEST-ACTIVATION-TOKEN",
@@ -337,6 +395,15 @@ const coerceTemplate = (fallback: NotificationTemplate, item?: SettingItem): Not
     subject: typeof item.value.subject === "string" ? item.value.subject : fallback.subject,
     body: typeof item.value.body === "string" ? item.value.body : fallback.body,
   };
+};
+
+const resolveTemplateSetting = (settingMap: Map<string, SettingItem>, templateId: string, locale: Locale) => {
+  const candidates = [getSettingKey(templateId, locale), ...(LEGACY_TEMPLATE_IDS[templateId] || []).map((legacyId) => getSettingKey(legacyId, locale))];
+  for (const key of candidates) {
+    const item = settingMap.get(key);
+    if (item) return item;
+  }
+  return undefined;
 };
 
 export default function NotificationSettingsPage() {
@@ -400,12 +467,8 @@ export default function NotificationSettingsPage() {
       const settingMap = new Map(res.data.map((item) => [item.key, item]));
 
       const nextByLocale: Record<Locale, NotificationTemplate[]> = {
-        id: buildDefaults("id").map((template) =>
-          coerceTemplate(template, settingMap.get(getSettingKey(template.id, "id"))),
-        ),
-        en: buildDefaults("en").map((template) =>
-          coerceTemplate(template, settingMap.get(getSettingKey(template.id, "en"))),
-        ),
+        id: buildDefaults("id").map((template) => coerceTemplate(template, resolveTemplateSetting(settingMap, template.id, "id"))),
+        en: buildDefaults("en").map((template) => coerceTemplate(template, resolveTemplateSetting(settingMap, template.id, "en"))),
       };
 
       setTemplatesByLocale(nextByLocale);

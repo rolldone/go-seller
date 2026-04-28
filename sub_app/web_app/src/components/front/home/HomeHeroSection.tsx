@@ -1,18 +1,37 @@
 import { Sparkles } from "lucide-react";
+import type { CustomerSession } from "../../../lib/customerSession";
 import { buildLocalizedPath } from "../../../lib/siteLocale";
 
 interface HomeHeroSectionProps {
   locale?: string;
+  customerSession?: CustomerSession | null;
 }
 
-export default function HomeHeroSection({ locale }: HomeHeroSectionProps) {
+export default function HomeHeroSection({ locale, customerSession = null }: HomeHeroSectionProps) {
+  const customerHref = buildLocalizedPath(customerSession?.authenticated ? "/customer/dashboard" : "/customer/auth/login", locale);
+  const memberHref = buildLocalizedPath("/member/setup", locale);
+
   return (
     <section className="grid items-center gap-8 rounded-3xl border border-slate-200 bg-white px-6 py-8 shadow-sm md:grid-cols-[1.15fr_1fr] md:px-10 md:py-10">
       <div>
         <h1 className="max-w-xl text-3xl font-bold leading-tight text-slate-900 md:text-5xl">Temukan produk terbaik dari toko terpercaya</h1>
         <p className="mt-4 max-w-lg text-sm text-slate-600 md:text-base">Jelajahi berbagai produk pilihan dari partner terpercaya kami.</p>
-        <div className="mt-7 flex flex-wrap items-center gap-3">
-          <a href={buildLocalizedPath("/products", locale)} className="inline-flex rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700">Cari Produk</a>
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <a
+            href={customerHref}
+            className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700"
+          >
+            {customerSession?.authenticated ? "Masuk ke Customer" : "Masuk sebagai Customer"}
+          </a>
+          <a
+            href={memberHref}
+            className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 transition hover:border-emerald-300 hover:bg-emerald-50"
+          >
+            Setup Member
+          </a>
+          <a href={buildLocalizedPath("/products", locale)} className="inline-flex items-center justify-center rounded-xl px-2 py-3 text-sm font-medium text-slate-600 transition hover:text-slate-900">
+            Cari Produk dulu
+          </a>
         </div>
       </div>
 

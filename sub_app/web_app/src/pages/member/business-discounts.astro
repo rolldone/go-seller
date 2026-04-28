@@ -1,0 +1,8 @@
+---
+import MemberLayout from "../../layouts/MemberLayout.astro";
+import BusinessDiscountsPage from "../../components/member/business-discounts/BusinessDiscountsPage";
+---
+
+<MemberLayout title="Diskon Toko" subtitle="Kelola discount yang terikat ke business milikmu.">
+	<BusinessDiscountsPage client:load />
+</MemberLayout>

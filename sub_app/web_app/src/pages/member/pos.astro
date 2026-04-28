@@ -1,0 +1,10 @@
+---
+import MemberLayout from "../../layouts/MemberLayout.astro";
+import PosPage from "../../components/member/pos/PosPage";
+
+const locale = "id";
+---
+
+<MemberLayout title="POS" subtitle="Draft order builder untuk member." locale={locale}>
+	<PosPage client:load />
+</MemberLayout>
