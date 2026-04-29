@@ -9,7 +9,7 @@ interface HomeHeroSectionProps {
 
 export default function HomeHeroSection({ locale, customerSession = null }: HomeHeroSectionProps) {
   const customerHref = buildLocalizedPath(customerSession?.authenticated ? "/customer/dashboard" : "/customer/auth/login", locale);
-  const memberHref = buildLocalizedPath("/member/setup", locale);
+  const memberHref = buildLocalizedPath("/member/auth/login", locale);
 
   return (
     <section className="grid items-center gap-8 rounded-3xl border border-slate-200 bg-white px-6 py-8 shadow-sm md:grid-cols-[1.15fr_1fr] md:px-10 md:py-10">
@@ -27,7 +27,7 @@ export default function HomeHeroSection({ locale, customerSession = null }: Home
             href={memberHref}
             className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 transition hover:border-emerald-300 hover:bg-emerald-50"
           >
-            Setup Member
+            Masuk sebagai Member
           </a>
           <a href={buildLocalizedPath("/products", locale)} className="inline-flex items-center justify-center rounded-xl px-2 py-3 text-sm font-medium text-slate-600 transition hover:text-slate-900">
             Cari Produk dulu
