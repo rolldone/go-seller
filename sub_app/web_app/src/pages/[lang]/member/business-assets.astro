@@ -1,7 +1,8 @@
 ---
-import MemberLayout from "../../../../layouts/MemberLayout.astro";
-import MemberBusinessAssetsPage from "../../../../components/member/business-assets/BusinessAssetsPage";
+import MemberLayout from "../../../layouts/MemberLayout.astro";
+import MemberBusinessAssetsPage from "../../../components/member/business-assets/BusinessAssetsPage";
 
+export const prerender = false;
 const { lang } = Astro.params;
 ---
 

@@ -3,6 +3,7 @@ import MemberLayout from "../../../layouts/MemberLayout.astro";
 import TeamSettingsPage from "../../../components/member/team/TeamSettingsPage";
 
 const { lang } = Astro.params;
+export const prerender = false;
 ---
 
 <MemberLayout title="Team Settings" subtitle="Kelola anggota team untuk business milikmu." locale={lang}>

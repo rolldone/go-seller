@@ -3,6 +3,7 @@ import MemberLayout from "../../../layouts/MemberLayout.astro";
 import MemberProductsPage from "../../../components/member/products/ProductsPage";
 
 const { lang } = Astro.params;
+export const prerender = false;
 ---
 
 <MemberLayout title="Products" subtitle="Kelola product milik member" locale={lang}>

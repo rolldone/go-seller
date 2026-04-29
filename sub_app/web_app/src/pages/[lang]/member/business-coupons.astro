@@ -3,6 +3,7 @@ import MemberLayout from "../../../layouts/MemberLayout.astro";
 import BusinessCouponsPage from "../../../components/member/business-coupons/BusinessCouponsPage";
 
 const { lang } = Astro.params;
+export const prerender = false;
 ---
 
 <MemberLayout title="Voucher Toko" subtitle="Kelola voucher yang terikat ke business milikmu." locale={lang}>
