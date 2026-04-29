@@ -13,6 +13,9 @@ package main
 
 import (
 	"log"
+	"os"
+	"path/filepath"
+	"strconv"
 	"syscall"
 
 	"go_framework/internal/app"
@@ -33,6 +36,11 @@ func main() {
 	// Set permissive umask so created files/dirs are group-writable by default
 	syscall.Umask(0o002)
 
+	// Write PID file to repository root (overwrites pid.txt)
+	if err := writePidToRepoRoot("pid.txt"); err != nil {
+		log.Printf("warning: failed to write pid.txt: %v", err)
+	}
+
 	err := app.Run(app.Options{
 		RegisterPlugins: func() {
 			// Example: register user plugins here
@@ -44,4 +52,30 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to run server: %v", err)
 	}
+}
+
+// writePidToRepoRoot writes the current process PID into filename located in the
+// repository root (it searches parent directories for go.mod). If go.mod is not
+// found it falls back to the current working directory.
+func writePidToRepoRoot(filename string) error {
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	dir := wd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			break
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// reached filesystem root, fallback to cwd
+			dir = wd
+			break
+		}
+		dir = parent
+	}
+	pid := strconv.Itoa(os.Getpid()) + "\n"
+	path := filepath.Join(dir, filename)
+	return os.WriteFile(path, []byte(pid), 0644)
 }
