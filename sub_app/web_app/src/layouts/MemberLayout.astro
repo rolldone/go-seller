@@ -91,7 +91,7 @@ const groupedMenus = menuGroups
 								<ul class="space-y-1" data-group={group.key}>
 									{group.items.map((menu) => {
 											const isPosActive = menu.href === posPath && pathname === posPath;
-											const isActive = (menu.href === dashboardPath && pathname === dashboardPath) || (menu.href === ordersPath && pathname === ordersPath) || (menu.href === reportsPath && pathname === reportsPath) || (menu.href === businessesPath && pathname === businessesPath) || (menu.href === businessAssetsPath && pathname === businessAssetsPath) || (menu.href === businessDiscountsPath && pathname === businessDiscountsPath) || (menu.href === businessCouponsPath && pathname === businessCouponsPath) || (menu.href === teamPath && pathname === teamPath) || (menu.href === productsPath && pathname === productsPath) || isPosActive;
+											const isActive = (menu.href === dashboardPath && pathname === dashboardPath) || (menu.href === ordersPath && pathname === ordersPath) || (menu.href === reportsPath && pathname === reportsPath) || (menu.href === businessesPath && pathname === businessesPath) || (menu.href === businessAssetsPath && pathname === businessAssetsPath) || (menu.href === businessDiscountsPath && pathname === businessDiscountsPath) || (menu.href === businessCouponsPath && pathname === businessCouponsPath) || (menu.href === teamPath && pathname === teamPath) || (menu.href === productsPath && pathname === productsPath) || (menu.href === payoutsPath && pathname === payoutsPath) || isPosActive;
 										return (
 											<li>
 												<a
@@ -184,6 +184,15 @@ const groupedMenus = menuGroups
 															<circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
 															<path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2h.1a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9h.1a1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1v.1a1 1 0 0 0 .9.6H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6V15z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
 													</svg>
+													)}
+
+													{menu.icon === "payments" && (
+														<svg class="-mt-0.5 mr-2 inline h-4 w-4 text-current opacity-75" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+															<path d="M4 7h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5"/>
+															<path d="M4 11h17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+															<path d="M7 15h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+															<path d="M16 15h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+														</svg>
 													)}
 
 													{menu.icon === "support" && (
