@@ -132,7 +132,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 
 	const buildCategoryChain = (id: string): CategoryOption[] => {
 		const chain: CategoryOption[] = [];
-		let current = categoriesByID.get(id);
+		let current: CategoryOption | null = categoriesByID.get(id) || null;
 		let guard = 0;
 		while (current && guard < 20) {
 			guard += 1;
