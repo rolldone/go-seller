@@ -112,6 +112,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 				"email":           admin.Email,
 				"is_activated_at": admin.IsActivatedAt,
 				"is_banned":       admin.IsBanned,
+				"is_superadmin":   admin.IsSuperAdmin,
 			},
 		},
 	})
