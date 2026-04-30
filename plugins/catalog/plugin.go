@@ -149,6 +149,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	memberCatalog.PATCH("/businesses/:business_id/team/members/:member_id/role", teamHandler.UpdateMemberRole)
 	memberCatalog.PATCH("/businesses/:business_id/team/members/:member_id/status", teamHandler.UpdateMemberStatus)
 	memberCatalog.DELETE("/businesses/:business_id/team/members/:member_id", teamHandler.DeleteMember)
+
 	memberCatalog.POST("/businesses/:business_id/disclaimers", businessDisclaimerHandler.MemberCreate)
 	memberCatalog.GET("/businesses/:business_id/disclaimers", businessDisclaimerHandler.MemberList)
 	memberCatalog.GET("/businesses/:business_id/disclaimers/:disclaimer_id", businessDisclaimerHandler.MemberGetByID)

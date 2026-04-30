@@ -101,9 +101,12 @@ func (s *CatalogService) ListBusinessesForMember(ctx context.Context, memberID s
 
 func (s *CatalogService) ListBusinessIDsForMember(ctx context.Context, memberID string) ([]string, error) {
 	var ids []string
-	if err := s.listBusinessesForMemberQuery(ctx, memberID).
-		Distinct().
-		Pluck("businesses.id", &ids).Error; err != nil {
+	q := s.DB.WithContext(ctx).
+		Table("businesses").
+		Joins("JOIN business_members bm ON bm.business_id = businesses.id AND bm.deleted_at IS NULL").
+		Where("bm.user_id = ? AND (bm.is_owner = TRUE OR COALESCE(NULLIF(bm.status, ''), 'active') IN ('active', 'invited'))", memberID).
+		Distinct()
+	if err := q.Pluck("businesses.id", &ids).Error; err != nil {
 		return nil, err
 	}
 	return ids, nil
@@ -130,9 +133,12 @@ func (s *CatalogService) GetBusinessByIDForMember(ctx context.Context, memberID,
 
 func (s *CatalogService) ListBusinessIDsForMemberAccess(ctx context.Context, memberID string) ([]string, error) {
 	var ids []string
-	if err := s.listBusinessesForMemberAccessQuery(ctx, memberID).
-		Distinct().
-		Pluck("businesses.id", &ids).Error; err != nil {
+	q := s.DB.WithContext(ctx).
+		Table("businesses").
+		Joins("JOIN business_members bm ON bm.business_id = businesses.id AND bm.deleted_at IS NULL").
+		Where("bm.user_id = ? AND (bm.is_owner = TRUE OR COALESCE(NULLIF(bm.status, ''), 'active') = 'active')", memberID).
+		Distinct()
+	if err := q.Pluck("businesses.id", &ids).Error; err != nil {
 		return nil, err
 	}
 	return ids, nil
