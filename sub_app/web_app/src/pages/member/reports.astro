@@ -1,8 +1,8 @@
----
-import MemberLayout from "../../layouts/MemberLayout.astro";
+---import MemberLayout from "../../layouts/MemberLayout.astro";
 import ReportsPage from "../../components/member/reports/ReportsPage";
 
 const locale = "id";
+export const prerender = false;
 ---
 
 <MemberLayout title="Laporan" subtitle="Ringkasan performa toko dan order." locale={locale}>

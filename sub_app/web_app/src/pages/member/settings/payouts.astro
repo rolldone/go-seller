@@ -1,0 +1,9 @@
+---
+import MemberLayout from "../../../layouts/MemberLayout.astro";
+import PayoutsPage from "../../../components/member/settings/PayoutsPage";
+const locale = "id";
+---
+
+<MemberLayout title="Pengaturan - Penarikan Dana" locale={locale}>
+  <PayoutsPage client:load />
+</MemberLayout>

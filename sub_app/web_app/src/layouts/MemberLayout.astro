@@ -1,5 +1,5 @@
 ---
-import "../styles/front.css";
+import "../styles/member.css";
 import AlertContainer from "../components/ui/AlertContainer";
 import MemberAuthGate from "../components/member/auth/MemberAuthGate";
 import MemberLogoutButton from "../components/member/MemberLogoutButton";
@@ -23,6 +23,7 @@ const businessDiscountsPath = buildLocalizedPath("/member/business-discounts", l
 const businessCouponsPath = buildLocalizedPath("/member/business-coupons", locale);
 const teamPath = buildLocalizedPath("/member/team", locale);
 const productsPath = buildLocalizedPath("/member/products", locale);
+const payoutsPath = buildLocalizedPath("/member/settings/payouts", locale);
 
 const menus = [
 	{ href: dashboardPath, label: "Dashboard", icon: "dashboard", group: "overview" },
@@ -36,6 +37,7 @@ const menus = [
 	{ href: ordersPath, label: "Orders", icon: "orders", group: "operations" },
 	{ href: reportsPath, label: "Laporan", icon: "reports", group: "operations" },
 	{ href: buildLocalizedPath("/member#settings", locale), label: "Pengaturan", icon: "settings", group: "account" },
+	{ href: payoutsPath, label: "Penarikan Dana", icon: "payments", group: "account" },
 	{ href: buildLocalizedPath("/member#support", locale), label: "Bantuan", icon: "support", group: "account" },
 ];
 
