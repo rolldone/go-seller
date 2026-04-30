@@ -47,6 +47,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	customerHandler := pluginhandlers.NewCustomerHandler(p.service)
 	memberAuthHandler := pluginhandlers.NewMemberAuthHandler(p.service)
 	memberSetupHandler := pluginhandlers.NewMemberSetupHandler(p.service)
+	memberProfileHandler := pluginhandlers.NewMemberProfileHandler(p.service)
 	addressHandler := pluginhandlers.NewCustomerAddressHandler(p.service)
 	rbacHandler := pluginhandlers.NewRBACHandler(p.service)
 
@@ -84,6 +85,12 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	memberAuth.GET("/verify", memberAuthHandler.VerifyEmail)
 	memberAuth.POST("/team/invites/setup", memberSetupHandler.SetupFromInvite)
 	member.POST("/setup", memberSetupHandler.Setup)
+
+	memberProfile := api.Group("/member/profile")
+	memberProfile.Use(pluginhandlers.RequireMemberJWT())
+	memberProfile.GET("", memberProfileHandler.GetProfile)
+	memberProfile.PUT("", memberProfileHandler.UpdateProfile)
+	memberProfile.PUT("/password", memberProfileHandler.ChangePassword)
 
 	adminAdmins := admin.Group("/admins")
 	adminAdmins.Use(pluginhandlers.RequireAdminJWT())

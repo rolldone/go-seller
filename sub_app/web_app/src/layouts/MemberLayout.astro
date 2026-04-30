@@ -24,6 +24,7 @@ const businessCouponsPath = buildLocalizedPath("/member/business-coupons", local
 const teamPath = buildLocalizedPath("/member/team", locale);
 const productsPath = buildLocalizedPath("/member/products", locale);
 const payoutsPath = buildLocalizedPath("/member/settings/payouts", locale);
+const accountSettingsPath = buildLocalizedPath("/member/settings/account", locale);
 
 const menus = [
 	{ href: dashboardPath, label: "Dashboard", icon: "dashboard", group: "overview" },
@@ -31,13 +32,13 @@ const menus = [
 	{ href: businessAssetsPath, label: "Aset Toko", icon: "assets", group: "business" },
 	{ href: businessDiscountsPath, label: "Diskon Toko", icon: "discounts", group: "business" },
 	{ href: businessCouponsPath, label: "Voucher Toko", icon: "coupons", group: "business" },
-	{ href: teamPath, label: "Team", icon: "team", group: "account" },
+	{ href: teamPath, label: "Team", icon: "team", group: "business" },
 	{ href: productsPath, label: "Produk", icon: "products", group: "operations" },
 	{ href: posPath, label: "POS", icon: "pos", group: "operations" },
 	{ href: ordersPath, label: "Orders", icon: "orders", group: "operations" },
 	{ href: reportsPath, label: "Laporan", icon: "reports", group: "operations" },
-	{ href: buildLocalizedPath("/member#settings", locale), label: "Pengaturan", icon: "settings", group: "account" },
-	{ href: payoutsPath, label: "Penarikan Dana", icon: "payments", group: "account" },
+	{ href: payoutsPath, label: "Penarikan Dana", icon: "payments", group: "finance" },
+	{ href: accountSettingsPath, label: "Pengaturan Akun", icon: "settings", group: "account" },
 	{ href: buildLocalizedPath("/member#support", locale), label: "Bantuan", icon: "support", group: "account" },
 ];
 
@@ -45,6 +46,7 @@ const menuGroups = [
 	{ key: "overview", label: "Overview" },
 	{ key: "business", label: "Business" },
 	{ key: "operations", label: "Operations" },
+	{ key: "finance", label: "Finance" },
 	{ key: "account", label: "Account" },
 ];
 
@@ -91,7 +93,7 @@ const groupedMenus = menuGroups
 								<ul class="space-y-1" data-group={group.key}>
 									{group.items.map((menu) => {
 											const isPosActive = menu.href === posPath && pathname === posPath;
-											const isActive = (menu.href === dashboardPath && pathname === dashboardPath) || (menu.href === ordersPath && pathname === ordersPath) || (menu.href === reportsPath && pathname === reportsPath) || (menu.href === businessesPath && pathname === businessesPath) || (menu.href === businessAssetsPath && pathname === businessAssetsPath) || (menu.href === businessDiscountsPath && pathname === businessDiscountsPath) || (menu.href === businessCouponsPath && pathname === businessCouponsPath) || (menu.href === teamPath && pathname === teamPath) || (menu.href === productsPath && pathname === productsPath) || (menu.href === payoutsPath && pathname === payoutsPath) || isPosActive;
+											const isActive = (menu.href === dashboardPath && pathname === dashboardPath) || (menu.href === ordersPath && pathname === ordersPath) || (menu.href === reportsPath && pathname === reportsPath) || (menu.href === businessesPath && pathname === businessesPath) || (menu.href === businessAssetsPath && pathname === businessAssetsPath) || (menu.href === businessDiscountsPath && pathname === businessDiscountsPath) || (menu.href === businessCouponsPath && pathname === businessCouponsPath) || (menu.href === teamPath && pathname === teamPath) || (menu.href === productsPath && pathname === productsPath) || (menu.href === payoutsPath && pathname === payoutsPath) || (menu.href === accountSettingsPath && pathname === accountSettingsPath) || isPosActive;
 										return (
 											<li>
 												<a

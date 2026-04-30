@@ -1,0 +1,11 @@
+---
+import MemberLayout from "../../../layouts/MemberLayout.astro";
+import AccountSettingsPage from "../../../components/member/settings/AccountSettingsPage";
+
+const locale = "id";
+export const prerender = false;
+---
+
+<MemberLayout title="Pengaturan Akun" subtitle="Kelola preferensi dan keamanan akun member." locale={locale}>
+  <AccountSettingsPage client:load />
+</MemberLayout>
