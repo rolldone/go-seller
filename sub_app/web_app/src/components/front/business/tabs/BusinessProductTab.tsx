@@ -5,6 +5,7 @@ import type { PublicBusinessProduct } from "../types";
 import { buildLocalizedPath } from "../../../../lib/siteLocale";
 import { useTranslations } from "../../../../i18n";
 import { formatAmount } from "../../../../lib/amountFormat";
+import ProductCard from "../../ProductCard";
 
 interface BusinessProductTabProps {
   businessSlug: string;
@@ -154,45 +155,17 @@ export default function BusinessProductTab({
                 const heroUrl = resolvePublicURL(heroAsset?.public_url ?? heroAsset?.file_path ?? null) || PLACEHOLDER;
 
                 return (
-                  <a
+                  <ProductCard
                     key={product.id}
                     href={buildProductHref(product.slug)}
-                    className="group block overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition-all hover:border-emerald-500 hover:shadow-md"
-                  >
-                    <div className="relative aspect-square bg-slate-100">
-                      <img
-                        src={heroUrl}
-                        alt={product.title}
-                        loading="lazy"
-                        onError={(e) => {
-                          const img = e.currentTarget as HTMLImageElement;
-                          if (img.src !== PLACEHOLDER) img.src = PLACEHOLDER;
-                        }}
-                        className="h-full w-full object-cover"
-                      />
-                      {badge && (
-                        <div className="absolute left-0 top-2 rounded-r-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                          {badge}
-                        </div>
-                      )}
-                    </div>
-                    <div className="p-3">
-                      <h3 className="line-clamp-2 min-h-[40px] text-sm font-medium text-slate-800 group-hover:text-emerald-600">
-                        {product.title}
-                      </h3>
-                      <div className="mt-2 flex items-baseline gap-2">
-                        <span className={`text-base font-bold ${hasDiscount ? "text-rose-500" : "text-slate-800"}`}>
-                          {formatPrice(hasDiscount ? discounted : original ?? product.price)}
-                        </span>
-                        {hasDiscount && original && (
-                          <span className="text-sm text-slate-400 line-through">{formatPrice(original)}</span>
-                        )}
-                      </div>
-                      {hasDiscount && percentSave !== null && (
-                        <div className="mt-1 text-[12px] font-semibold text-emerald-600">{t("savePercent", "Hemat")} {percentSave}%</div>
-                      )}
-                    </div>
-                  </a>
+                    title={product.title}
+                    priceLabel={formatPrice(hasDiscount ? discounted : original ?? product.price)}
+                    originalPriceLabel={hasDiscount && original ? formatPrice(original) : null}
+                    imageUrl={heroUrl}
+                    imageAlt={product.title}
+                    badgeLabel={badge}
+                    storeName={businessName}
+                  />
                 );
               })}
             </div>

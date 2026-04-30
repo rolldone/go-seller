@@ -21,14 +21,56 @@ export async function listMemberBusinesses(): Promise<BusinessOption[]> {
 	return res.data || [];
 }
 
-export async function listMemberCategories(): Promise<CategoryOption[]> {
-	const res = await memberGet<{ data: CategoryOption[] }>("/api/catalog/categories?page=1&limit=500");
-	return res.data || [];
+async function fetchMemberCategoryPage(page: number, parentID?: string): Promise<{ data: CategoryOption[]; total: number }> {
+	const query = new URLSearchParams();
+	query.set("page", String(page));
+	query.set("limit", "100");
+	if (parentID !== undefined) {
+		query.set("parent_id", parentID);
+	}
+	return memberGet<{ data: CategoryOption[]; total: number }>(`/api/member/catalog/categories?${query.toString()}`);
+}
+
+async function fetchAllMemberCategories(parentID?: string): Promise<CategoryOption[]> {
+	const rows: CategoryOption[] = [];
+	let page = 1;
+	let total = Number.POSITIVE_INFINITY;
+
+	while (rows.length < total) {
+		const res = await fetchMemberCategoryPage(page, parentID);
+		const batch = res.data || [];
+		rows.push(...batch);
+		total = res.total || 0;
+		if (batch.length === 0) break;
+		page += 1;
+	}
+
+	return rows;
+}
+
+export async function listMemberCategories(parentID?: string): Promise<CategoryOption[]> {
+	return fetchAllMemberCategories(parentID);
+}
+
+export async function listMemberCategoryChildren(parentID = ""): Promise<CategoryOption[]> {
+	return fetchAllMemberCategories(parentID);
 }
 
 export async function listMemberTags(): Promise<TagOption[]> {
-	const res = await memberGet<{ data: TagOption[] }>("/api/catalog/tags?page=1&limit=500");
-	return res.data || [];
+	const rows: TagOption[] = [];
+	let page = 1;
+	let total = Number.POSITIVE_INFINITY;
+
+	while (rows.length < total) {
+		const res = await memberGet<{ data: TagOption[]; total: number }>(`/api/member/catalog/tags?page=${page}&limit=100`);
+		const batch = res.data || [];
+		rows.push(...batch);
+		total = res.total || 0;
+		if (batch.length === 0) break;
+		page += 1;
+	}
+
+	return rows;
 }
 
 export async function createMemberProduct(input: ProductPayload): Promise<Product> {

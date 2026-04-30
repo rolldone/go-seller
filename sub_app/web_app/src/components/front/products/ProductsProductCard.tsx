@@ -1,5 +1,6 @@
 import type { BrowseProductItem } from "./types";
 import { buildLocalizedPath } from "../../../lib/siteLocale";
+import ProductCard from "../ProductCard";
 
 interface ProductsProductCardProps {
   product: BrowseProductItem;
@@ -18,28 +19,15 @@ export default function ProductsProductCard({ product, locale }: ProductsProduct
     : buildLocalizedPath("/products", locale);
 
   return (
-    <a
+    <ProductCard
       href={productHref}
-      target="_blank"
-      rel="noreferrer noopener"
-      className="group flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:border-emerald-200 hover:shadow-md"
-    >
-      <div className={`relative aspect-square overflow-hidden bg-gradient-to-br ${product.tone}`}>
-        {heroImageUrl ? (
-          <img
-            src={heroImageUrl}
-            alt={product.name}
-            loading="lazy"
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
-          />
-        ) : null}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent" />
-      </div>
-      <div className="flex flex-1 flex-col space-y-1.5 p-3">
-        <h3 className="line-clamp-2 min-h-10 text-sm font-semibold leading-snug text-slate-900">{product.name}</h3>
-        <p className="text-lg font-bold leading-tight text-emerald-700">{formatRupiah(product.price)}</p>
-        <p className="mt-auto text-xs text-slate-500">{product.storeName}</p>
-      </div>
-    </a>
+      title={product.name}
+      priceLabel={formatRupiah(product.price)}
+      imageUrl={heroImageUrl || null}
+      imageAlt={product.name}
+      toneClassName={product.tone}
+      storeName={product.storeName}
+      targetBlank
+    />
   );
 }

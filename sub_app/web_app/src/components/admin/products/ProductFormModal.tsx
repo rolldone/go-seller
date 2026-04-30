@@ -284,56 +284,61 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     }
   };
 
-  const fetchPathsForSelected = async (ids: string[]) => {
-    for (const id of ids) {
-      if (!id) continue;
-      if (selectedPaths[id]) continue;
-      fetchPathForCategory(id);
+  const applyCategoryChain = (chain: Category[]) => {
+    if (chain.length === 0) {
+      setSelectedCategoryIDs([]);
+      return;
+    }
+
+    setSelectedCategoryIDs(chain.map((category) => category.id));
+    setSelectedPaths((prev) => {
+      const copy = { ...prev };
+      for (let i = 0; i < chain.length; i += 1) {
+        copy[chain[i].id] = chain.slice(0, i + 1).map((category) => category.name);
+      }
+      return copy;
+    });
+  };
+
+  const hydrateSelectedCategorySelection = async (ids: string[]) => {
+    const uniqueIDs = Array.from(new Set(ids.filter(Boolean)));
+    if (uniqueIDs.length === 0) {
+      setSelectedCategoryIDs([]);
+      setSelectedPaths({});
+      return;
+    }
+
+    const chains = await Promise.all(uniqueIDs.map(async (id) => fetchPathForCategory(id)));
+    const longestChain = chains.reduce<Category[]>((best, chain) => (chain.length > best.length ? chain : best), []);
+    applyCategoryChain(longestChain);
+
+    if (longestChain.length > 1) {
+      setParentID(longestChain[longestChain.length - 2].id);
     }
   };
 
-  const toggleCategory = (id: string, item?: Category) => {
-    setSelectedCategoryIDs((prev) => {
-      // if already selected, remove only this id
-      if (prev.includes(id)) {
-        setSelectedPaths((p) => {
-          const copy = { ...p };
-          delete copy[id];
-          return copy;
-        });
-        return prev.filter((v) => v !== id);
-      }
+  const selectCategory = (id: string, item?: Category) => {
+    void fetchPathForCategory(id)
+      .then((chain) => {
+        if (chain.length > 0) {
+          applyCategoryChain(chain);
+          return;
+        }
 
-      // quickly set a provisional path if we already have the item in context
-      if (item) {
-        const path = [...breadcrumbs.map((b) => b.name), item.name].filter(Boolean);
-        setSelectedPaths((p) => ({ ...p, [id]: path }));
-      }
+        if (item) {
+          applyCategoryChain([item]);
+        }
+      })
+      .catch(() => {
+        if (item) {
+          applyCategoryChain([item]);
+        }
+      });
+  };
 
-      // fetch full ancestor chain and merge ancestor IDs + their path names
-      fetchPathForCategory(id)
-        .then((chain) => {
-          if (!chain || chain.length === 0) return;
-
-          setSelectedPaths((prev) => {
-            const copy = { ...prev };
-            for (let i = 0; i < chain.length; i++) {
-              const prefix = chain.slice(0, i + 1).map((c) => c.name);
-              copy[chain[i].id] = prefix;
-            }
-            return copy;
-          });
-
-          setSelectedCategoryIDs((prev2) => {
-            const set = new Set(prev2);
-            for (const c of chain) set.add(c.id);
-            return Array.from(set);
-          });
-        })
-        .catch(() => {});
-
-      return [...prev, id];
-    });
+  const clearCategorySelection = () => {
+    setSelectedCategoryIDs([]);
+    setSelectedPaths({});
   };
 
   useEffect(() => {
@@ -365,9 +370,9 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
         dimensions_height: typeof initialData.dimensions_height === "number" ? String(initialData.dimensions_height) : "",
       });
 
-      setSelectedCategoryIDs(initialData.category_ids || []);
-      // preload selected category paths
-      fetchPathsForSelected(initialData.category_ids || []);
+      setSelectedCategoryIDs([]);
+      setSelectedPaths({});
+      void hydrateSelectedCategorySelection(initialData.category_ids || []);
 
       setSelectedTagIDs(initialData.tag_ids || []);
       setDescriptionValue({
@@ -379,6 +384,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
     } else {
       setForm(defaultForm);
       setSelectedCategoryIDs([]);
+      setSelectedPaths({});
       setSelectedTagIDs([]);
       setDescriptionValue({ html: "", plain: "", blocks: { type: "doc", content: [] } });
       setCreatedProduct(null);
@@ -853,7 +859,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
                   categories.map((cat) => (
                     <div key={cat.id} className="flex items-center justify-between py-1">
                       <label className="flex items-center gap-2 text-sm text-slate-700">
-                        <input type="checkbox" checked={selectedCategoryIDs.includes(cat.id)} onChange={() => toggleCategory(cat.id, cat)} />
+                        <input type="radio" name="admin-category-single" checked={selectedCategoryIDs.includes(cat.id)} onChange={() => selectCategory(cat.id, cat)} />
                         <span>{cat.name}</span>
                         <span className="text-xs text-slate-500">({cat.slug})</span>
                       </label>
@@ -875,7 +881,7 @@ export default function ProductFormModal({ open, mode, initialData, submitting, 
                   {selectedCategoryIDs.map((id) => (
                     <div key={id} className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm">
                       <span>{(selectedPaths[id] || [id]).join(" > ")}</span>
-                      <button type="button" onClick={() => toggleCategory(id)} className="ml-2 text-xs text-rose-600">
+                      <button type="button" onClick={clearCategorySelection} className="ml-2 text-xs text-rose-600">
                         &times;
                       </button>
                     </div>

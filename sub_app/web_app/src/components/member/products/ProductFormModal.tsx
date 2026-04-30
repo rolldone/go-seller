@@ -3,7 +3,7 @@ import { NumericFormat } from "react-number-format";
 
 import MemberModal from "../ui/MemberModal";
 import MemberRichTextEditor, { type RichTextValue } from "../ui/MemberRichTextEditor";
-import { deleteMemberDigitalFile, deleteMemberProductAsset, listMemberDigitalFiles, listMemberProductAssets, updateMemberDigitalFile, updateMemberProductAsset, uploadMemberDigitalFile, uploadMemberProductAsset } from "./api";
+import { deleteMemberDigitalFile, deleteMemberProductAsset, listMemberCategories, listMemberCategoryChildren, listMemberDigitalFiles, listMemberProductAssets, updateMemberDigitalFile, updateMemberProductAsset, uploadMemberDigitalFile, uploadMemberProductAsset } from "./api";
 import type { BusinessOption, CategoryOption, Product, ProductAsset, ProductDigitalFile, ProductPayload, TagOption } from "./types";
 import MemberSeoSegment from "./MemberSeoSegment";
 import { getAmountFormatSettings } from "../../../lib/amountFormat";
@@ -121,6 +121,93 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 	const [digitalUploading, setDigitalUploading] = useState(false);
 	const [assetDrafts, setAssetDrafts] = useState<Record<string, { usage_tag: string; display_order: string }>>({});
 	const [digitalDrafts, setDigitalDrafts] = useState<Record<string, { file_name: string; is_active: boolean; download_limit: string; sort_order: string }>>({});
+	const [parentID, setParentID] = useState<string>("");
+	const [currentCategories, setCurrentCategories] = useState<CategoryOption[]>([]);
+	const [loadingCategories, setLoadingCategories] = useState(false);
+	const [categoriesError, setCategoriesError] = useState<string | null>(null);
+	const [breadcrumbs, setBreadcrumbs] = useState<CategoryOption[]>([]);
+	const [selectedPaths, setSelectedPaths] = useState<Record<string, string[]>>({});
+
+	const categoriesByID = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
+
+	const buildCategoryChain = (id: string): CategoryOption[] => {
+		const chain: CategoryOption[] = [];
+		let current = categoriesByID.get(id);
+		let guard = 0;
+		while (current && guard < 20) {
+			guard += 1;
+			chain.unshift(current);
+			current = current.parent_id ? categoriesByID.get(current.parent_id) || null : null;
+		}
+		return chain;
+	};
+
+	const applyCategoryChain = (chain: CategoryOption[]) => {
+		setForm((prev) => ({ ...prev, category_ids: chain.map((category) => category.id) }));
+		if (chain.length === 0) {
+			setSelectedPaths({});
+			return;
+		}
+
+		setSelectedPaths((prev) => {
+			const copy = { ...prev };
+			for (let i = 0; i < chain.length; i += 1) {
+				copy[chain[i].id] = chain.slice(0, i + 1).map((category) => category.name);
+			}
+			return copy;
+		});
+	};
+
+	const selectCategory = (id: string, item?: CategoryOption) => {
+		const chain = buildCategoryChain(id);
+		if (chain.length > 0) {
+			applyCategoryChain(chain);
+			setParentID(chain.length > 1 ? chain[chain.length - 2].id : "");
+			return;
+		}
+
+		if (item) {
+			applyCategoryChain([item]);
+			setParentID(item.parent_id || "");
+		}
+	};
+
+	const clearCategorySelection = () => {
+		setForm((prev) => ({ ...prev, category_ids: [] }));
+		setSelectedPaths({});
+		setParentID("");
+		setBreadcrumbs([]);
+		setCurrentCategories([]);
+	};
+
+	const hydrateCategorySelection = (ids: string[]) => {
+		const uniqueIDs = Array.from(new Set(ids.filter(Boolean)));
+		if (uniqueIDs.length === 0) {
+			clearCategorySelection();
+			setParentID("");
+			setBreadcrumbs([]);
+			return;
+		}
+
+		const chains = uniqueIDs.map((id) => buildCategoryChain(id)).filter((chain) => chain.length > 0);
+		const longestChain = chains.reduce<CategoryOption[]>((best, chain) => (chain.length > best.length ? chain : best), []);
+		applyCategoryChain(longestChain);
+		setParentID(longestChain.length > 1 ? longestChain[longestChain.length - 2].id : "");
+	};
+
+	const loadChildren = async (pid: string) => {
+		setLoadingCategories(true);
+		setCategoriesError(null);
+		try {
+			const rows = await listMemberCategoryChildren(pid);
+			setCurrentCategories(rows);
+		} catch (err) {
+			setCategoriesError(err instanceof Error ? err.message : "Failed to load categories");
+			setCurrentCategories([]);
+		} finally {
+			setLoadingCategories(false);
+		}
+	};
 
 	useEffect(() => {
 		if (!open) return;
@@ -156,15 +243,32 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 				plain: initialData.description_plain || initialData.description || "",
 				blocks: (initialData.description_blocks as RichTextValue["blocks"]) || { type: "doc", content: [] },
 			});
+			hydrateCategorySelection(initialData.category_ids || []);
 			setError("");
 			setTagSearch("");
 			return;
 		}
 		setForm({ ...defaultForm, business_id: businesses[0]?.id || "" });
 		setDescriptionValue({ html: "", plain: "", blocks: { type: "doc", content: [] } });
+		setSelectedPaths({});
+		setParentID("");
+		setBreadcrumbs([]);
+		setCurrentCategories([]);
+		setCategoriesError(null);
 		setError("");
 		setTagSearch("");
 	}, [open, mode, initialData, businesses]);
+
+	useEffect(() => {
+		if (!open) return;
+		void loadChildren(parentID);
+		if (!parentID) {
+			setBreadcrumbs([]);
+			return;
+		}
+
+		setBreadcrumbs(buildCategoryChain(parentID));
+	}, [open, parentID, categoriesByID]);
 
 	const filteredTags = useMemo(() => {
 		const needle = tagSearch.trim().toLowerCase();
@@ -406,10 +510,6 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		}, initialData?.id);
 	};
 
-	const toggleCategory = (id: string) => {
-		setForm((prev) => ({ ...prev, category_ids: prev.category_ids.includes(id) ? prev.category_ids.filter((item) => item !== id) : [...prev.category_ids, id] }));
-	};
-
 	const toggleTag = (id: string) => {
 		setForm((prev) => ({ ...prev, tag_ids: prev.tag_ids.includes(id) ? prev.tag_ids.filter((item) => item !== id) : [...prev.tag_ids, id] }));
 	};
@@ -444,13 +544,30 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 
 				<section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
 					<h4 className="mb-3 text-sm font-semibold text-slate-900">Klasifikasi</h4>
+					<p className="mb-3 text-xs text-slate-500">Pilih satu kategori. Parent akan ikut terisi otomatis agar struktur tetap utuh.</p>
 					<div className="grid gap-4 lg:grid-cols-2">
 						<div className="space-y-2 text-sm">
-							<div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Categories</span><span className="text-xs text-slate-400">{form.category_ids.length} selected</span></div>
-							<div className="max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
-								{categories.length === 0 ? <div className="text-xs text-slate-500">No categories available</div> : <div className="space-y-2">{categories.map((category) => (<label key={category.id} className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-50"><input type="checkbox" checked={form.category_ids.includes(category.id)} onChange={() => toggleCategory(category.id)} /><span>{category.name}</span><span className="text-xs text-slate-400">({category.slug})</span></label>))}</div>}
+							<div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Categories</span><span className="text-xs text-slate-400">{form.category_ids.length > 0 ? "1 selected" : "0 selected"}</span></div>
+							<div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+								<button type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => setParentID("")}>Categories</button>
+								{breadcrumbs.map((crumb) => (
+									<button key={crumb.id} type="button" className="rounded bg-slate-100 px-2 py-1 hover:bg-slate-200" onClick={() => setParentID(crumb.id)}>
+										/ {crumb.name}
+									</button>
+								))}
 							</div>
-							{form.category_ids.length > 0 ? <div className="flex flex-wrap gap-2">{form.category_ids.map((id) => { const item = categories.find((category) => category.id === id); return <span key={id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">{item ? item.name : id}<button type="button" onClick={() => toggleCategory(id)} className="text-slate-400 hover:text-slate-600">×</button></span>; })}</div> : null}
+							<div className="mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+								{loadingCategories ? (
+									<div className="text-xs text-slate-500">Loading...</div>
+								) : categoriesError ? (
+									<div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{categoriesError}</div>
+								) : currentCategories.length === 0 ? (
+									<div className="text-xs text-slate-500">No categories available</div>
+								) : (
+									<div className="space-y-2">{currentCategories.map((category) => (<div key={category.id} className="flex items-center justify-between gap-3 rounded-lg px-2 py-1 hover:bg-slate-50"><label className="flex items-center gap-2 text-sm text-slate-700"><input type="radio" name="member-category-single" checked={form.category_ids.includes(category.id)} onChange={() => selectCategory(category.id, category)} /><span>{category.name}</span><span className="text-xs text-slate-400">({category.slug})</span></label><button type="button" onClick={() => setParentID(category.id)} className="rounded bg-indigo-100 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-200">Subcategories</button></div>))}</div>
+								)}
+							</div>
+							{form.category_ids.length > 0 ? <div className="flex flex-wrap gap-2">{form.category_ids.map((id) => { const item = categoriesByID.get(id); return <span key={id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">{item ? item.name : (selectedPaths[id] || [id]).join(" > ")}<button type="button" onClick={clearCategorySelection} className="text-slate-400 hover:text-slate-600">×</button></span>; })}</div> : null}
 						</div>
 
 						<div className="space-y-2 text-sm">

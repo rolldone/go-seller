@@ -4,6 +4,8 @@ import LargeCardCarousel from "../../LargeCardCarousel";
 import type { PublicBusinessCarousel, PublicBusinessProduct } from "../types";
 import { buildLocalizedPath } from "../../../../lib/siteLocale";
 import { useTranslations } from "../../../../i18n";
+import { formatAmount } from "../../../../lib/amountFormat";
+import ProductCard from "../../ProductCard";
 
 interface BusinessHomeTabProps {
   businessSlug: string;
@@ -17,6 +19,24 @@ interface BusinessHomeTabProps {
 function buildProductHref(businessSlug: string, productSlug: string, locale?: string) {
   const path = `/b/${businessSlug}/p/${productSlug}`;
   return buildLocalizedPath(path, locale);
+}
+
+function resolveProductImage(product: PublicBusinessProduct): string | null {
+  const heroAsset = product.gallery?.find((asset) => asset.is_main) ?? product.gallery?.[0];
+  return String(heroAsset?.public_url ?? heroAsset?.file_path ?? "").trim() || null;
+}
+
+function formatPrice(value?: string | number | null): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  if (typeof value === "number") {
+    return formatAmount(value, { fractionDigits: 0 });
+  }
+
+  const normalized = String(value).replace(/[^0-9.-]+/g, "");
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? formatAmount(numeric, { fractionDigits: 0 }) : String(value);
 }
 
 export default function BusinessHomeTab({
@@ -58,19 +78,17 @@ export default function BusinessHomeTab({
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           {featuredProducts.map((product) => (
-            <a 
+            <ProductCard
               key={product.id} 
               href={buildProductHref(businessSlug, product.slug, locale)}
-              className="group block rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition hover:border-emerald-500 hover:shadow-md"
-            >
-              <div className="aspect-[4/5] rounded-lg bg-gradient-to-br from-slate-100 to-slate-200" />
-              <h3 className="mt-2 line-clamp-2 text-sm font-semibold text-slate-800 group-hover:text-emerald-600">{product.title}</h3>
-              <p className="mt-1 text-xs text-slate-500">{product.excerpt}</p>
-              <p className="mt-2 text-lg font-bold text-rose-500">{product.price}</p>
-              <button className="mt-2 w-full rounded-lg border border-emerald-400 py-1.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 focus:outline-none">
-                {t("productDetail", "Detail Produk")}
-              </button>
-            </a>
+              title={product.title}
+              priceLabel={formatPrice(product.discounted_price ?? product.original_price ?? product.price)}
+              originalPriceLabel={product.discounted_price && product.original_price && product.discounted_price < product.original_price ? formatPrice(product.original_price) : null}
+              imageUrl={resolveProductImage(product)}
+              imageAlt={product.title}
+              badgeLabel={product.discount_badge ?? null}
+              storeName={businessSlug}
+            />
           ))}
         </div>
 
@@ -90,21 +108,17 @@ export default function BusinessHomeTab({
               .filter((p) => p.category === catName)
               .slice(0, 6)
               .map((product, idx) => (
-                <a
+                <ProductCard
                   key={`${product.id}-${idx}`}
                   href={buildProductHref(businessSlug, product.slug, locale)}
-                  className="group block rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm transition hover:border-emerald-500 hover:shadow-md"
-                >
-                  <div className="aspect-[4/5] rounded-lg bg-gradient-to-br from-slate-100 to-slate-200" />
-                  <h3 className="mt-2 line-clamp-2 text-sm font-semibold text-slate-800 group-hover:text-emerald-600">
-                    {product.title}
-                  </h3>
-                  <p className="mt-1 text-xs text-slate-500">{product.category}</p>
-                  <p className="mt-2 text-lg font-bold text-rose-500">{product.price}</p>
-                  <div className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-emerald-400 py-1.5 text-sm font-semibold text-emerald-600 group-hover:bg-emerald-50">
-                    {t("productDetail", "Detail Produk")}
-                  </div>
-                </a>
+                  title={product.title}
+                  priceLabel={formatPrice(product.discounted_price ?? product.original_price ?? product.price)}
+                  originalPriceLabel={product.discounted_price && product.original_price && product.discounted_price < product.original_price ? formatPrice(product.original_price) : null}
+                  imageUrl={resolveProductImage(product)}
+                  imageAlt={product.title}
+                  badgeLabel={product.discount_badge ?? null}
+                  storeName={product.category}
+                />
               ))}
           </div>
 
