@@ -118,6 +118,37 @@ export const SETTING_GROUPS: SettingGroup[] = [
     ],
   },
   {
+    id: "maintenance",
+    title: "Maintenance",
+    description: "Atur maintenance mode untuk halaman publik yang ingin ditutup sementara.",
+    fields: [
+      {
+        key: "maintenance.index",
+        scope: "global",
+        label: "Maintenance Beranda",
+        type: "boolean",
+        defaultValue: false,
+        description: "Jika aktif, halaman index akan menampilkan pesan maintenance untuk pengunjung.",
+      },
+      {
+        key: "maintenance.business_page",
+        scope: "global",
+        label: "Maintenance Halaman Toko",
+        type: "boolean",
+        defaultValue: false,
+        description: "Jika aktif, halaman toko akan menampilkan pesan maintenance untuk pengunjung.",
+      },
+      {
+        key: "maintenance.product_detail",
+        scope: "global",
+        label: "Maintenance Halaman Detail Produk",
+        type: "boolean",
+        defaultValue: false,
+        description: "Jika aktif, halaman detail produk akan menampilkan pesan maintenance untuk pengunjung.",
+      },
+    ],
+  },
+  {
     id: "tax",
     title: "Pajak",
     description: "Konfigurasi pajak yang diterapkan pada transaksi.",

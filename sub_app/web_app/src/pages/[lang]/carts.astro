@@ -6,6 +6,7 @@ import CartsPage from "../../components/front/CartsPage";
 import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
 import { normalizeLocale } from "../../lib/siteLocale";
 import type { CartBusinessSummary } from "../../lib/cartApi";
+import { fetchWithTimeout } from "../../lib/fetchWithTimeout";
 
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;
@@ -14,7 +15,7 @@ const apiBase = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_A
 async function loadCartBusinesses(session: typeof customerSession): Promise<CartBusinessSummary[]> {
   if (!apiBase || !session?.authenticated || !session.accessToken) return [];
   try {
-    const res = await fetch(`${apiBase}/api/order/carts/me/businesses`, {
+    const res = await fetchWithTimeout(`${apiBase}/api/order/carts/me/businesses`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${session.accessToken}`,

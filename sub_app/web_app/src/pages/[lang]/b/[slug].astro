@@ -3,6 +3,8 @@ export const prerender = false;
 
 import "../../../styles/front.css";
 import BusinessStoreFrontPage from "../../../components/front/business/BusinessStoreFrontPage";
+import MaintenanceNotice from "../../../components/front/MaintenanceNotice.astro";
+import { fetchStoreMaintenanceInfo } from "../../../lib/storeMaintenance";
 import { buildBusinessStore } from "../../b/store";
 import { getFallbackBusinessStore } from "../../../components/front/business/mockData";
 import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
@@ -17,18 +19,28 @@ const { slug = "", tab } = Astro.params;
 const requestedTab = typeof tab === "string" ? tab : undefined;
 const initialTab: TabKey = isTabKey(requestedTab) ? requestedTab : "beranda";
 
-const { store } = await buildBusinessStore(slug, locale);
-
-if ((initialTab === "produk" || initialTab === "beranda") && !store.products?.length) {
-  const mockStore = getFallbackBusinessStore(store.business.slug || slug);
-  if (mockStore) {
-    store.products = mockStore.products;
-  }
-}
-
-const title = `${store.business.name || ""} | Go Seller`;
-const description = store.business.description || store.business.short_description || "";
+const maintenance = await fetchStoreMaintenanceInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch });
 const customerSession = Astro.locals.customerSession ?? null;
+let store = null;
+let fetchErrorMessage = "";
+let title = "Halaman toko sedang dalam maintenance";
+let description = "Halaman toko sedang ditutup sementara. Silakan kembali lagi nanti.";
+
+if (!maintenance.business_page) {
+  const result = await buildBusinessStore(slug, locale);
+  store = result.store;
+  fetchErrorMessage = result.fetchErrorMessage;
+
+  if ((initialTab === "produk" || initialTab === "beranda") && !store.products?.length) {
+    const mockStore = getFallbackBusinessStore(store.business.slug || slug);
+    if (mockStore) {
+      store.products = mockStore.products;
+    }
+  }
+
+  title = `${store.business.name || ""} | Go Seller`;
+  description = store.business.description || store.business.short_description || "";
+}
 ---
 
 <html lang={locale}>
@@ -40,6 +52,13 @@ const customerSession = Astro.locals.customerSession ?? null;
 		<CustomerSessionBootstrap session={customerSession} />
 	</head>
 	<body class="bg-[#f7f7f5] text-slate-900 antialiased">
-		<BusinessStoreFrontPage client:only="react" store={store} initialTab={initialTab} locale={locale} customerSession={customerSession} />
+		{maintenance.business_page ? (
+			<MaintenanceNotice
+				title="Halaman toko sedang dalam maintenance"
+				description="Halaman toko sedang ditutup sementara. Silakan kembali lagi nanti."
+			/>
+		) : (
+			<BusinessStoreFrontPage client:only="react" store={store} initialTab={initialTab} locale={locale} customerSession={customerSession} />
+		)}
 	</body>
 </html>

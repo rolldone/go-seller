@@ -1,4 +1,5 @@
 import type { PublicBusinessCarousel, PublicBusinessReview, PublicBusinessReviewSummary, PublicBusinessStore } from "../../components/front/business/types";
+import { fetchWithTimeout } from "../../lib/fetchWithTimeout";
 
 type BuildBusinessStoreResult = { store: PublicBusinessStore; fetchErrorMessage: string };
 
@@ -15,7 +16,7 @@ async function fetchBusinessData(slug: string, locale?: string) {
 
   try {
     const query = locale ? `?locale=${encodeURIComponent(locale)}` : "";
-    const res = await fetch(`${BASE}/b/${encodeURIComponent(slug)}${query}`, { headers: { Accept: "application/json" } });
+    const res = await fetchWithTimeout(`${BASE}/b/${encodeURIComponent(slug)}${query}`, { headers: { Accept: "application/json" } });
     if (!res.ok) {
       fetchErrorMessage = `HTTP ${res.status} ${res.statusText}`;
     } else {
@@ -105,7 +106,7 @@ async function loadBusinessCarousels(businessId: string) {
   if (!businessId) return [];
 
   try {
-    const res = await fetch(`${BASE}/api/marketing/business-carousels?business_id=${encodeURIComponent(businessId)}`, {
+    const res = await fetchWithTimeout(`${BASE}/api/marketing/business-carousels?business_id=${encodeURIComponent(businessId)}`, {
       headers: { Accept: "application/json" },
     });
     if (!res.ok) {
@@ -143,7 +144,7 @@ async function loadBusinessReviews(businessId: string) {
   }
 
   try {
-    const res = await fetch(`${BASE}/api/review/businesses/${encodeURIComponent(businessId)}?limit=100`, {
+    const res = await fetchWithTimeout(`${BASE}/api/review/businesses/${encodeURIComponent(businessId)}?limit=100`, {
       headers: { Accept: "application/json" },
     });
     if (!res.ok) {

@@ -2,15 +2,27 @@
 import "../styles/front.css";
 import StoreFrontHome from "../components/front/StoreFrontHome";
 import CustomerSessionBootstrap from "../components/customer/CustomerSessionBootstrap.astro";
+import MaintenanceNotice from "../components/front/MaintenanceNotice.astro";
+import { fetchStoreMaintenanceInfo } from "../lib/storeMaintenance";
 import type { CartBusinessSummary } from "../lib/cartApi";
 
 const customerSession = Astro.locals.customerSession ?? null;
 const apiBase = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";
 
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 1500): Promise<Response> {
+	const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+	const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+	try {
+		return await fetch(input, { ...init, signal: controller?.signal ?? init.signal });
+	} finally {
+		if (timeout) clearTimeout(timeout);
+	}
+}
+
 async function loadCartBusinesses(session: typeof customerSession): Promise<CartBusinessSummary[]> {
 	if (!apiBase || !session?.authenticated || !session.accessToken) return [];
 	try {
-		const res = await fetch(`${apiBase}/api/order/carts/me/businesses`, {
+		const res = await fetchWithTimeout(`${apiBase}/api/order/carts/me/businesses`, {
 			method: "GET",
 			headers: {
 				Authorization: `Bearer ${session.accessToken}`,
@@ -24,7 +36,8 @@ async function loadCartBusinesses(session: typeof customerSession): Promise<Cart
 	}
 }
 
-const initialBusinesses = await loadCartBusinesses(customerSession);
+const maintenance = await fetchStoreMaintenanceInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch });
+const initialBusinesses = maintenance.index ? [] : await loadCartBusinesses(customerSession);
 ---
 
 <html lang="en">
@@ -38,6 +51,13 @@ const initialBusinesses = await loadCartBusinesses(customerSession);
 		<CustomerSessionBootstrap session={customerSession} />
 	</head>
 	<body class="bg-[#f7f7f5] text-slate-900 antialiased">
-		<StoreFrontHome client:load customerSession={customerSession} initialBusinesses={initialBusinesses} />
+		{maintenance.index ? (
+			<MaintenanceNotice
+				title="Beranda sedang dalam maintenance"
+				description="Halaman beranda sedang ditutup sementara. Silakan kembali lagi nanti."
+			/>
+		) : (
+			<StoreFrontHome client:load customerSession={customerSession} initialBusinesses={initialBusinesses} />
+		)}
 	</body>
 </html>

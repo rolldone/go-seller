@@ -3,20 +3,34 @@ export const prerender = false;
 
 import "../../../../styles/front.css";
 import ProductDetailPage from "../../../../components/front/business/ProductDetailPage";
+import MaintenanceNotice from "../../../../components/front/MaintenanceNotice.astro";
+import { fetchStoreMaintenanceInfo } from "../../../../lib/storeMaintenance";
 import { buildBusinessStore } from "../../store";
 import CustomerSessionBootstrap from "../../../../components/customer/CustomerSessionBootstrap.astro";
 
 const { merchant = "", slug = "" } = Astro.params;
 const locale = Astro.url.searchParams.get("locale") || undefined;
-const { store } = await buildBusinessStore(merchant, locale);
-const product = (store.products || []).find((item) => item.slug === slug);
-
-if (!product) return Astro.redirect(locale ? `/b/${merchant}?locale=${encodeURIComponent(locale)}` : `/b/${merchant}`, 302);
-
-const relatedProducts = (store.products || []).filter((item) => item.slug !== product.slug).slice(0, 4);
-const title = `${product.title} | ${store.business.name} | Go Seller`;
-const description = product.description_plain || product.description || product.excerpt || "";
+const maintenance = await fetchStoreMaintenanceInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch });
 const customerSession = Astro.locals.customerSession ?? null;
+let store = null;
+let product = null;
+let relatedProducts = [];
+let title = "Halaman detail produk sedang dalam maintenance";
+let description = "Halaman detail produk sedang ditutup sementara. Silakan kembali lagi nanti.";
+
+if (!maintenance.product_detail) {
+  const result = await buildBusinessStore(merchant, locale);
+  store = result.store;
+  product = (store.products || []).find((item) => item.slug === slug);
+
+  if (!product) {
+    return Astro.redirect(locale ? `/b/${merchant}?locale=${encodeURIComponent(locale)}` : `/b/${merchant}`, 302);
+  }
+
+  relatedProducts = (store.products || []).filter((item) => item.slug !== product.slug).slice(0, 4);
+  title = `${product.title} | ${store.business.name} | Go Seller`;
+  description = product.description_plain || product.description || product.excerpt || "";
+}
 ---
 
 <html lang="en">
@@ -28,6 +42,13 @@ const customerSession = Astro.locals.customerSession ?? null;
     <CustomerSessionBootstrap session={customerSession} />
   </head>
   <body class="bg-[#f7f7f5] text-slate-900 antialiased">
-    <ProductDetailPage client:only="react" store={store} product={product} relatedProducts={relatedProducts} locale={locale} customerSession={customerSession} />
+		{maintenance.product_detail ? (
+      <MaintenanceNotice
+        title="Halaman detail produk sedang dalam maintenance"
+        description="Halaman detail produk sedang ditutup sementara. Silakan kembali lagi nanti."
+      />
+    ) : (
+      <ProductDetailPage client:only="react" store={store} product={product} relatedProducts={relatedProducts} locale={locale} customerSession={customerSession} />
+    )}
   </body>
 </html>ok

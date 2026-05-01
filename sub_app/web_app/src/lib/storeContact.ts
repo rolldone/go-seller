@@ -26,23 +26,35 @@ function buildUrl(path: string, baseUrl?: string): string {
 export async function fetchStoreContactInfo(options: {
   baseUrl?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 } = {}): Promise<StoreContactInfo> {
   const fetchImpl = options.fetchImpl || fetch;
-  const response = await fetchImpl(buildUrl("/api/settings/contact", options.baseUrl), {
-    headers: { Accept: "application/json" },
-  });
+  const timeoutMs = options.timeoutMs ?? 1500;
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch store contact: HTTP ${response.status}`);
+  try {
+    const response = await fetchImpl(buildUrl("/api/settings/contact", options.baseUrl), {
+      headers: { Accept: "application/json" },
+      signal: controller?.signal,
+    });
+
+    if (!response.ok) {
+      return { storeName: "", address: "", phone: "", email: "" };
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as ContactResponse;
+    const data = payload.data || {};
+
+    return {
+      storeName: normalizeString(data.store_name),
+      address: normalizeString(data.address),
+      phone: normalizeString(data.phone),
+      email: normalizeString(data.email),
+    };
+  } catch {
+    return { storeName: "", address: "", phone: "", email: "" };
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
-
-  const payload = (await response.json().catch(() => ({}))) as ContactResponse;
-  const data = payload.data || {};
-
-  return {
-    storeName: normalizeString(data.store_name),
-    address: normalizeString(data.address),
-    phone: normalizeString(data.phone),
-    email: normalizeString(data.email),
-  };
 }
