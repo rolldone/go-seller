@@ -2,11 +2,11 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import CartsPage from "../../components/front/CartsPage";
-import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
-import { normalizeLocale } from "../../lib/siteLocale";
-import type { CartBusinessSummary } from "../../lib/cartApi";
-import { fetchWithTimeout } from "../../lib/fetchWithTimeout";
+import CartsPage from "@/components/front/CartsPage"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { normalizeLocale } from "@/lib/siteLocale"
+import type { CartBusinessSummary } from "@/lib/cartApi"
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout"
 
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;

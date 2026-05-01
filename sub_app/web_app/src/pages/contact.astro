@@ -1,10 +1,10 @@
 ---
 import "../styles/front.css";
-import HomeNav from "../components/front/HomeNav";
-import Footer from "../components/front/Footer";
-import ContactPage from "../components/front/contact/ContactPage";
-import CustomerSessionBootstrap from "../components/customer/CustomerSessionBootstrap.astro";
-import { fetchStoreContactInfo } from "../lib/storeContact";
+import HomeNav from "@/components/front/HomeNav"
+import Footer from "@/components/front/Footer"
+import ContactPage from "@/components/front/contact/ContactPage"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { fetchStoreContactInfo } from "@/lib/storeContact"
 
 const customerSession = Astro.locals.customerSession ?? null;
 const contact = await fetchStoreContactInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch, timeoutMs: 1500 }).catch(() => ({

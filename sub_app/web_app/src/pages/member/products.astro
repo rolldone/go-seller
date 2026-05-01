@@ -1,6 +1,6 @@
 ---
-import MemberLayout from "../../layouts/MemberLayout.astro";
-import MemberProductsPage from "../../components/member/products/ProductsPage";
+import MemberLayout from "@/layouts/MemberLayout.astro"
+import MemberProductsPage from "@/components/member/products/ProductsPage"
 
 const locale = Astro.url.pathname.startsWith("/en/") ? "en" : Astro.url.pathname.startsWith("/id/") ? "id" : undefined;
 ---

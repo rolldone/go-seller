@@ -2,10 +2,10 @@
 export const prerender = false;
 
 import "../../../styles/front.css";
-import CustomerDashboard from "../../../components/customer/CustomerDashboard";
-import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
-import { normalizeLocale } from "../../../lib/siteLocale";
-import { useTranslations } from "../../../i18n";
+import CustomerDashboard from "@/components/customer/CustomerDashboard"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { normalizeLocale } from "@/lib/siteLocale"
+import { useTranslations } from "@/i18n"
 
 const customerSession = Astro.locals.customerSession ?? null;
 const locale = normalizeLocale(Astro.params.lang);

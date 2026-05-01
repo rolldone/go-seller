@@ -2,8 +2,8 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import GuestOrderCheckout from "../../components/front/GuestOrderCheckout";
-import { normalizeLocale } from "../../lib/siteLocale";
+import GuestOrderCheckout from "@/components/front/GuestOrderCheckout"
+import { normalizeLocale } from "@/lib/siteLocale"
 ---
 
 <html lang={normalizeLocale(Astro.params.lang)}>

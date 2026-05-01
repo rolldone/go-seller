@@ -2,12 +2,12 @@
 export const prerender = false;
 
 import "../../../../../styles/front.css";
-import ProductDetailPage from "../../../../../components/front/business/ProductDetailPage";
-import MaintenanceNotice from "../../../../../components/front/MaintenanceNotice.astro";
-import { fetchStoreMaintenanceInfo } from "../../../../../lib/storeMaintenance";
-import { buildBusinessStore } from "../../../../b/store";
-import CustomerSessionBootstrap from "../../../../../components/customer/CustomerSessionBootstrap.astro";
-import { normalizeLocale } from "../../../../../lib/siteLocale";
+import ProductDetailPage from "@/components/front/business/ProductDetailPage"
+import MaintenanceNotice from "@/components/front/MaintenanceNotice.astro"
+import { fetchStoreMaintenanceInfo } from "@/lib/storeMaintenance"
+import { buildBusinessStore } from "@/pages/b/store"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { normalizeLocale } from "@/lib/siteLocale"
 
 const locale = normalizeLocale(Astro.params.lang);
 const { merchant = "", slug = "" } = Astro.params;

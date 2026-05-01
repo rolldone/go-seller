@@ -154,6 +154,49 @@ func (h *SettingHandler) PublicContact(c *gin.Context) {
 	}})
 }
 
+func readBoolSetting(raw []byte) bool {
+	if len(raw) == 0 {
+		return false
+	}
+
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return false
+	}
+
+	parsed, ok := value.(bool)
+	if !ok {
+		return false
+	}
+
+	return parsed
+}
+
+func (h *SettingHandler) PublicMaintenance(c *gin.Context) {
+	ctx := c.Request.Context()
+	indexRaw, err := h.svc.GetOrDefault(ctx, "global", "maintenance.index", []byte("false"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	businessRaw, err := h.svc.GetOrDefault(ctx, "global", "maintenance.business_page", []byte("false"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	productRaw, err := h.svc.GetOrDefault(ctx, "global", "maintenance.product_detail", []byte("false"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{
+		"index":          readBoolSetting(indexRaw),
+		"business_page":  readBoolSetting(businessRaw),
+		"product_detail": readBoolSetting(productRaw),
+	}})
+}
+
 func (h *SettingHandler) Upsert(c *gin.Context) {
 	key := c.Param("key")
 	var req upsertSettingReq

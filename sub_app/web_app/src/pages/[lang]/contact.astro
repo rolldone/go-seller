@@ -2,12 +2,12 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import HomeNav from "../../components/front/HomeNav";
-import Footer from "../../components/front/Footer";
-import ContactPage from "../../components/front/contact/ContactPage";
-import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
-import { fetchStoreContactInfo } from "../../lib/storeContact";
-import { normalizeLocale } from "../../lib/siteLocale";
+import HomeNav from "@/components/front/HomeNav"
+import Footer from "@/components/front/Footer"
+import ContactPage from "@/components/front/contact/ContactPage"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { fetchStoreContactInfo } from "@/lib/storeContact"
+import { normalizeLocale } from "@/lib/siteLocale"
 
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;

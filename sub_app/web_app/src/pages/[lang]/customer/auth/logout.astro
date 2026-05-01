@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import "../../../../styles/front.css";
-import { buildLocalizedPath, normalizeLocale } from "../../../../lib/siteLocale";
+import { buildLocalizedPath, normalizeLocale } from "@/lib/siteLocale"
 
 const locale = normalizeLocale(Astro.params.lang);
 const apiUrl = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";

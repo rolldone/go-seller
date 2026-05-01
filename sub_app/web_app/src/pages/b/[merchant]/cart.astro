@@ -2,9 +2,9 @@
 export const prerender = false;
 
 import "../../../styles/front.css";
-import CartPage from "../../../components/front/CartPage";
-import { buildBusinessStore } from "../store";
-import CustomerSessionBootstrap from "../../../components/customer/CustomerSessionBootstrap.astro";
+import CartPage from "@/components/front/CartPage"
+import { buildBusinessStore } from "@/pages/b/store"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
 
 const { merchant = "" } = Astro.params;
 const customerSession = Astro.locals.customerSession ?? null;

@@ -2,8 +2,8 @@
 export const prerender = false;
 
 import "../../../styles/front.css";
-import SubscriptionConfirmPage from "../../../components/front/business/SubscriptionConfirmPage";
-import { normalizeLocale } from "../../../lib/siteLocale";
+import SubscriptionConfirmPage from "@/components/front/business/SubscriptionConfirmPage"
+import { normalizeLocale } from "@/lib/siteLocale"
 
 const locale = normalizeLocale(Astro.params.lang);
 ---

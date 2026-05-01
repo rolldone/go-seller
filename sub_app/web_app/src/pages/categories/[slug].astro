@@ -2,12 +2,12 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import BusinessPageNav from "../../components/front/business/BusinessPageNav";
-import Footer from "../../components/front/Footer";
-import CategoryStoreFrontPage from "../../components/front/categories/CategoryStoreFrontPage";
-import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
-import { buildLocalizedPath, normalizeLocale } from "../../lib/siteLocale";
-import { fetchCategoryPageData } from "../../lib/categoryPageData";
+import BusinessPageNav from "@/components/front/business/BusinessPageNav"
+import Footer from "@/components/front/Footer"
+import CategoryStoreFrontPage from "@/components/front/categories/CategoryStoreFrontPage"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { buildLocalizedPath, normalizeLocale } from "@/lib/siteLocale"
+import { fetchCategoryPageData } from "@/lib/categoryPageData"
 
 const locale = normalizeLocale("id");
 const slug = String(Astro.params.slug || "").trim();

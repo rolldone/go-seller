@@ -45,6 +45,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	admin.PUT("/settings/:key", h.Upsert)
 	admin.DELETE("/settings/:key", h.Delete)
 	api.GET("/settings/contact", h.PublicContact)
+	api.GET("/settings/maintenance", h.PublicMaintenance)
 	return nil
 }
 

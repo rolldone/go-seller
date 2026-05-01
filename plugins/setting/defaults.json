@@ -7,6 +7,9 @@
   { "key": "store.phone", "scope": "global", "value": "\"\"", "description": "Nomor telepon toko" },
   { "key": "store.email", "scope": "global", "value": "\"\"", "description": "Email kontak toko" },
   { "key": "store.address", "scope": "global", "value": "\"\"", "description": "Alamat toko" },
+  { "key": "maintenance.index", "scope": "global", "value": "false", "description": "Maintenance mode untuk halaman beranda" },
+  { "key": "maintenance.business_page", "scope": "global", "value": "false", "description": "Maintenance mode untuk halaman toko" },
+  { "key": "maintenance.product_detail", "scope": "global", "value": "false", "description": "Maintenance mode untuk halaman detail produk" },
 
   { "key": "tax.enabled", "scope": "global", "value": "false", "description": "Aktifkan pajak" },
   { "key": "tax.rate", "scope": "global", "value": "0", "description": "Tarif pajak (persen)" },

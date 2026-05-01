@@ -2,9 +2,9 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import StoreFrontProducts from "../../components/front/StoreFrontProducts";
-import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
-import { normalizeLocale } from "../../lib/siteLocale";
+import StoreFrontProducts from "@/components/front/StoreFrontProducts"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { normalizeLocale } from "@/lib/siteLocale"
 
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;

@@ -2,14 +2,14 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import StoreFrontHome from "../../components/front/StoreFrontHome";
-import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
-import MaintenanceNotice from "../../components/front/MaintenanceNotice.astro";
-import { normalizeLocale } from "../../lib/siteLocale";
-import { useTranslations } from "../../i18n";
-import { fetchStoreMaintenanceInfo } from "../../lib/storeMaintenance";
+import StoreFrontHome from "@/components/front/StoreFrontHome"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import MaintenanceNotice from "@/components/front/MaintenanceNotice.astro"
+import { normalizeLocale } from "@/lib/siteLocale"
+import { useTranslations } from "@/i18n"
+import { fetchStoreMaintenanceInfo } from "@/lib/storeMaintenance"
 
-import type { CartBusinessSummary } from "../../lib/cartApi";
+import type { CartBusinessSummary } from "@/lib/cartApi"
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;
 const t = useTranslations("common", locale);

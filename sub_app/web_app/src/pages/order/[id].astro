@@ -2,8 +2,8 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import CustomerOrderPage from "../../components/front/CustomerOrderPage";
-import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
+import CustomerOrderPage from "@/components/front/CustomerOrderPage"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
 
 const { id = "" } = Astro.params;
 const customerSession = Astro.locals.customerSession ?? null;

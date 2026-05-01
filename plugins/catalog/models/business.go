@@ -32,7 +32,7 @@ type Business struct {
 	Tiktok            *string        `gorm:"size:255" json:"tiktok,omitempty"`
 	ShowContactEmail  bool           `gorm:"default:true" json:"show_contact_email"`
 	ShowPhone         bool           `gorm:"default:true" json:"show_phone"`
-	MemberInvited     bool           `gorm:"column:member_invited" json:"member_invited,omitempty"`
+	MemberInvited     bool           `gorm:"->;column:member_invited" json:"member_invited,omitempty"`
 	Description       *string        `gorm:"type:text" json:"description,omitempty"`
 	CreatedAt         time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time      `gorm:"autoUpdateTime" json:"updated_at"`

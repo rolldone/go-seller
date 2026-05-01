@@ -2,7 +2,7 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import { normalizeLocale, buildLocalizedPath } from "../../lib/siteLocale";
+import { normalizeLocale, buildLocalizedPath } from "@/lib/siteLocale"
 ---
 
 <html lang={normalizeLocale(Astro.params.lang)}>

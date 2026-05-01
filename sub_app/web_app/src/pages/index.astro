@@ -1,10 +1,10 @@
 ---
 import "../styles/front.css";
-import StoreFrontHome from "../components/front/StoreFrontHome";
-import CustomerSessionBootstrap from "../components/customer/CustomerSessionBootstrap.astro";
-import MaintenanceNotice from "../components/front/MaintenanceNotice.astro";
-import { fetchStoreMaintenanceInfo } from "../lib/storeMaintenance";
-import type { CartBusinessSummary } from "../lib/cartApi";
+import StoreFrontHome from "@/components/front/StoreFrontHome"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import MaintenanceNotice from "@/components/front/MaintenanceNotice.astro"
+import { fetchStoreMaintenanceInfo } from "@/lib/storeMaintenance"
+import type { CartBusinessSummary } from "@/lib/cartApi"
 
 const customerSession = Astro.locals.customerSession ?? null;
 const apiBase = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";

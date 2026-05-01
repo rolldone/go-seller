@@ -2,11 +2,11 @@
 export const prerender = false;
 
 import "../../../../styles/front.css";
-import BusinessStoreFrontPage from "../../../../components/front/business/BusinessStoreFrontPage";
-import { buildBusinessStore } from "../../../b/store";
-import { getFallbackBusinessStore } from "../../../../components/front/business/mockData";
-import CustomerSessionBootstrap from "../../../../components/customer/CustomerSessionBootstrap.astro";
-import { normalizeLocale } from "../../../../lib/siteLocale";
+import BusinessStoreFrontPage from "@/components/front/business/BusinessStoreFrontPage"
+import { buildBusinessStore } from "@/pages/b/store"
+import { getFallbackBusinessStore } from "@/components/front/business/mockData"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { normalizeLocale } from "@/lib/siteLocale"
 
 const TAB_KEYS = ["beranda", "produk", "ulasan", "tentang"] as const;
 type TabKey = (typeof TAB_KEYS)[number];

@@ -2,13 +2,13 @@
 export const prerender = false;
 
 import "../../styles/front.css";
-import BusinessPageNav from "../../components/front/business/BusinessPageNav";
-import Footer from "../../components/front/Footer";
-import CategoryStoreFrontPage from "../../components/front/categories/CategoryStoreFrontPage";
-import CustomerSessionBootstrap from "../../components/customer/CustomerSessionBootstrap.astro";
-import { normalizeLocale } from "../../lib/siteLocale";
-import { fetchRootCategories } from "../../lib/categoryPageData";
-import { fetchPublicProductsPage, fetchPublicBusinesses, buildBrowseData } from "../../components/front/products/api";
+import BusinessPageNav from "@/components/front/business/BusinessPageNav"
+import Footer from "@/components/front/Footer"
+import CategoryStoreFrontPage from "@/components/front/categories/CategoryStoreFrontPage"
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import { normalizeLocale } from "@/lib/siteLocale"
+import { fetchRootCategories } from "@/lib/categoryPageData"
+import { fetchPublicProductsPage, fetchPublicBusinesses, buildBrowseData } from "@/components/front/products/api"
 
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;
