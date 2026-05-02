@@ -24,14 +24,12 @@ func (s *CatalogService) CreateAttributeGroup(ctx context.Context, ag *catalogmo
 	if strings.TrimSpace(ag.Slug) == "" {
 		ag.Slug = makeSlug(ag.Name)
 	}
-
-	// Ensure unique slug
-	var count int64
-	if err := s.DB.WithContext(ctx).Model(&catalogmodels.AttributeGroup{}).Where("slug = ?", ag.Slug).Count(&count).Error; err != nil {
+	if err := s.normalizeAttributeGroupBusinessID(ctx, ag); err != nil {
 		return err
 	}
-	if count > 0 {
-		return fmt.Errorf("attribute group slug '%s' already exists", ag.Slug)
+
+	if err := s.ensureUniqueAttributeGroupSlug(ctx, ag.Slug, "", ag.BusinessID); err != nil {
+		return err
 	}
 
 	return s.DB.WithContext(ctx).Create(ag).Error
@@ -47,9 +45,12 @@ func (s *CatalogService) GetAttributeGroupByID(ctx context.Context, id string) (
 }
 
 // ListAttributeGroups lists all active attribute groups.
-func (s *CatalogService) ListAttributeGroups(ctx context.Context, includeInactive bool) ([]catalogmodels.AttributeGroup, error) {
+func (s *CatalogService) ListAttributeGroups(ctx context.Context, includeInactive bool, businessID string) ([]catalogmodels.AttributeGroup, error) {
 	var groups []catalogmodels.AttributeGroup
 	query := s.DB.WithContext(ctx).Preload("Attributes", "is_active = ?", true).Order("display_order ASC, name ASC")
+	if trimmed := strings.TrimSpace(businessID); trimmed != "" {
+		query = query.Where("business_id = ?", trimmed)
+	}
 	if !includeInactive {
 		query = query.Where("is_active = ?", true)
 	}
@@ -61,6 +62,15 @@ func (s *CatalogService) ListAttributeGroups(ctx context.Context, includeInactiv
 
 // UpdateAttributeGroup updates an attribute group.
 func (s *CatalogService) UpdateAttributeGroup(ctx context.Context, ag *catalogmodels.AttributeGroup) error {
+	if err := s.normalizeAttributeGroupBusinessID(ctx, ag); err != nil {
+		return err
+	}
+	if strings.TrimSpace(ag.Slug) == "" {
+		ag.Slug = makeSlug(ag.Name)
+	}
+	if err := s.ensureUniqueAttributeGroupSlug(ctx, ag.Slug, ag.ID, ag.BusinessID); err != nil {
+		return err
+	}
 	return s.DB.WithContext(ctx).Model(ag).Updates(ag).Error
 }
 
@@ -108,7 +118,7 @@ func (s *CatalogService) CreateAttribute(ctx context.Context, attr *catalogmodel
 // GetAttributeByID retrieves an attribute by ID.
 func (s *CatalogService) GetAttributeByID(ctx context.Context, id string) (*catalogmodels.Attribute, error) {
 	var attr catalogmodels.Attribute
-	if err := s.DB.WithContext(ctx).Where("id = ?", id).First(&attr).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Preload("AttributeGroup").Where("id = ?", id).First(&attr).Error; err != nil {
 		return nil, err
 	}
 	return &attr, nil
@@ -279,6 +289,52 @@ func (s *CatalogService) GetVariationByAttributes(ctx context.Context, productID
 		return nil, err
 	}
 	return &pv, nil
+}
+
+func (s *CatalogService) normalizeAttributeGroupBusinessID(ctx context.Context, ag *catalogmodels.AttributeGroup) error {
+	if ag.BusinessID == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*ag.BusinessID)
+	if trimmed == "" {
+		ag.BusinessID = nil
+		return nil
+	}
+	if _, err := s.GetBusinessByID(ctx, trimmed); err != nil {
+		return err
+	}
+	ag.BusinessID = &trimmed
+	return nil
+}
+
+func (s *CatalogService) ensureUniqueAttributeGroupSlug(ctx context.Context, slug, currentID string, businessID *string) error {
+	base := makeSlug(slug)
+	candidate := base
+	q := s.DB.WithContext(ctx).Model(&catalogmodels.AttributeGroup{}).Where("slug = ?", candidate)
+	if currentID != "" {
+		q = q.Where("id <> ?", currentID)
+	}
+	trimmedBusinessID := ""
+	if businessID != nil {
+		trimmedBusinessID = strings.TrimSpace(*businessID)
+	}
+	if trimmedBusinessID == "" {
+		q = q.Where("business_id IS NULL")
+	} else {
+		q = q.Where("business_id = ?", trimmedBusinessID)
+	}
+
+	var count int64
+	if err := q.Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		if trimmedBusinessID == "" {
+			return fmt.Errorf("attribute group slug '%s' already exists", candidate)
+		}
+		return fmt.Errorf("attribute group slug '%s' already exists in this business", candidate)
+	}
+	return nil
 }
 
 // =============================================================================
