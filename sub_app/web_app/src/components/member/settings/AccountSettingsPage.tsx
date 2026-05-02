@@ -1,6 +1,8 @@
 /** @jsxRuntime classic */
 import React, { useEffect, useState } from "react";
 import { memberGet, memberPut } from "../businesses/api";
+import type { SiteLocale } from "@/lib/siteLocale";
+import { SUPPORTED_LOCALES, LOCALE_LABELS, ORIGINAL_LOCALE } from "@/lib/siteLocale";
 import MemberModal from "../ui/MemberModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -10,6 +12,7 @@ interface MemberProfile {
   full_name: string;
   email: string;
   phone_number: string;
+  language?: string;
   created_at: string;
 }
 
@@ -47,6 +50,7 @@ function TabBar({ active, onSelect }: { active: Tab; onSelect: (t: Tab) => void 
 function ProfileTab({ profile, onUpdated }: { profile: MemberProfile; onUpdated: (p: MemberProfile) => void }) {
   const [fullName, setFullName] = useState(profile.full_name);
   const [phoneNumber, setPhoneNumber] = useState(profile.phone_number);
+  const [language, setLanguage] = useState<SiteLocale>(profile.language as SiteLocale || ORIGINAL_LOCALE);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -55,6 +59,7 @@ function ProfileTab({ profile, onUpdated }: { profile: MemberProfile; onUpdated:
   useEffect(() => {
     setFullName(profile.full_name);
     setPhoneNumber(profile.phone_number);
+    setLanguage((profile.language as SiteLocale) || ORIGINAL_LOCALE);
   }, [profile]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -66,6 +71,7 @@ function ProfileTab({ profile, onUpdated }: { profile: MemberProfile; onUpdated:
       const res = await memberPut<{ data: MemberProfile }>("/api/member/profile", {
         full_name: fullName.trim() || null,
         phone_number: phoneNumber.trim() || null,
+        language: language || ORIGINAL_LOCALE,
       });
       onUpdated(res.data);
       setSuccess(true);
@@ -113,6 +119,21 @@ function ProfileTab({ profile, onUpdated }: { profile: MemberProfile; onUpdated:
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
           placeholder="+628xxxx"
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Bahasa</label>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value as SiteLocale)}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        >
+          {SUPPORTED_LOCALES.map((l) => (
+            <option key={l} value={l}>
+              {LOCALE_LABELS[l]}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && (

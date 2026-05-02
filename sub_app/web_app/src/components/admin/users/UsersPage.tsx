@@ -5,12 +5,14 @@ import EntityTable from "../entities/EntityTable";
 import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import type { EntityColumn } from "../entities/types";
 import UserFormModal from "../users/UserFormModal";
+import { ORIGINAL_LOCALE } from "@/lib/siteLocale";
 
 type User = {
   id: string;
   full_name: string;
   email: string;
   phone_number: string;
+  language?: string;
   is_active: boolean;
   is_banned?: boolean;
   deleted_at?: string | null;
@@ -24,6 +26,7 @@ const columns: EntityColumn<User>[] = [
   { key: "full_name", label: "Full Name", render: (item) => item.deleted_at ? `⚠ ${item.full_name}` : item.full_name },
   { key: "email", label: "Email" },
   { key: "phone_number", label: "Phone" },
+  { key: "language", label: "Lang" },
   { key: "is_active", label: "Active", render: (item) => (item.is_active ? "Yes" : "No") },
   { key: "is_banned", label: "Banned", render: (item) => (item.is_banned ? "Yes" : "No") },
   { key: "deleted_at", label: "Deleted", render: (item) => item.deleted_at ? new Date(item.deleted_at).toLocaleString() : "-" },
@@ -87,6 +90,7 @@ export default function UsersPage() {
       email: selected?.email || "",
       phone_number: selected?.phone_number || "",
       is_active: selected?.is_active ?? true,
+      language: selected?.language || ORIGINAL_LOCALE,
     }),
     [selected],
   );
@@ -109,6 +113,7 @@ export default function UsersPage() {
       email: String(values.email || "").trim(),
       phone_number: String(values.phone_number || "").trim(),
       is_active: Boolean(values.is_active),
+      language: String(values.language || ORIGINAL_LOCALE).trim(),
     };
 
     setSubmitting(true);

@@ -5,6 +5,8 @@ import MemberRichTextEditor, { type RichTextValue } from "../ui/MemberRichTextEd
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { listMemberProductTranslations, upsertMemberProductTranslation } from "./api";
 import type { Product, ProductTranslation } from "./types";
+import type { SiteLocale } from "@/lib/siteLocale";
+import { SUPPORTED_LOCALES, LOCALE_LABELS, ORIGINAL_LOCALE } from "@/lib/siteLocale";
 
 type Props = {
 	open: boolean;
@@ -12,7 +14,7 @@ type Props = {
 	onClose: () => void;
 };
 
-type Locale = "id" | "en";
+type Locale = SiteLocale;
 
 type FormState = {
 	name: string;
@@ -26,15 +28,12 @@ const emptyForm: FormState = {
 	short_description: "",
 };
 
-const localeLabels: Record<Locale, string> = {
-	id: "Indonesia",
-	en: "English",
-};
+// use LOCALE_LABELS from siteLocale for human-friendly labels
 
 export default function ProductTranslationsModal({ open, product, onClose }: Props) {
 	const [loading, setLoading] = useState(false);
 	const [saving, setSaving] = useState(false);
-	const [locale, setLocale] = useState<Locale>("id");
+	const [locale, setLocale] = useState<Locale>(ORIGINAL_LOCALE);
 	const [items, setItems] = useState<ProductTranslation[]>([]);
 	const [form, setForm] = useState<FormState>(emptyForm);
 	const [descriptionValue, setDescriptionValue] = useState<RichTextValue>({ html: "", plain: "", blocks: { type: "doc", content: [] } });
@@ -90,8 +89,8 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
 
 	useEffect(() => {
 		if (!open || !product?.id) return;
-		setLocale("id");
-		void refresh("id");
+		setLocale(ORIGINAL_LOCALE);
+		void refresh(ORIGINAL_LOCALE as Locale);
 	}, [open, product?.id]);
 
 	useEffect(() => {
@@ -120,7 +119,7 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
 				description_plain: descriptionValue.plain.trim() || undefined,
 				description_blocks: descriptionValue.blocks || undefined,
 			});
-			notifySuccess(`Translation ${localeLabels[locale]} saved`);
+			notifySuccess(`Translation ${LOCALE_LABELS[locale]} saved`);
 			await refresh(locale);
 		} catch (err) {
 			notifyError(err instanceof Error ? err.message : "Failed to save product translation");
@@ -156,10 +155,17 @@ export default function ProductTranslationsModal({ open, product, onClose }: Pro
 					<div className="grid gap-2 sm:grid-cols-2">
 						<label className="space-y-1 text-sm">
 							<span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Locale</span>
-							<select className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm" value={locale} onChange={(e) => setLocale(e.target.value as Locale)}>
-								<option value="id">Indonesia (id)</option>
-								<option value="en">English (en)</option>
-							</select>
+								<select
+									className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm"
+									value={locale}
+									onChange={(e) => setLocale(e.target.value as Locale)}
+								>
+									{SUPPORTED_LOCALES.map((l) => (
+										<option key={l} value={l}>
+											{LOCALE_LABELS[l]}
+										</option>
+									))}
+								</select>
 						</label>
 						<div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">
 							<p>Existing entries: <strong>{items.length}</strong></p>

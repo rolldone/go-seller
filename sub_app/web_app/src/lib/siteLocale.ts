@@ -3,6 +3,16 @@ export type SiteLocale = "id" | "en";
 export const ORIGINAL_LOCALE: SiteLocale = "id";
 export const SUPPORTED_LOCALES: readonly SiteLocale[] = ["id", "en"] as const;
 
+export const LOCALE_LABELS: Record<SiteLocale, string> = {
+  id: "Indonesia (id)",
+  en: "English (en)",
+};
+
+export const LOCALE_OPTIONS: Array<{ value: SiteLocale; label: string }> = SUPPORTED_LOCALES.map((l) => ({
+  value: l,
+  label: LOCALE_LABELS[l],
+}));
+
 export function normalizeLocale(value?: string | null): SiteLocale {
   const locale = String(value || "").trim().toLowerCase();
   return locale === "en" ? "en" : ORIGINAL_LOCALE;

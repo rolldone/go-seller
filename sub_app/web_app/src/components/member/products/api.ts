@@ -1,5 +1,6 @@
 import { memberDelete, memberGet, memberPatch, memberPost, memberPostForm, memberPut } from "../businesses/api";
 import type { BusinessOption, CategoryOption, Product, ProductAsset, ProductDigitalFile, ProductListParams, ProductListResponse, ProductPayload, ProductTranslation, ProductTranslationPayload, TagOption } from "./types";
+import type { SiteLocale } from "@/lib/siteLocale";
 
 export async function listMemberProducts(params: ProductListParams): Promise<ProductListResponse> {
 	const query = new URLSearchParams();
@@ -140,6 +141,6 @@ export async function listMemberProductTranslations(productID: string): Promise<
 	return res.data || [];
 }
 
-export async function upsertMemberProductTranslation(productID: string, locale: "id" | "en", input: ProductTranslationPayload): Promise<ProductTranslation> {
+export async function upsertMemberProductTranslation(productID: string, locale: SiteLocale, input: ProductTranslationPayload): Promise<ProductTranslation> {
 	return memberPut<ProductTranslation>(`/api/member/products/${productID}/translations/${locale}`, input);
 }

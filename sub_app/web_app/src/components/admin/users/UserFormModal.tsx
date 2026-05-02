@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import AdminModal from "../ui/AdminModal";
 import { notifyError } from "../../../lib/notification";
+import type { SiteLocale } from "@/lib/siteLocale";
+import { LOCALE_OPTIONS, ORIGINAL_LOCALE } from "@/lib/siteLocale";
 
 type Props = {
   open: boolean;
@@ -107,6 +109,23 @@ export default function UserFormModal({ open, mode, initialValues, submitting, o
             >
               <option value="true">Active</option>
               <option value="false">Inactive</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="space-y-1 text-sm">
+            <span className="text-xs uppercase text-slate-500">Language</span>
+            <select
+              className={inputClass}
+              value={String(form.language ?? ORIGINAL_LOCALE)}
+              onChange={(e) => setForm((prev) => ({ ...prev, language: e.target.value }))}
+            >
+              {LOCALE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>
