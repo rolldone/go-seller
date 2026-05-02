@@ -62,28 +62,28 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 	};
 
 	return (
-		<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-			<div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-				<div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
-					<h2 className="text-lg font-semibold text-gray-900">Tarik Dana</h2>
-					<button
-						onClick={onClose}
-						className="text-gray-400 hover:text-gray-600 text-xl leading-none"
-					>
+		<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+			<div className="w-full max-w-md rounded-[28px] border border-[#e6d9c7] bg-white shadow-[0_32px_96px_-48px_rgba(15,23,42,0.45)]">
+				<div className="flex items-center justify-between border-b border-[#f0e6d6] px-6 pt-5 pb-4">
+					<div>
+						<p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">Saldo Toko</p>
+						<h2 className="mt-1 text-lg font-semibold text-slate-900">Tarik Dana</h2>
+					</div>
+					<button onClick={onClose} className="text-xl leading-none text-slate-400 transition hover:text-slate-600">
 						×
 					</button>
 				</div>
 
-				<form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+				<form onSubmit={handleSubmit} className="space-y-4 px-6 py-5">
 					{/* Balance info */}
-					<div className="bg-blue-50 rounded-lg px-4 py-3 text-sm">
-						<span className="text-blue-600 font-medium">Saldo tersedia: </span>
-						<span className="text-blue-800 font-bold">{formatCents(availableBalance)}</span>
+					<div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+						<span className="font-medium">Saldo tersedia: </span>
+						<span className="font-bold">{formatCents(availableBalance)}</span>
 					</div>
 
 					{/* Amount */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="mb-1 block text-sm font-medium text-slate-700">
 							Jumlah Penarikan (Rp) <span className="text-red-500">*</span>
 						</label>
 						<input
@@ -92,7 +92,7 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 							value={amountRaw}
 							onChange={(e) => handleAmountInput(e.target.value)}
 							placeholder="Contoh: 500000"
-							className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
 						/>
 						{amountCents > availableBalance && (
 							<p className="text-xs text-red-500 mt-1">Melebihi saldo tersedia</p>
@@ -104,7 +104,7 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 
 					{/* Bank Name */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="mb-1 block text-sm font-medium text-slate-700">
 							Nama Bank <span className="text-red-500">*</span>
 						</label>
 						<input
@@ -112,13 +112,13 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 							value={bankName}
 							onChange={(e) => setBankName(e.target.value)}
 							placeholder="Contoh: BCA, Mandiri, BNI"
-							className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
 						/>
 					</div>
 
 					{/* Account Number */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="mb-1 block text-sm font-medium text-slate-700">
 							Nomor Rekening <span className="text-red-500">*</span>
 						</label>
 						<input
@@ -127,13 +127,13 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 							value={bankAccountNumber}
 							onChange={(e) => setBankAccountNumber(e.target.value)}
 							placeholder="Contoh: 1234567890"
-							className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
 						/>
 					</div>
 
 					{/* Account Name */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="mb-1 block text-sm font-medium text-slate-700">
 							Atas Nama Rekening <span className="text-red-500">*</span>
 						</label>
 						<input
@@ -141,13 +141,13 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 							value={bankAccountName}
 							onChange={(e) => setBankAccountName(e.target.value)}
 							placeholder="Nama sesuai rekening bank"
-							className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className="w-full rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
 						/>
 					</div>
 
 					{/* Notes */}
 					<div>
-						<label className="block text-sm font-medium text-gray-700 mb-1">
+						<label className="mb-1 block text-sm font-medium text-slate-700">
 							Catatan (opsional)
 						</label>
 						<textarea
@@ -155,7 +155,7 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 							onChange={(e) => setNotes(e.target.value)}
 							rows={2}
 							placeholder="Tambahkan catatan jika diperlukan"
-							className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+							className="w-full resize-none rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
 						/>
 					</div>
 
@@ -163,14 +163,14 @@ export default function WithdrawalFormModal({ businessID, availableBalance, onSu
 						<button
 							type="button"
 							onClick={onClose}
-							className="flex-1 px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+							className="flex-1 rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-[#f2ede5]"
 						>
 							Batal
 						</button>
 						<button
 							type="submit"
 							disabled={!isValid || loading}
-							className="flex-1 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+							className="flex-1 rounded-2xl border border-emerald-200 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
 						>
 							{loading ? "Memproses..." : "Ajukan Penarikan"}
 						</button>

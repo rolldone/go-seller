@@ -13,9 +13,9 @@ function formatCents(cents: number): string {
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
 	pending:   { label: "Menunggu", className: "bg-yellow-100 text-yellow-700" },
-	approved:  { label: "Disetujui", className: "bg-blue-100 text-blue-700" },
-	rejected:  { label: "Ditolak", className: "bg-red-100 text-red-700" },
-	processed: { label: "Diproses", className: "bg-green-100 text-green-700" },
+	approved:  { label: "Disetujui", className: "bg-emerald-100 text-emerald-700" },
+	rejected:  { label: "Ditolak", className: "bg-rose-100 text-rose-700" },
+	processed: { label: "Diproses", className: "bg-emerald-100 text-emerald-700" },
 };
 
 interface Props {
@@ -47,11 +47,11 @@ export default function WithdrawalHistory({ businessID, refreshKey, onRequestNew
 
 	return (
 		<div className="space-y-3">
-			<div className="flex items-center justify-between">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<select
 					value={statusFilter}
 					onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-					className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+					className="rounded-2xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
 				>
 					<option value="">Semua Status</option>
 					<option value="pending">Menunggu</option>
@@ -63,7 +63,7 @@ export default function WithdrawalHistory({ businessID, refreshKey, onRequestNew
 				{onRequestNew && (
 					<button
 						onClick={onRequestNew}
-						className="bg-blue-600 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+						className="rounded-2xl border border-emerald-200 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
 					>
 						+ Tarik Dana
 					</button>
@@ -77,12 +77,12 @@ export default function WithdrawalHistory({ businessID, refreshKey, onRequestNew
 					))}
 				</div>
 			) : withdrawals.length === 0 ? (
-				<div className="text-center py-12 text-gray-400">
-					<p className="text-lg">Belum ada permintaan penarikan</p>
+				<div className="rounded-[24px] border border-dashed border-[#e0d6c6] bg-[#fcfbf8] px-6 py-12 text-center text-slate-500">
+					<p className="text-lg font-medium text-slate-700">Belum ada permintaan penarikan</p>
 					{onRequestNew && (
 						<button
 							onClick={onRequestNew}
-							className="mt-3 text-sm text-blue-600 hover:underline"
+							className="mt-3 text-sm font-semibold text-emerald-700 hover:text-emerald-800"
 						>
 							Buat permintaan pertama
 						</button>
@@ -90,30 +90,30 @@ export default function WithdrawalHistory({ businessID, refreshKey, onRequestNew
 				</div>
 			) : (
 				<>
-					<div className="text-sm text-gray-500">{total} permintaan</div>
-					<div className="divide-y divide-gray-50">
+					<div className="text-sm text-slate-500">{total} permintaan</div>
+					<div className="divide-y divide-[#f0e6d6] overflow-hidden rounded-[24px] border border-[#ece3d5] bg-[#fcfbf8]">
 						{withdrawals.map((w) => {
 							const badge = STATUS_BADGE[w.status] ?? { label: w.status, className: "bg-gray-100 text-gray-600" };
 							return (
-								<div key={w.id} className="py-4">
-									<div className="flex items-start justify-between">
+								<div key={w.id} className="px-4 py-4 sm:px-5">
+									<div className="flex items-start justify-between gap-4">
 										<div className="flex-1">
 											<div className="flex items-center gap-2 mb-1">
-												<span className="text-sm font-semibold text-gray-800">
+												<span className="text-sm font-semibold text-slate-900">
 													{formatCents(w.amount)}
 												</span>
-												<span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge.className}`}>
+												<span className={`rounded-full px-2 py-0.5 text-xs font-medium ${badge.className}`}>
 													{badge.label}
 												</span>
 											</div>
-											<p className="text-xs text-gray-500">
+											<p className="text-xs text-slate-500">
 												{w.bank_name} — {w.bank_account_number} a/n {w.bank_account_name}
 											</p>
-											<p className="text-xs text-gray-400 mt-0.5">
+											<p className="mt-0.5 text-xs text-slate-400">
 												{new Date(w.created_at).toLocaleString("id-ID")}
 											</p>
 											{w.admin_notes && (
-												<p className="text-xs text-orange-600 mt-1 italic">
+												<p className="mt-1 text-xs italic text-amber-700">
 													Catatan admin: {w.admin_notes}
 												</p>
 											)}
@@ -129,15 +129,15 @@ export default function WithdrawalHistory({ businessID, refreshKey, onRequestNew
 							<button
 								onClick={() => setPage((p) => Math.max(1, p - 1))}
 								disabled={page <= 1}
-								className="text-sm text-blue-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+								className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 disabled:text-slate-400"
 							>
 								← Sebelumnya
 							</button>
-							<span className="text-sm text-gray-500">Halaman {page} / {totalPages}</span>
+							<span className="text-sm text-slate-500">Halaman {page} / {totalPages}</span>
 							<button
 								onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
 								disabled={page >= totalPages}
-								className="text-sm text-blue-600 hover:underline disabled:text-gray-400 disabled:no-underline"
+								className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 disabled:text-slate-400"
 							>
 								Berikutnya →
 							</button>
