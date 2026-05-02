@@ -8,6 +8,7 @@ type Product = {
   id: string;
   name: string;
   sku: string;
+  business_id?: string | null;
 };
 
 type ProductAsset = {
@@ -126,6 +127,10 @@ export default function VariationsPage() {
     return map;
   }, [products]);
 
+  const selectedProductBusinessID = useMemo(() => {
+    return productMap.get(selectedProductID)?.business_id?.trim() || "";
+  }, [productMap, selectedProductID]);
+
   const attributeMap = useMemo(() => {
     const map = new Map<string, Attribute & { group_name: string }>();
     groups.forEach((group) => {
@@ -145,8 +150,14 @@ export default function VariationsPage() {
     }
   };
 
-  const loadGroups = async () => {
-    const data = await adminGet<AttributeGroup[]>("/admin/catalog/attribute-groups?include_inactive=true");
+  const loadGroups = async (businessID: string) => {
+    if (!businessID) {
+      setGroups([]);
+      return;
+    }
+    const data = await adminGet<AttributeGroup[]>(
+      `/admin/catalog/attribute-groups?include_inactive=true&business_id=${encodeURIComponent(businessID)}`,
+    );
     setGroups(data || []);
   };
 
@@ -163,7 +174,7 @@ export default function VariationsPage() {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([loadProducts(), loadGroups()]);
+      await loadProducts();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load data";
       setError(message);
@@ -183,6 +194,14 @@ export default function VariationsPage() {
       setError(message);
     });
   }, [selectedProductID]);
+
+  useEffect(() => {
+    if (!selectedProductID) return;
+    loadGroups(selectedProductBusinessID).catch((err) => {
+      const message = err instanceof Error ? err.message : "Failed to load attribute groups";
+      setError(message);
+    });
+  }, [selectedProductID, selectedProductBusinessID]);
 
   useEffect(() => {
     if (!productPickerOpen) return;
@@ -515,6 +534,9 @@ export default function VariationsPage() {
                   <td className="px-3 py-2 text-slate-700">{formatAmount(Number(item.price || 0), { fractionDigits: 0 })}</td>
                   <td className="px-3 py-2 text-slate-700">
                     <div className="flex flex-wrap gap-1">
+                      {selectedProductBusinessID ? (
+                        <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Business scoped</span>
+                      ) : null}
                       {(item.attributes || []).map((attribute) => {
                         const mapped = attributeMap.get(attribute.id);
                         return (

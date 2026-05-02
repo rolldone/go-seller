@@ -1,0 +1,10 @@
+---
+import MemberLayout from "@/layouts/MemberLayout.astro";
+import MemberAttributesPage from "@/components/member/attributes/AttributesPage";
+
+const locale = Astro.url.pathname.startsWith("/en/") ? "en" : Astro.url.pathname.startsWith("/id/") ? "id" : undefined;
+---
+
+<MemberLayout title="Attributes" subtitle="Kelola atribut milik member" locale={locale}>
+	<MemberAttributesPage client:load />
+</MemberLayout>

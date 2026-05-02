@@ -1,0 +1,10 @@
+---
+import MemberLayout from "@/layouts/MemberLayout.astro";
+import MemberVariationsPage from "@/components/member/variations/VariationsPage";
+
+const locale = Astro.url.pathname.startsWith("/en/") ? "en" : Astro.url.pathname.startsWith("/id/") ? "id" : undefined;
+---
+
+<MemberLayout title="Variations" subtitle="Kelola variasi produk milik member" locale={locale}>
+	<MemberVariationsPage client:load />
+</MemberLayout>

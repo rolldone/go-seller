@@ -20,7 +20,7 @@ export default function EntityTable<T extends WithID>({ items, columns, loading,
   if (items.length === 0) return <div className="text-sm text-slate-500">Belum ada data.</div>;
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
       <table className="min-w-full text-sm">
         <thead className="bg-slate-50 text-left text-slate-700">
           <tr>

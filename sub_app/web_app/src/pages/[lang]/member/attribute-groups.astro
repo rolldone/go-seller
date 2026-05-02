@@ -1,0 +1,11 @@
+---
+import MemberLayout from "@/layouts/MemberLayout.astro";
+import MemberAttributeGroupsPage from "@/components/member/attribute-groups/AttributeGroupsPage";
+
+const { lang } = Astro.params;
+export const prerender = false;
+---
+
+<MemberLayout title="Attribute Groups" subtitle="Kelola grup atribut milik member" locale={lang}>
+	<MemberAttributeGroupsPage client:load />
+</MemberLayout>

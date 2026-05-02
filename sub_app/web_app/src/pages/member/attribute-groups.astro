@@ -1,0 +1,10 @@
+---
+import MemberLayout from "@/layouts/MemberLayout.astro";
+import MemberAttributeGroupsPage from "@/components/member/attribute-groups/AttributeGroupsPage";
+
+const locale = Astro.url.pathname.startsWith("/en/") ? "en" : Astro.url.pathname.startsWith("/id/") ? "id" : undefined;
+---
+
+<MemberLayout title="Attribute Groups" subtitle="Kelola grup atribut milik member" locale={locale}>
+	<MemberAttributeGroupsPage client:load />
+</MemberLayout>

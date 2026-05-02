@@ -23,6 +23,9 @@ const businessDiscountsPath = buildLocalizedPath("/member/business-discounts", l
 const businessCouponsPath = buildLocalizedPath("/member/business-coupons", locale);
 const teamPath = buildLocalizedPath("/member/team", locale);
 const productsPath = buildLocalizedPath("/member/products", locale);
+const attributeGroupsPath = buildLocalizedPath("/member/attribute-groups", locale);
+const attributesPath = buildLocalizedPath("/member/attributes", locale);
+const variationsPath = buildLocalizedPath("/member/variations", locale);
 const payoutsPath = buildLocalizedPath("/member/settings/payouts", locale);
 const balancePath = buildLocalizedPath("/member/balance", locale);
 const notifGroupsPath = buildLocalizedPath("/member/notification-groups", locale);
@@ -36,6 +39,9 @@ const menus = [
 	{ href: businessCouponsPath, label: "Voucher Toko", icon: "coupons", group: "business" },
 	{ href: teamPath, label: "Team", icon: "team", group: "business" },
 	{ href: productsPath, label: "Produk", icon: "products", group: "operations" },
+	{ href: attributeGroupsPath, label: "Attribute Groups", icon: "assets", group: "operations" },
+	{ href: attributesPath, label: "Attributes", icon: "settings", group: "operations" },
+	{ href: variationsPath, label: "Variations", icon: "discounts", group: "operations" },
 	{ href: posPath, label: "POS", icon: "pos", group: "operations" },
 	{ href: ordersPath, label: "Orders", icon: "orders", group: "operations" },
 	{ href: reportsPath, label: "Laporan", icon: "reports", group: "operations" },
@@ -97,7 +103,7 @@ const groupedMenus = menuGroups
 								<ul class="space-y-1" data-group={group.key}>
 									{group.items.map((menu) => {
 											const isPosActive = menu.href === posPath && pathname === posPath;
-											const isActive = (menu.href === dashboardPath && pathname === dashboardPath) || (menu.href === ordersPath && pathname === ordersPath) || (menu.href === reportsPath && pathname === reportsPath) || (menu.href === businessesPath && pathname === businessesPath) || (menu.href === businessAssetsPath && pathname === businessAssetsPath) || (menu.href === businessDiscountsPath && pathname === businessDiscountsPath) || (menu.href === businessCouponsPath && pathname === businessCouponsPath) || (menu.href === teamPath && pathname === teamPath) || (menu.href === productsPath && pathname === productsPath) || (menu.href === payoutsPath && pathname === payoutsPath) || (menu.href === balancePath && pathname === balancePath) || (menu.href === notifGroupsPath && pathname === notifGroupsPath) || (menu.href === accountSettingsPath && pathname === accountSettingsPath) || isPosActive;
+											const isActive = (menu.href === dashboardPath && pathname === dashboardPath) || (menu.href === ordersPath && pathname === ordersPath) || (menu.href === reportsPath && pathname === reportsPath) || (menu.href === businessesPath && pathname === businessesPath) || (menu.href === businessAssetsPath && pathname === businessAssetsPath) || (menu.href === businessDiscountsPath && pathname === businessDiscountsPath) || (menu.href === businessCouponsPath && pathname === businessCouponsPath) || (menu.href === teamPath && pathname === teamPath) || (menu.href === productsPath && pathname === productsPath) || (menu.href === attributeGroupsPath && pathname === attributeGroupsPath) || (menu.href === attributesPath && pathname === attributesPath) || (menu.href === variationsPath && pathname === variationsPath) || (menu.href === payoutsPath && pathname === payoutsPath) || (menu.href === balancePath && pathname === balancePath) || (menu.href === notifGroupsPath && pathname === notifGroupsPath) || (menu.href === accountSettingsPath && pathname === accountSettingsPath) || isPosActive;
 										return (
 											<li>
 												<a
