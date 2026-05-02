@@ -8,21 +8,28 @@ import (
 )
 
 type Services struct {
-	Cart     *CartService
-	Order    *OrderService
-	Wishlist *WishlistService
-	Payment  *PaymentService
-	Catalog  *catalogservices.CatalogService
-	Shipment *ShipmentService
+	Cart              *CartService
+	Order             *OrderService
+	Wishlist          *WishlistService
+	Payment           *PaymentService
+	Catalog           *catalogservices.CatalogService
+	Shipment          *ShipmentService
+	SellerBalance     *SellerBalanceService
+	SellerWithdrawal  *SellerWithdrawalService
+	NotificationGroup *NotificationGroupService
 }
 
 func NewServices(db *gorm.DB, store storage.Store) *Services {
+	sbService := NewSellerBalanceService(db)
 	return &Services{
-		Cart:     NewCartService(db),
-		Order:    NewOrderService(db),
-		Wishlist: NewWishlistService(db),
-		Payment:  NewPaymentService(db, store),
-		Catalog:  catalogservices.New(db, store),
-		Shipment: NewShipmentService(db),
+		Cart:              NewCartService(db),
+		Order:             NewOrderService(db),
+		Wishlist:          NewWishlistService(db),
+		Payment:           NewPaymentService(db, store, sbService),
+		Catalog:           catalogservices.New(db, store),
+		Shipment:          NewShipmentService(db),
+		SellerBalance:     sbService,
+		SellerWithdrawal:  NewSellerWithdrawalService(db, sbService),
+		NotificationGroup: NewNotificationGroupService(db),
 	}
 }

@@ -7,6 +7,7 @@ type Payment struct {
 	OrderID               string     `gorm:"type:uuid;index" json:"order_id"`
 	ProviderID            *string    `gorm:"type:uuid;index" json:"provider_id"`
 	ProviderKey           *string    `gorm:"size:50;index" json:"provider_key"`
+	PaymentMethodID       *string    `gorm:"type:uuid;index" json:"payment_method_id"`
 	PaymentMethod         *string    `gorm:"size:50" json:"payment_method"`
 	GatewayName           *string    `gorm:"size:50" json:"gateway_name"`
 	GatewayTransactionID  *string    `gorm:"size:120;index" json:"gateway_transaction_id"`

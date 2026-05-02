@@ -24,12 +24,13 @@ import (
 )
 
 type PaymentService struct {
-	DB    *gorm.DB
-	Store storage.Store
+	DB                   *gorm.DB
+	Store                storage.Store
+	SellerBalanceService *SellerBalanceService
 }
 
-func NewPaymentService(db *gorm.DB, store storage.Store) *PaymentService {
-	return &PaymentService{DB: db, Store: store}
+func NewPaymentService(db *gorm.DB, store storage.Store, sbService *SellerBalanceService) *PaymentService {
+	return &PaymentService{DB: db, Store: store, SellerBalanceService: sbService}
 }
 
 // PaymentStatus is the canonical set of payment status values used across the service.
@@ -278,12 +279,18 @@ func (s *PaymentService) CreatePayment(ctx context.Context, p *models.Payment) e
 
 func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, status string, paidAt *time.Time) error {
 	var revokeOrderID string
+	var failedOrderID string
+	var creditSeller bool
+	var sellerID *string
+	var totalAmount int64
+	normalizedStatus := normalizePaymentStatus(status)
+
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var p models.Payment
 		if err := tx.Where("id = ?", paymentID).First(&p).Error; err != nil {
 			return err
 		}
-		p.Status = status
+		p.Status = normalizedStatus
 		if paidAt != nil {
 			// Only set PaidAt if it's not already set
 			if p.PaidAt == nil {
@@ -293,7 +300,8 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 		if err := tx.Save(&p).Error; err != nil {
 			return err
 		}
-		if status == "succeeded" {
+		switch normalizedStatus {
+		case string(StatusSucceeded):
 			var order models.Order
 			if err := tx.Where("id = ?", p.OrderID).First(&order).Error; err != nil {
 				return err
@@ -309,15 +317,41 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 				return err
 			}
 			revokeOrderID = p.OrderID
+			creditSeller = true
+			sellerID = order.BusinessID
+			// Convert to cents (int64)
+			totalAmount = int64(order.GrandTotal * 100)
+		case string(StatusFailed), string(StatusCancelled), string(StatusRejected):
+			failedOrderID = p.OrderID
 		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
+
+	// After transaction succeeds, credit seller balance if payment was successful
+	if creditSeller && sellerID != nil && s.SellerBalanceService != nil && totalAmount > 0 {
+		description := fmt.Sprintf("Payment for order %s", revokeOrderID)
+		refType := models.ReferenceTypeOrder
+		// Credit the seller with the total order amount
+		// Note: In production, you may want to deduct commission/fees here
+		_, _ = s.SellerBalanceService.CreditBalance(
+			context.Background(), // Use background context to avoid cancellation
+			*sellerID,
+			totalAmount, // Credit full amount (commission deduction can be done separately)
+			models.SourceOrder,
+			&revokeOrderID,
+			&refType,
+			&description,
+		)
+	}
+
 	if strings.TrimSpace(revokeOrderID) != "" {
 		_ = RevokeGuestCheckoutTokenByOrderID(ctx, revokeOrderID)
-		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "processing_order_customer", revokeOrderID)
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", revokeOrderID)
+	} else if strings.TrimSpace(failedOrderID) != "" {
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", failedOrderID)
 	}
 	return nil
 }
@@ -442,7 +476,7 @@ func (s *PaymentService) uploadPaymentProof(ctx context.Context, paymentID strin
 		_ = s.Store.Delete(ctx, storageKey)
 		return nil, err
 	}
-	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "proof_uploaded_admin", proof.OrderID)
+	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", proof.OrderID)
 
 	return proof, nil
 }
@@ -672,7 +706,7 @@ func (s *PaymentService) ReviewPaymentProof(ctx context.Context, paymentID, proo
 	}
 	if strings.TrimSpace(revokeOrderID) != "" {
 		_ = RevokeGuestCheckoutTokenByOrderID(ctx, revokeOrderID)
-		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "processing_order_customer", revokeOrderID)
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", revokeOrderID)
 	}
 	return nil
 }
@@ -792,11 +826,11 @@ func (s *PaymentService) RecheckGatewayPayment(ctx context.Context, paymentID st
 	}
 	if strings.TrimSpace(revokeOrderID) != "" {
 		_ = RevokeGuestCheckoutTokenByOrderID(ctx, revokeOrderID)
-		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "processing_order_customer", revokeOrderID)
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", revokeOrderID)
 	} else if returnPayment.OrderID != "" {
 		switch normalizePaymentStatus(returnPayment.Status) {
 		case string(StatusFailed), string(StatusCancelled), string(StatusRejected):
-			pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "failed_order_admin", returnPayment.OrderID)
+			pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", returnPayment.OrderID)
 		}
 	}
 	return returnPayment, nil
@@ -862,7 +896,7 @@ func (s *PaymentService) CancelPayment(ctx context.Context, paymentID string, ad
 		return err
 	}
 	if strings.TrimSpace(orderID) != "" {
-		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "cancelled_order_admin", orderID)
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", orderID)
 	}
 	return nil
 }
@@ -913,7 +947,7 @@ func (s *PaymentService) RejectPayment(ctx context.Context, paymentID string, ad
 		return err
 	}
 	if strings.TrimSpace(orderID) != "" {
-		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "failed_order_admin", orderID)
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", orderID)
 	}
 	return nil
 }
@@ -1015,4 +1049,149 @@ func (s *PaymentService) GetReconciliationReport(ctx context.Context, f PaymentR
 	}
 
 	return items, total, summary, nil
+}
+
+// ─── PaymentMethod CRUD ────────────────────────────────────────────────────────
+
+type PaymentMethodFilter struct {
+	BusinessID      *string
+	ProviderID      *string
+	Category        *string
+	IncludeInactive bool
+}
+
+type UpsertPaymentMethodInput struct {
+	BusinessID *string
+	ProviderID string
+	Name       string
+	Code       string
+	Category   string
+	IsActive   bool
+	SortOrder  int
+	IconURL    *string
+}
+
+func (s *PaymentService) ListPaymentMethods(ctx context.Context, f PaymentMethodFilter) ([]models.PaymentMethod, error) {
+	var items []models.PaymentMethod
+	q := s.DB.WithContext(ctx).Preload("Provider").Where("payment_methods.deleted_at IS NULL")
+	if f.BusinessID != nil && strings.TrimSpace(*f.BusinessID) != "" {
+		bid := strings.TrimSpace(*f.BusinessID)
+		q = q.Where("(payment_methods.business_id = ? OR payment_methods.business_id IS NULL)", bid)
+	}
+	if f.ProviderID != nil && strings.TrimSpace(*f.ProviderID) != "" {
+		q = q.Where("payment_methods.provider_id = ?", strings.TrimSpace(*f.ProviderID))
+	}
+	if f.Category != nil && strings.TrimSpace(*f.Category) != "" {
+		q = q.Where("payment_methods.category = ?", strings.TrimSpace(*f.Category))
+	}
+	if !f.IncludeInactive {
+		q = q.Where("payment_methods.is_active = ?", true)
+	}
+	if err := q.Order("payment_methods.sort_order ASC, payment_methods.created_at ASC").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (s *PaymentService) GetPaymentMethodByID(ctx context.Context, id string) (*models.PaymentMethod, error) {
+	var m models.PaymentMethod
+	if err := s.DB.WithContext(ctx).Preload("Provider").Where("id = ? AND deleted_at IS NULL", id).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+func (s *PaymentService) CreatePaymentMethod(ctx context.Context, in UpsertPaymentMethodInput) (*models.PaymentMethod, error) {
+	if strings.TrimSpace(in.Name) == "" {
+		return nil, errors.New("name is required")
+	}
+	if strings.TrimSpace(in.ProviderID) == "" {
+		return nil, errors.New("provider_id is required")
+	}
+	code := strings.ToLower(strings.TrimSpace(in.Code))
+	if code == "" {
+		return nil, errors.New("code is required")
+	}
+
+	// verify provider exists
+	var provider models.PaymentProvider
+	if err := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", in.ProviderID).First(&provider).Error; err != nil {
+		return nil, errors.New("provider not found")
+	}
+
+	item := &models.PaymentMethod{
+		ID:         uuid.NewString(),
+		BusinessID: in.BusinessID,
+		ProviderID: in.ProviderID,
+		Name:       strings.TrimSpace(in.Name),
+		Code:       code,
+		Category:   strings.ToLower(strings.TrimSpace(in.Category)),
+		IsActive:   in.IsActive,
+		SortOrder:  in.SortOrder,
+		IconURL:    in.IconURL,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	if err := s.DB.WithContext(ctx).Create(item).Error; err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (s *PaymentService) UpdatePaymentMethod(ctx context.Context, id string, in UpsertPaymentMethodInput) (*models.PaymentMethod, error) {
+	var item models.PaymentMethod
+	if err := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&item).Error; err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(in.ProviderID) != "" {
+		var provider models.PaymentProvider
+		if err := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", in.ProviderID).First(&provider).Error; err != nil {
+			return nil, errors.New("provider not found")
+		}
+		item.ProviderID = in.ProviderID
+	}
+	if strings.TrimSpace(in.Name) != "" {
+		item.Name = strings.TrimSpace(in.Name)
+	}
+	if strings.TrimSpace(in.Code) != "" {
+		item.Code = strings.ToLower(strings.TrimSpace(in.Code))
+	}
+	if strings.TrimSpace(in.Category) != "" {
+		item.Category = strings.ToLower(strings.TrimSpace(in.Category))
+	}
+	item.IsActive = in.IsActive
+	item.SortOrder = in.SortOrder
+	if in.IconURL != nil {
+		item.IconURL = in.IconURL
+	}
+	if in.BusinessID != nil {
+		item.BusinessID = in.BusinessID
+	}
+	item.UpdatedAt = time.Now()
+
+	if err := s.DB.WithContext(ctx).Save(&item).Error; err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *PaymentService) DeletePaymentMethod(ctx context.Context, id string) error {
+	now := time.Now()
+	return s.DB.WithContext(ctx).Model(&models.PaymentMethod{}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error
+}
+
+// ResolveProviderByMethodID resolves the PaymentProvider for a given PaymentMethod ID.
+// Used during checkout to determine which gateway to route the payment through.
+func (s *PaymentService) ResolveProviderByMethodID(ctx context.Context, methodID string) (*models.PaymentProvider, *models.PaymentMethod, error) {
+	var method models.PaymentMethod
+	if err := s.DB.WithContext(ctx).Preload("Provider").Where("id = ? AND deleted_at IS NULL AND is_active = true", methodID).First(&method).Error; err != nil {
+		return nil, nil, errors.New("payment method not found or inactive")
+	}
+	if method.Provider == nil {
+		return nil, nil, errors.New("payment provider not configured for this method")
+	}
+	return method.Provider, &method, nil
 }

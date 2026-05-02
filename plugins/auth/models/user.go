@@ -14,6 +14,7 @@ type User struct {
 	PasswordHash  *string        `gorm:"column:password_hash;type:text" json:"-"`
 	PhoneNumber   string         `gorm:"size:20" json:"phone_number"`
 	IsActive      bool           `gorm:"default:true" json:"is_active"`
+	Language      string         `gorm:"size:8;default:'id'" json:"language"`
 	CreatedAt     time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt     time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"index" json:"deleted_at"`

@@ -502,3 +502,104 @@ func (h *PaymentHandler) Report(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total, "summary": summary})
 }
+
+// ─── PaymentMethod handlers ───────────────────────────────────────────────────
+
+func (h *PaymentHandler) ListMethods(c *gin.Context) {
+	includeInactive := strings.EqualFold(c.Query("include_inactive"), "true")
+	var providerIDPtr, categoryPtr, businessIDPtr *string
+	if v := strings.TrimSpace(c.Query("provider_id")); v != "" {
+		providerIDPtr = &v
+	}
+	if v := strings.TrimSpace(c.Query("category")); v != "" {
+		categoryPtr = &v
+	}
+	if v := strings.TrimSpace(c.Query("business_id")); v != "" {
+		businessIDPtr = &v
+	}
+	items, err := h.svc.ListPaymentMethods(c.Request.Context(), ordersvc.PaymentMethodFilter{
+		BusinessID:      businessIDPtr,
+		ProviderID:      providerIDPtr,
+		Category:        categoryPtr,
+		IncludeInactive: includeInactive,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": items})
+}
+
+func (h *PaymentHandler) GetMethod(c *gin.Context) {
+	item, err := h.svc.GetPaymentMethodByID(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment method not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item})
+}
+
+type upsertPaymentMethodReq struct {
+	BusinessID *string `json:"business_id"`
+	ProviderID string  `json:"provider_id" binding:"required"`
+	Name       string  `json:"name" binding:"required"`
+	Code       string  `json:"code" binding:"required"`
+	Category   string  `json:"category"`
+	IsActive   bool    `json:"is_active"`
+	SortOrder  int     `json:"sort_order"`
+	IconURL    *string `json:"icon_url"`
+}
+
+func (h *PaymentHandler) CreateMethod(c *gin.Context) {
+	var req upsertPaymentMethodReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := h.svc.CreatePaymentMethod(c.Request.Context(), ordersvc.UpsertPaymentMethodInput{
+		BusinessID: req.BusinessID,
+		ProviderID: req.ProviderID,
+		Name:       req.Name,
+		Code:       req.Code,
+		Category:   req.Category,
+		IsActive:   req.IsActive,
+		SortOrder:  req.SortOrder,
+		IconURL:    req.IconURL,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"data": item})
+}
+
+func (h *PaymentHandler) UpdateMethod(c *gin.Context) {
+	var req upsertPaymentMethodReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	item, err := h.svc.UpdatePaymentMethod(c.Request.Context(), c.Param("id"), ordersvc.UpsertPaymentMethodInput{
+		BusinessID: req.BusinessID,
+		ProviderID: req.ProviderID,
+		Name:       req.Name,
+		Code:       req.Code,
+		Category:   req.Category,
+		IsActive:   req.IsActive,
+		SortOrder:  req.SortOrder,
+		IconURL:    req.IconURL,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item})
+}
+
+func (h *PaymentHandler) DeleteMethod(c *gin.Context) {
+	if err := h.svc.DeletePaymentMethod(c.Request.Context(), c.Param("id")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "deleted"})
+}

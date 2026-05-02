@@ -448,7 +448,7 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 	if err != nil {
 		return nil, err
 	}
-	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "new_order_admin", order.ID)
+	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "order_created", order.ID)
 	return order, nil
 }
 
@@ -510,7 +510,7 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 	if err != nil {
 		return nil, err
 	}
-	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "new_order_admin", order.ID)
+	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "order_created", order.ID)
 	return order, nil
 }
 

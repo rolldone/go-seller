@@ -74,7 +74,13 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminPaymentProviders.PUT("/:id", paymentHandler.UpdateProvider)
 	adminPaymentProviders.POST("/:id/activate", paymentHandler.ActivateProvider)
 
-	// order handlers (admin)
+	adminPaymentMethods := adminOrder.Group("/payment-methods")
+	adminPaymentMethods.GET("", paymentHandler.ListMethods)
+	adminPaymentMethods.GET("/:id", paymentHandler.GetMethod)
+	adminPaymentMethods.POST("", paymentHandler.CreateMethod)
+	adminPaymentMethods.PUT("/:id", paymentHandler.UpdateMethod)
+	adminPaymentMethods.DELETE("/:id", paymentHandler.DeleteMethod)
+
 	orderHandler := NewOrderHandler(s.Order, s.Payment, s.Catalog, authSvc)
 	guestCheckoutHandler := NewGuestCheckoutHandler(s.Order, s.Payment, authSvc)
 	// require permission: view orders
@@ -144,6 +150,40 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	memberBusinessOrders.PATCH("/:id/shipments/:shipment_id", memberShipmentHandler.UpdateShipment)
 	memberBusinessOrders.DELETE("/:id/shipments/:shipment_id", memberShipmentHandler.DeleteShipment)
 
+	// Seller balance routes (member - seller view)
+	sellerBalanceHandler := NewSellerBalanceHandler(s.SellerBalance)
+	sellerWithdrawalHandler := NewSellerWithdrawalHandler(s.SellerWithdrawal)
+	memberBusinessBalance := memberOrder.Group("/businesses/:business_id/balance")
+	memberBusinessBalance.GET("", sellerBalanceHandler.GetBalance)
+	memberBusinessBalance.GET("/mutations", sellerBalanceHandler.ListMutations)
+	memberBusinessBalance.GET("/withdrawals", sellerWithdrawalHandler.ListWithdrawals)
+	memberBusinessBalance.POST("/withdrawals", sellerWithdrawalHandler.RequestWithdrawal)
+	memberBusinessBalance.GET("/withdrawals/:id", sellerWithdrawalHandler.GetWithdrawal)
+
+	// Member notification groups (per-business additional email recipients)
+	notifGroupHandler := NewNotificationGroupHandler(s.NotificationGroup)
+	memberBusinessNotifGroups := memberOrder.Group("/businesses/:business_id/notification-groups")
+	memberBusinessNotifGroups.GET("", notifGroupHandler.ListGroups)
+	memberBusinessNotifGroups.POST("", notifGroupHandler.CreateGroup)
+	memberBusinessNotifGroups.PUT("/:id", notifGroupHandler.UpdateGroup)
+	memberBusinessNotifGroups.DELETE("/:id", notifGroupHandler.DeleteGroup)
+	memberOrder.GET("/notification-groups/events", notifGroupHandler.ListValidEvents)
+
+	// Admin seller balance management
+	adminSellerBalance := adminOrder.Group("/seller-balance")
+	adminSellerBalance.GET("/summary", sellerBalanceHandler.AdminGetSummary)
+	adminSellerBalance.POST("/:seller_id/credit", sellerBalanceHandler.AdminCreditBalance)
+	adminSellerBalance.POST("/:seller_id/debet", sellerBalanceHandler.AdminDebetBalance)
+
+	// Admin withdrawal management
+	adminWithdrawals := adminOrder.Group("/withdrawals")
+	adminWithdrawals.GET("", sellerWithdrawalHandler.AdminListWithdrawals)
+	adminWithdrawals.GET("/:id", sellerWithdrawalHandler.AdminGetWithdrawal)
+	adminWithdrawals.GET("/:id/audit", sellerWithdrawalHandler.AdminListWithdrawalAudits)
+	adminWithdrawals.POST("/:id/approve", sellerWithdrawalHandler.AdminApproveWithdrawal)
+	adminWithdrawals.POST("/:id/reject", sellerWithdrawalHandler.AdminRejectWithdrawal)
+	adminWithdrawals.POST("/:id/process", sellerWithdrawalHandler.AdminMarkProcessed)
+
 	// Server-to-server callback endpoint — payload is AES-GCM encrypted with shared S2S_KEY.
 	callbackHandler := NewCallbackHandler(s.Order)
 	apiOrder.POST("/callback", callbackHandler.HandleCallback)
@@ -152,4 +192,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	apiOrder.POST("/guest-checkout/:token/addresses", guestCheckoutHandler.CreateAddress)
 	apiOrder.POST("/guest-checkout/:token/shipping-address", guestCheckoutHandler.UpdateShippingAddress)
 	apiOrder.POST("/guest-checkout/:token/start-payment", guestCheckoutHandler.StartPayment)
+
+	// Public: list active payment methods (for checkout UI)
+	apiOrder.GET("/payment-methods", paymentHandler.ListMethods)
 }

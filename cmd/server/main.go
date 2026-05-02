@@ -27,7 +27,6 @@ import (
 	marketingplugin "go_framework/plugins/marketing"
 	notificationplugin "go_framework/plugins/notification"
 	orderplugin "go_framework/plugins/order"
-	paymentgatewayplugin "go_framework/plugins/payment_gateway"
 	reviewplugin "go_framework/plugins/review"
 	settingplugin "go_framework/plugins/setting"
 )
@@ -48,7 +47,7 @@ func main() {
 			// Example: register user plugins here
 			// plugins.RegisterPlugins([]plugins.Plugin{myPlugin.New()})
 			// plugins.RegisterPlugins([]plugins.Plugin{suppliers.New(), test_plugin.New()})
-			plugins.RegisterPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), financeplugin.New(), marketingplugin.New(), orderplugin.New(), paymentgatewayplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New()})
+			plugins.RegisterPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), financeplugin.New(), marketingplugin.New(), orderplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New()})
 		},
 	})
 	if err != nil {

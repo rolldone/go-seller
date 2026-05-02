@@ -688,7 +688,20 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 	}
 
 	var selectedProvider *ordermodels.PaymentProvider
-	if req.ProviderID != nil && strings.TrimSpace(*req.ProviderID) != "" {
+	var selectedMethodID *string
+	if req.PaymentMethodID != nil && strings.TrimSpace(*req.PaymentMethodID) != "" {
+		provider, method, resolveErr := h.paymentSvc.ResolveProviderByMethodID(c.Request.Context(), strings.TrimSpace(*req.PaymentMethodID))
+		if resolveErr != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": resolveErr.Error()})
+			return
+		}
+		selectedProvider = provider
+		methodIDStr := method.ID
+		selectedMethodID = &methodIDStr
+		if req.PaymentMethod == nil || strings.TrimSpace(*req.PaymentMethod) == "" {
+			req.PaymentMethod = &method.Code
+		}
+	} else if req.ProviderID != nil && strings.TrimSpace(*req.ProviderID) != "" {
 		item, getErr := h.paymentSvc.GetProviderByID(c.Request.Context(), strings.TrimSpace(*req.ProviderID))
 		if getErr != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "payment provider not found"})
@@ -797,18 +810,19 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 	}
 
 	payment := &ordermodels.Payment{
-		OrderID:       ord.ID,
-		Amount:        ord.GrandTotal,
-		Currency:      ord.Currency,
-		ProviderID:    &providerID,
-		ProviderKey:   &providerKey,
-		PaymentMethod: &paymentMethod,
-		GatewayName:   &gatewayName,
-		Status:        string(ordersvc.StatusPending),
-		ProofStatus:   "none",
-		Metadata:      metadataJSON,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		OrderID:         ord.ID,
+		Amount:          ord.GrandTotal,
+		Currency:        ord.Currency,
+		ProviderID:      &providerID,
+		ProviderKey:     &providerKey,
+		PaymentMethodID: selectedMethodID,
+		PaymentMethod:   &paymentMethod,
+		GatewayName:     &gatewayName,
+		Status:          string(ordersvc.StatusPending),
+		ProofStatus:     "none",
+		Metadata:        metadataJSON,
+		CreatedAt:       time.Now(),
+		UpdatedAt:       time.Now(),
 	}
 	if err := h.paymentSvc.CreatePayment(c.Request.Context(), payment); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

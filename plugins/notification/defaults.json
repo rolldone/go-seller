@@ -362,5 +362,213 @@
       "body": "Hi {{.Name}},\n\nThanks for subscribing to {{.business_name}}{{if .ProductName}} - {{.ProductName}}{{end}}.\nPlease click the link below to confirm your subscription:\n{{.ConfirmLink}}\n\nThis link will expire in {{.ExpiryMinutes}} minutes.\n\nIf you did not request this, please ignore this email."
     },
     "description": "Subscription confirmation template (English)"
+  },
+  {
+    "key": "notifications.withdrawal_requested_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Permintaan Penarikan Dana",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Penarikan Dana] Permintaan #{{.withdrawal_id}} sedang diproses",
+      "body": "Halo {{.seller_name}},\n\nPermintaan penarikan dana kamu telah diterima.\n\nID Penarikan: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPermintaan kamu sedang menunggu review admin. Kamu akan mendapat notifikasi setelah status berubah."
+    },
+    "description": "Notifikasi member saat mengajukan penarikan dana (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_requested_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Permintaan Penarikan Baru (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Penarikan Dana] Permintaan baru dari {{.seller_name}}",
+      "body": "Ada permintaan penarikan dana baru.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nSilakan review di panel admin."
+    },
+    "description": "Notifikasi admin saat ada permintaan penarikan dana baru (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_approved_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Penarikan Dana Disetujui (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Penarikan Dana] Permintaan #{{.withdrawal_id}} disetujui",
+      "body": "Permintaan penarikan dana telah disetujui.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nSilakan lanjutkan proses transfer."
+    },
+    "description": "Notifikasi admin saat penarikan dana disetujui (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_rejected_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Penarikan Dana Ditolak (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Penarikan Dana] Permintaan #{{.withdrawal_id}} ditolak",
+      "body": "Permintaan penarikan dana telah ditolak.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nAlasan: {{.admin_notes}}\n\nSaldo telah dikembalikan ke akun seller."
+    },
+    "description": "Notifikasi admin saat penarikan dana ditolak (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_processed_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Penarikan Dana Diproses (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Penarikan Dana] Permintaan #{{.withdrawal_id}} telah diproses",
+      "body": "Permintaan penarikan dana telah diproses dan ditransfer.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})"
+    },
+    "description": "Notifikasi admin saat penarikan dana diproses (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_approved_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Penarikan Dana Disetujui",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Penarikan Dana] Permintaan #{{.withdrawal_id}} disetujui",
+      "body": "Halo {{.seller_name}},\n\nPermintaan penarikan dana kamu telah disetujui.\n\nID Penarikan: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nDana akan segera ditransfer ke rekening kamu."
+    },
+    "description": "Notifikasi member saat penarikan dana disetujui (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_rejected_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Penarikan Dana Ditolak",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Penarikan Dana] Permintaan #{{.withdrawal_id}} ditolak",
+      "body": "Halo {{.seller_name}},\n\nSayang sekali, permintaan penarikan dana kamu ditolak.\n\nID Penarikan: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nAlasan: {{.admin_notes}}\n\nSaldo telah dikembalikan ke akun kamu. Silakan hubungi admin jika ada pertanyaan."
+    },
+    "description": "Notifikasi member saat penarikan dana ditolak (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_processed_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Penarikan Dana Diproses",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Penarikan Dana] Permintaan #{{.withdrawal_id}} telah diproses",
+      "body": "Halo {{.seller_name}},\n\nDana penarikan kamu telah ditransfer.\n\nID Penarikan: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nSilakan periksa rekening kamu dalam 1-3 hari kerja."
+    },
+    "description": "Notifikasi member saat penarikan dana telah diproses/ditransfer (Indonesia)"
+  },
+  {
+    "key": "notifications.withdrawal_requested_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Withdrawal Request",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Withdrawal] Request #{{.withdrawal_id}} is being processed",
+      "body": "Hi {{.seller_name}},\n\nYour withdrawal request has been received.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nYour request is pending admin review. You will be notified when the status changes."
+    },
+    "description": "Member notification when a withdrawal is requested (English)"
+  },
+  {
+    "key": "notifications.withdrawal_requested_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "New Withdrawal Request (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Withdrawal] New request from {{.seller_name}}",
+      "body": "A new withdrawal request has been submitted.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPlease review in the admin panel."
+    },
+    "description": "Admin notification when a new withdrawal request is submitted (English)"
+  },
+  {
+    "key": "notifications.withdrawal_approved_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Withdrawal Approved (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Withdrawal] Request #{{.withdrawal_id}} approved",
+      "body": "The withdrawal request has been approved.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPlease continue with the transfer process."
+    },
+    "description": "Admin notification when withdrawal is approved (English)"
+  },
+  {
+    "key": "notifications.withdrawal_rejected_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Withdrawal Rejected (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Withdrawal] Request #{{.withdrawal_id}} rejected",
+      "body": "The withdrawal request has been rejected.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nReason: {{.admin_notes}}\n\nThe balance has been returned to the seller account."
+    },
+    "description": "Admin notification when withdrawal is rejected (English)"
+  },
+  {
+    "key": "notifications.withdrawal_processed_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Withdrawal Processed (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Withdrawal] Request #{{.withdrawal_id}} processed",
+      "body": "The withdrawal request has been processed and transferred.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})"
+    },
+    "description": "Admin notification when withdrawal is processed (English)"
+  },
+  {
+    "key": "notifications.withdrawal_approved_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Withdrawal Approved",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Withdrawal] Request #{{.withdrawal_id}} approved",
+      "body": "Hi {{.seller_name}},\n\nYour withdrawal request has been approved.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nFunds will be transferred to your bank account shortly."
+    },
+    "description": "Member notification when withdrawal is approved (English)"
+  },
+  {
+    "key": "notifications.withdrawal_rejected_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Withdrawal Rejected",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Withdrawal] Request #{{.withdrawal_id}} rejected",
+      "body": "Hi {{.seller_name}},\n\nWe're sorry, your withdrawal request has been rejected.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nReason: {{.admin_notes}}\n\nThe balance has been returned to your account. Please contact admin if you have any questions."
+    },
+    "description": "Member notification when withdrawal is rejected (English)"
+  },
+  {
+    "key": "notifications.withdrawal_processed_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Withdrawal Processed",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Withdrawal] Request #{{.withdrawal_id}} has been processed",
+      "body": "Hi {{.seller_name}},\n\nYour withdrawal funds have been transferred.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPlease check your bank account within 1-3 business days."
+    },
+    "description": "Member notification when withdrawal funds have been processed/transferred (English)"
   }
 ]

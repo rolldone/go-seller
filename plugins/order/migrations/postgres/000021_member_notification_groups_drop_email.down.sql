@@ -1,0 +1,2 @@
+ALTER TABLE member_notification_groups
+ADD COLUMN IF NOT EXISTS email VARCHAR(255) NOT NULL DEFAULT '';
