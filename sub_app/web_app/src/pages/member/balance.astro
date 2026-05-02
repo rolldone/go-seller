@@ -1,0 +1,11 @@
+---
+import MemberLayout from "../../layouts/MemberLayout.astro";
+import SellerBalancePage from "@/components/member/balance/SellerBalancePage";
+
+export const prerender = false;
+const locale = "id";
+---
+
+<MemberLayout title="Saldo" subtitle="Kelola saldo dan penarikan dana toko." locale={locale}>
+	<SellerBalancePage client:load />
+</MemberLayout>

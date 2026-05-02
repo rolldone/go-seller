@@ -1,0 +1,10 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import SellerBalanceAdminPage from "@/components/admin/seller-balance/SellerBalanceAdminPage";
+
+export const prerender = false;
+---
+
+<AdminLayout title="Seller Balance">
+  <SellerBalanceAdminPage client:load />
+</AdminLayout>

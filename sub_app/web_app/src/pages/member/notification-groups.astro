@@ -1,0 +1,15 @@
+---
+import MemberLayout from "../../layouts/MemberLayout.astro";
+import NotificationGroupsPage from "@/components/member/notification-groups/NotificationGroupsPage";
+
+export const prerender = false;
+const locale = "id";
+---
+
+<MemberLayout
+	title="Grup Notifikasi"
+	subtitle="Kelola daftar email penerima notifikasi untuk bisnis kamu."
+	locale={locale}
+>
+	<NotificationGroupsPage client:load />
+</MemberLayout>

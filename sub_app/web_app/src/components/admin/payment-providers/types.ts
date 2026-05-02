@@ -11,6 +11,21 @@ export type PaymentProvider = {
   updated_at: string;
 };
 
+export type PaymentMethod = {
+  id: string;
+  business_id?: string | null;
+  provider_id: string;
+  name: string;
+  code: string;
+  category: string;
+  is_active: boolean;
+  sort_order: number;
+  icon_url?: string | null;
+  created_at: string;
+  updated_at: string;
+  provider?: PaymentProvider | null;
+};
+
 export type PaymentReconciliationItem = {
   payment_id: string;
   order_id: string;

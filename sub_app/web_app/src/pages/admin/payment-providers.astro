@@ -1,8 +1,13 @@
----import AdminLayout from "../../layouts/AdminLayout.astro";
+---
+import AdminLayout from "@/layouts/AdminLayout.astro"
+import SuperAdminAuthGuard from "@/components/admin/SuperAdminAuthGuard"
 import PaymentProvidersPage from "@/components/admin/payment-providers/PaymentProvidersPage"
 export const prerender = false;
 ---
 
 <AdminLayout title="Payment Providers">
-  <PaymentProvidersPage client:load />
+  <SuperAdminAuthGuard client:load />
+  <div class="p-6">
+    <PaymentProvidersPage client:load />
+  </div>
 </AdminLayout>

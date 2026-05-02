@@ -3,6 +3,7 @@ import { notifyError } from "../../../lib/notification";
 import { getPaymentReconciliationReport, listPaymentProviders } from "./api";
 import type { PaymentProvider, PaymentReconciliationItem, PaymentReconciliationSummary } from "./types";
 import PaymentProviderModal, { PROVIDER_OPTIONS } from "./PaymentProviderForm";
+import PaymentMethodsSection from "./PaymentMethodsSection";
 import { formatAmount } from "../../../lib/amountFormat";
 
 export default function PaymentProvidersPage() {
@@ -222,6 +223,8 @@ export default function PaymentProvidersPage() {
           </div>
         )}
       </section>
+
+      <PaymentMethodsSection providers={items} />
     </div>
   );
 }

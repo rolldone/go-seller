@@ -22,6 +22,9 @@ type NotificationTemplate = {
 };
 
 const LEGACY_TEMPLATE_IDS: Record<string, string[]> = {
+  order_created: ["new_order_admin"],
+  payment_succeeded: ["processing_order_customer"],
+  payment_failed: ["failed_order_admin"],
   team_member_invited_member: ["team_member_invited_admin"],
   team_member_suspended_member: ["team_member_suspended_admin"],
 };
@@ -46,8 +49,8 @@ const AUDIENCE_ORDER: Record<NotificationAudience, number> = {
 
 const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience" | "description">> = [
   {
-    id: "new_order_admin",
-    name: "New Order",
+    id: "order_created",
+    name: "Order Created",
     audience: "admin",
     description: "Notifikasi saat order baru masuk.",
   },
@@ -58,8 +61,14 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     description: "Notifikasi saat order dibatalkan.",
   },
   {
-    id: "failed_order_admin",
-    name: "Failed Order",
+    id: "payment_succeeded",
+    name: "Payment Succeeded",
+    audience: "customer",
+    description: "Notifikasi saat pembayaran berhasil.",
+  },
+  {
+    id: "payment_failed",
+    name: "Payment Failed",
     audience: "admin",
     description: "Notifikasi saat pembayaran gagal.",
   },
@@ -118,6 +127,54 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     description: "Notifikasi email saat akses member ditangguhkan.",
   },
   {
+    id: "withdrawal_requested_member",
+    name: "Withdrawal Requested Member",
+    audience: "member",
+    description: "Notifikasi saat member mengajukan penarikan dana.",
+  },
+  {
+    id: "withdrawal_requested_admin",
+    name: "Withdrawal Requested Admin",
+    audience: "admin",
+    description: "Notifikasi admin saat ada permintaan penarikan dana.",
+  },
+  {
+    id: "withdrawal_approved_member",
+    name: "Withdrawal Approved Member",
+    audience: "member",
+    description: "Notifikasi saat penarikan dana disetujui.",
+  },
+  {
+    id: "withdrawal_approved_admin",
+    name: "Withdrawal Approved Admin",
+    audience: "admin",
+    description: "Notifikasi admin saat penarikan dana disetujui.",
+  },
+  {
+    id: "withdrawal_rejected_member",
+    name: "Withdrawal Rejected Member",
+    audience: "member",
+    description: "Notifikasi saat penarikan dana ditolak.",
+  },
+  {
+    id: "withdrawal_rejected_admin",
+    name: "Withdrawal Rejected Admin",
+    audience: "admin",
+    description: "Notifikasi admin saat penarikan dana ditolak.",
+  },
+  {
+    id: "withdrawal_processed_member",
+    name: "Withdrawal Processed Member",
+    audience: "member",
+    description: "Notifikasi saat penarikan dana diproses.",
+  },
+  {
+    id: "withdrawal_processed_admin",
+    name: "Withdrawal Processed Admin",
+    audience: "admin",
+    description: "Notifikasi admin saat penarikan dana diproses.",
+  },
+  {
     id: "subscription_confirmation_customer",
     name: "Subscription Confirmation",
     audience: "customer",
@@ -127,7 +184,7 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
 
 const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplate, "enabled" | "recipients" | "subject" | "body">>> = {
   id: {
-    new_order_admin: {
+    order_created: {
       enabled: true,
       recipients: "admin@goseller.local, owner@goseller.local",
       subject: "[Order Baru] {{.order_number}} - {{.business_name}}",
@@ -139,7 +196,13 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[Order Dibatalkan] {{.order_number}}",
       body: "Order {{.order_number}} dibatalkan. Status order saat ini: {{.order_status}}.",
     },
-    failed_order_admin: {
+    payment_succeeded: {
+      enabled: true,
+      recipients: "{{.customer_email}}",
+      subject: "Pembayaran order {{.order_number}} berhasil",
+      body: "Halo {{.customer_name}}, pembayaran untuk order {{.order_number}} berhasil diterima. Status saat ini: {{.payment_status}}.",
+    },
+    payment_failed: {
       enabled: true,
       recipients: "finance@goseller.local",
       subject: "[Payment Gagal] {{.order_number}}",
@@ -204,6 +267,54 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       body:
         "Halo {{.member_name}}, akses team kamu di {{.business_name}} telah ditangguhkan. Alasan: {{.reason}}. Jika ini terasa keliru, silakan hubungi tim yang mengundangmu.",
     },
+    withdrawal_requested_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} sedang diproses",
+      body: "Halo {{.seller_name}},\n\nPermintaan penarikan dana kamu telah diterima.\n\nID Penarikan: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPermintaan kamu sedang menunggu review admin. Kamu akan mendapat notifikasi setelah status berubah.",
+    },
+    withdrawal_requested_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Penarikan Dana] Permintaan baru dari {{.seller_name}}",
+      body: "Ada permintaan penarikan dana baru.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nSilakan review di panel admin.",
+    },
+    withdrawal_approved_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} disetujui",
+      body: "Halo {{.seller_name}},\n\nPermintaan penarikan dana kamu telah disetujui. Dana akan segera ditransfer ke rekening kamu.\n\nID: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})",
+    },
+    withdrawal_approved_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} disetujui",
+      body: "Permintaan penarikan dana telah disetujui.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nSilakan lanjutkan proses transfer.",
+    },
+    withdrawal_rejected_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} ditolak",
+      body: "Halo {{.seller_name}},\n\nSayang sekali, permintaan penarikan dana kamu ditolak.\n\nID Penarikan: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nAlasan: {{.admin_notes}}\n\nSaldo telah dikembalikan ke akun kamu. Silakan hubungi admin jika ada pertanyaan.",
+    },
+    withdrawal_rejected_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} ditolak",
+      body: "Permintaan penarikan dana telah ditolak.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nAlasan: {{.admin_notes}}\n\nSaldo telah dikembalikan ke akun seller.",
+    },
+    withdrawal_processed_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} telah diproses",
+      body: "Halo {{.seller_name}},\n\nDana penarikan kamu telah ditransfer.\n\nID Penarikan: #{{.withdrawal_id}}\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nSilakan periksa rekening kamu dalam 1-3 hari kerja.",
+    },
+    withdrawal_processed_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} telah diproses",
+      body: "Permintaan penarikan dana telah diproses dan ditransfer.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})",
+    },
     subscription_confirmation_customer: {
       enabled: true,
       recipients: "{{.email}}",
@@ -212,7 +323,7 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
     },
   },
   en: {
-    new_order_admin: {
+    order_created: {
       enabled: true,
       recipients: "admin@goseller.local, owner@goseller.local",
       subject: "[New Order] {{.order_number}} - {{.business_name}}",
@@ -224,7 +335,13 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[Order Cancelled] {{.order_number}}",
       body: "Order {{.order_number}} has been cancelled. Current order status: {{.order_status}}.",
     },
-    failed_order_admin: {
+    payment_succeeded: {
+      enabled: true,
+      recipients: "{{.customer_email}}",
+      subject: "Payment successful - {{.order_number}}",
+      body: "Hi {{.customer_name}}, payment for order {{.order_number}} was successful. Current status: {{.payment_status}}.",
+    },
+    payment_failed: {
       enabled: true,
       recipients: "finance@goseller.local",
       subject: "[Payment Failed] {{.order_number}}",
@@ -288,6 +405,54 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[Access Suspended] {{.business_name}}",
       body:
         "Hi {{.member_name}}, your team access for {{.business_name}} has been suspended. Reason: {{.reason}}. If you think this is a mistake, please contact the inviter.",
+    },
+    withdrawal_requested_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Withdrawal] Request #{{.withdrawal_id}} is being processed",
+      body: "Hi {{.seller_name}},\n\nYour withdrawal request has been received.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nYour request is pending admin review. You will be notified when the status changes.",
+    },
+    withdrawal_requested_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Withdrawal] New request from {{.seller_name}}",
+      body: "A new withdrawal request has been submitted.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPlease review in the admin panel.",
+    },
+    withdrawal_approved_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Withdrawal] Request #{{.withdrawal_id}} approved",
+      body: "Hi {{.seller_name}},\n\nYour withdrawal request has been approved. Funds will be transferred to your bank account shortly.\n\nID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})",
+    },
+    withdrawal_approved_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Withdrawal] Request #{{.withdrawal_id}} approved",
+      body: "The withdrawal request has been approved.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPlease continue with the transfer process.",
+    },
+    withdrawal_rejected_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Withdrawal] Request #{{.withdrawal_id}} rejected",
+      body: "Hi {{.seller_name}},\n\nWe're sorry, your withdrawal request has been rejected.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nReason: {{.admin_notes}}\n\nThe balance has been returned to your account. Please contact admin if you have any questions.",
+    },
+    withdrawal_rejected_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Withdrawal] Request #{{.withdrawal_id}} rejected",
+      body: "The withdrawal request has been rejected.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nReason: {{.admin_notes}}\n\nThe balance has been returned to the seller account.",
+    },
+    withdrawal_processed_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Withdrawal] Request #{{.withdrawal_id}} has been processed",
+      body: "Hi {{.seller_name}},\n\nYour withdrawal funds have been transferred.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPlease check your bank account within 1-3 business days.",
+    },
+    withdrawal_processed_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Withdrawal] Request #{{.withdrawal_id}} processed",
+      body: "The withdrawal request has been processed and transferred.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})",
     },
     subscription_confirmation_customer: {
       enabled: true,

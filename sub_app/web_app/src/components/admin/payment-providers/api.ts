@@ -1,5 +1,5 @@
-import { adminGet, adminPost, adminPut } from "../entities/adminApi";
-import type { PaymentProvider, PaymentReconciliationItem, PaymentReconciliationSummary } from "./types";
+import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
+import type { PaymentMethod, PaymentProvider, PaymentReconciliationItem, PaymentReconciliationSummary } from "./types";
 
 type ProviderListResponse = { data: PaymentProvider[] };
 type ProviderItemResponse = { data: PaymentProvider };
@@ -58,4 +58,48 @@ export async function getPaymentReconciliationReport(params: {
   if (params.limit) sp.set("limit", String(params.limit));
   const query = sp.toString();
   return adminGet<ReportResponse>(`/admin/order/payments/report${query ? `?${query}` : ""}`);
+}
+
+// ─── PaymentMethod API ─────────────────────────────────────────────────────────
+
+type MethodListResponse = { data: PaymentMethod[] };
+type MethodItemResponse = { data: PaymentMethod };
+
+export type UpsertMethodPayload = {
+  business_id?: string;
+  provider_id: string;
+  name: string;
+  code: string;
+  category?: string;
+  is_active: boolean;
+  sort_order?: number;
+  icon_url?: string;
+};
+
+export async function listPaymentMethods(params?: {
+  provider_id?: string;
+  category?: string;
+  include_inactive?: boolean;
+}): Promise<PaymentMethod[]> {
+  const sp = new URLSearchParams();
+  if (params?.provider_id) sp.set("provider_id", params.provider_id);
+  if (params?.category) sp.set("category", params.category);
+  if (params?.include_inactive) sp.set("include_inactive", "true");
+  const q = sp.toString();
+  const res = await adminGet<MethodListResponse>(`/admin/order/payment-methods${q ? `?${q}` : ""}`);
+  return res.data || [];
+}
+
+export async function createPaymentMethod(payload: UpsertMethodPayload): Promise<PaymentMethod> {
+  const res = await adminPost<MethodItemResponse>("/admin/order/payment-methods", payload);
+  return res.data;
+}
+
+export async function updatePaymentMethod(id: string, payload: UpsertMethodPayload): Promise<PaymentMethod> {
+  const res = await adminPut<MethodItemResponse>(`/admin/order/payment-methods/${id}`, payload);
+  return res.data;
+}
+
+export async function deletePaymentMethod(id: string): Promise<void> {
+  await adminDelete(`/admin/order/payment-methods/${id}`);
 }
