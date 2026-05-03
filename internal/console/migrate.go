@@ -106,6 +106,16 @@ var migrateDownCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if migratePluginFlag == "all" || migratePluginFlag == "" {
+			ok, err := applyDownGlobal(targets)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				fmt.Println("all: nothing to rollback")
+			}
+			return nil
+		}
 		for i := len(targets) - 1; i >= 0; i-- {
 			if err := applyDown(targets[i]); err != nil {
 				return fmt.Errorf("%s: %w", targets[i].Name, err)
@@ -122,6 +132,9 @@ var migrateDownAllCmd = &cobra.Command{
 		targets, err := collectTargets(migratePluginFlag, migrateDBFlag)
 		if err != nil {
 			return err
+		}
+		if migratePluginFlag == "all" || migratePluginFlag == "" {
+			return applyDownAllGlobal(targets)
 		}
 		for i := len(targets) - 1; i >= 0; i-- {
 			if err := applyDownAll(targets[i]); err != nil {
@@ -255,7 +268,168 @@ func collectTargets(target, dbType string) ([]migrationTarget, error) {
 		}
 		return nil, fmt.Errorf("no migration paths found for target %q", target)
 	}
+	ordered, err := orderTargetsDynamically(res)
+	if err != nil {
+		return nil, err
+	}
+	res = ordered
 	return res, nil
+}
+
+func orderTargetsDynamically(targets []migrationTarget) ([]migrationTarget, error) {
+	if len(targets) <= 1 {
+		return targets, nil
+	}
+
+	// Keep core first if present; plugin order is resolved dynamically.
+	var coreTargets []migrationTarget
+	var pluginTargets []migrationTarget
+	for _, t := range targets {
+		if t.Name == "core" {
+			coreTargets = append(coreTargets, t)
+			continue
+		}
+		pluginTargets = append(pluginTargets, t)
+	}
+	if len(pluginTargets) <= 1 {
+		return append(coreTargets, pluginTargets...), nil
+	}
+
+	pluginOrder := map[string]int{}
+	for idx, p := range plugins.RegisteredPlugins() {
+		pluginOrder[p.ID()] = idx
+	}
+
+	owners, err := collectTableOwners(pluginTargets)
+	if err != nil {
+		return nil, err
+	}
+	deps, err := collectTargetDependencies(pluginTargets, owners)
+	if err != nil {
+		return nil, err
+	}
+
+	nameToTarget := map[string]migrationTarget{}
+	indegree := map[string]int{}
+	dependents := map[string][]string{}
+	for _, t := range pluginTargets {
+		nameToTarget[t.Name] = t
+		indegree[t.Name] = len(deps[t.Name])
+	}
+	for tgt, need := range deps {
+		for dep := range need {
+			dependents[dep] = append(dependents[dep], tgt)
+		}
+	}
+
+	var queue []string
+	for _, t := range pluginTargets {
+		if indegree[t.Name] == 0 {
+			queue = append(queue, t.Name)
+		}
+	}
+	sort.Slice(queue, func(i, j int) bool { return lessByRegistration(queue[i], queue[j], pluginOrder) })
+
+	var orderedPlugins []migrationTarget
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		orderedPlugins = append(orderedPlugins, nameToTarget[cur])
+
+		for _, nxt := range dependents[cur] {
+			indegree[nxt]--
+			if indegree[nxt] == 0 {
+				queue = append(queue, nxt)
+			}
+		}
+		sort.Slice(queue, func(i, j int) bool { return lessByRegistration(queue[i], queue[j], pluginOrder) })
+	}
+
+	if len(orderedPlugins) != len(pluginTargets) {
+		var unresolved []string
+		for name, d := range indegree {
+			if d > 0 {
+				unresolved = append(unresolved, name)
+			}
+		}
+		sort.Strings(unresolved)
+		return nil, fmt.Errorf("cannot resolve plugin migration order (cyclic dependencies): %s", strings.Join(unresolved, ", "))
+	}
+
+	return append(coreTargets, orderedPlugins...), nil
+}
+
+func lessByRegistration(a, b string, pluginOrder map[string]int) bool {
+	ai, aok := pluginOrder[a]
+	bi, bok := pluginOrder[b]
+	if aok && bok && ai != bi {
+		return ai < bi
+	}
+	if aok != bok {
+		return aok
+	}
+	return a < b
+}
+
+var (
+	createTableRegexp = regexp.MustCompile(`(?i)create\s+table(?:\s+if\s+not\s+exists)?\s+([a-zA-Z_][a-zA-Z0-9_]*)`)
+	referenceRegexp   = regexp.MustCompile(`(?i)references\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(`)
+)
+
+func collectTableOwners(targets []migrationTarget) (map[string]string, error) {
+	owners := map[string]string{}
+	for _, t := range targets {
+		files, err := listMigrationFiles(t.Path)
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range files {
+			content, err := os.ReadFile(f.UpPath)
+			if err != nil {
+				return nil, err
+			}
+			for _, m := range createTableRegexp.FindAllStringSubmatch(string(content), -1) {
+				if len(m) < 2 {
+					continue
+				}
+				tbl := strings.ToLower(m[1])
+				if owner, exists := owners[tbl]; exists && owner != t.Name {
+					return nil, fmt.Errorf("table %q defined by multiple plugins: %s and %s", tbl, owner, t.Name)
+				}
+				owners[tbl] = t.Name
+			}
+		}
+	}
+	return owners, nil
+}
+
+func collectTargetDependencies(targets []migrationTarget, owners map[string]string) (map[string]map[string]struct{}, error) {
+	deps := map[string]map[string]struct{}{}
+	for _, t := range targets {
+		deps[t.Name] = map[string]struct{}{}
+		files, err := listMigrationFiles(t.Path)
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range files {
+			content, err := os.ReadFile(f.UpPath)
+			if err != nil {
+				return nil, err
+			}
+			for _, m := range referenceRegexp.FindAllStringSubmatch(string(content), -1) {
+				if len(m) < 2 {
+					continue
+				}
+				refTbl := strings.ToLower(m[1])
+				owner, ok := owners[refTbl]
+				if !ok || owner == t.Name {
+					continue
+				}
+				deps[t.Name][owner] = struct{}{}
+			}
+		}
+	}
+	return deps, nil
 }
 
 func applyUp(t migrationTarget) error {
@@ -412,6 +586,67 @@ func applyDownAll(t migrationTarget) error {
 		return err
 	}
 	fmt.Printf("%s: rollback complete; current=%d\n", t.Name, current)
+	return nil
+}
+
+func applyDownGlobal(targets []migrationTarget) (bool, error) {
+	if len(targets) == 0 {
+		return false, nil
+	}
+	targetNames := make([]string, 0, len(targets))
+	byName := make(map[string]migrationTarget, len(targets))
+	for _, t := range targets {
+		targetNames = append(targetNames, t.Name)
+		byName[t.Name] = t
+	}
+
+	dbConn, err := db.GetGormDB()
+	if err != nil {
+		return false, err
+	}
+	if err := ensureMigrationTables(dbConn); err != nil {
+		return false, err
+	}
+
+	type latestRow struct {
+		Target string
+	}
+	var latest latestRow
+	err = dbConn.Raw(`
+		SELECT target
+		FROM migrations
+		WHERE target IN ?
+		ORDER BY applied_at DESC, id DESC
+		LIMIT 1
+	`, targetNames).Scan(&latest).Error
+	if err != nil {
+		return false, err
+	}
+	if latest.Target == "" {
+		return false, nil
+	}
+
+	t, ok := byName[latest.Target]
+	if !ok {
+		return false, fmt.Errorf("migration target %q not found", latest.Target)
+	}
+	if err := applyDown(t); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func applyDownAllGlobal(targets []migrationTarget) error {
+	for {
+		rolled, err := applyDownGlobal(targets)
+		if err != nil {
+			return err
+		}
+		if !rolled {
+			break
+		}
+	}
+	fmt.Println("all: rollback complete")
 	return nil
 }
 
