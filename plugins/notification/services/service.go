@@ -205,7 +205,7 @@ var defaultTemplates = map[string]TemplateConfig{
 		Enabled:    true,
 		Recipients: "{{.member_email}}",
 		Subject:    "[Team Invite] {{.business_name}}",
-		Body:       "Hi {{.member_name}}, you have been invited to join {{.business_name}} as {{.role}}. Click here to accept the invitation: {{.invite_url}}.",
+		Body:       "Hi {{.member_name}}, you have been invited by {{.invited_by_label}} {{.invited_by_name}} to join {{.business_name}} as {{.role}}. Click here to accept the invitation: {{.invite_url}}.",
 	},
 	"team_member_suspended_member": {
 		Name:       "Team Member Suspended",
@@ -384,7 +384,7 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Enabled:    true,
 		Recipients: "{{.member_email}}",
 		Subject:    "Verify your member email - {{.business_name}}",
-		Body:       "A new member has been created. Name: {{.full_name}} | Email: {{.member_email}} | Business: {{.business_name}} ({{.business_slug}}) | Status: {{.setup_status}}. Waiting for email verification.",
+		Body:       "Hello {{.full_name}}, your member account for {{.business_name}} is ready. Please verify your email via {{.activation_url}}. After that, login via {{.login_url}} using the email and password you created during setup.",
 	},
 	"member_setup_failed_admin": {
 		Name:       "Member Setup Failed",
@@ -573,6 +573,7 @@ func (s *Service) BuildTestPayload(overrides map[string]string) map[string]inter
 		"business_name":    "Go Seller",
 		"member_name":      "Test Member",
 		"role":             "Editor",
+		"invited_by_label": "Owner",
 		"invited_by_name":  "Owner Name",
 		"invited_by_email": "owner@example.com",
 		"invite_url":       "https://example.com/member/auth/team-invite?token=TEST-INVITE-TOKEN",

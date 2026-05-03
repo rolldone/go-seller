@@ -387,7 +387,7 @@ export default function AssetBundleField({
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4">
+    <section className="w-full rounded-2xl border border-slate-200 bg-white p-4">
       <h4 className="mb-3 text-sm font-semibold text-slate-900">{title}</h4>
 
       {showExisting ? (
@@ -622,7 +622,7 @@ export default function AssetBundleField({
         </div>
       ) : null}
 
-      <div className="mb-3 max-w-xs">
+      <div className="mb-3 w-full">
         <label className="mb-1 block text-sm text-slate-700">Usage Tag (applies to all uploads)</label>
         <select value={usageTag} onChange={(e) => onUsageTagChange(e.target.value)} className="w-full rounded border border-slate-300 px-3 py-2 text-sm">
           <option value="">(none)</option>

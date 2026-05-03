@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminDelete, adminGet, adminPost, adminPut } from "../entities/adminApi";
 import EntityDeleteModal from "../entities/EntityDeleteModal";
 import EntityTable from "../entities/EntityTable";
+import BusinessInviteModal from "./BusinessInviteModal";
 import BusinessFormModal from "./BusinessFormModal";
 import BusinessTranslationsModal from "./BusinessTranslationsModal";
 import type { Business, BusinessListResponse, BusinessPayload } from "./types";
@@ -34,6 +35,8 @@ export default function BusinessesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [translationOpen, setTranslationOpen] = useState(false);
   const [translationBusiness, setTranslationBusiness] = useState<Business | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteBusiness, setInviteBusiness] = useState<Business | null>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -75,6 +78,11 @@ export default function BusinessesPage() {
   const handleTranslations = (item: Business) => {
     setTranslationBusiness(item);
     setTranslationOpen(true);
+  };
+
+  const handleInvite = (item: Business) => {
+    setInviteBusiness(item);
+    setInviteOpen(true);
   };
 
   const handleConfirmDelete = async () => {
@@ -211,13 +219,28 @@ export default function BusinessesPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         renderExtraActions={(item) => (
-          <button
-            type="button"
-            onClick={() => handleTranslations(item)}
-            className="rounded bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-200"
-          >
-            Translation
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <a
+              href={`/admin/business-members?business_id=${encodeURIComponent(item.id)}`}
+              className="rounded bg-violet-100 px-2 py-1 text-xs font-medium text-violet-700 hover:bg-violet-200"
+            >
+              Members
+            </a>
+            <button
+              type="button"
+              onClick={() => handleInvite(item)}
+              className="rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200"
+            >
+              Invite Member
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTranslations(item)}
+              className="rounded bg-sky-100 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-200"
+            >
+              Translation
+            </button>
+          </div>
         )}
       />
 
@@ -280,6 +303,15 @@ export default function BusinessesPage() {
         onClose={() => {
           setTranslationOpen(false);
           setTranslationBusiness(null);
+        }}
+      />
+
+      <BusinessInviteModal
+        open={inviteOpen}
+        business={inviteBusiness}
+        onClose={() => {
+          setInviteOpen(false);
+          setInviteBusiness(null);
         }}
       />
 

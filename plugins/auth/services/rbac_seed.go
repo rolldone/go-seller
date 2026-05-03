@@ -45,7 +45,7 @@ func (s *AuthService) SeedDefaultRBAC(ctx context.Context) error {
 			"categories.view", "categories.manage", "tags.view", "tags.manage",
 			"coupons.view", "coupons.manage", "discounts.view", "discounts.manage",
 			"subscriptions.view", "subscriptions.manage",
-			"assets.view", "assets.manage", "roles.view",
+			"assets.view", "assets.manage", "roles.view", "audit.view",
 		},
 		"manager": {
 			"customers.view", "products.view", "products.manage", "businesses.view", "businesses.manage",

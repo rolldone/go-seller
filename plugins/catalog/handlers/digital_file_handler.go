@@ -26,6 +26,9 @@ func NewDigitalFileHandler(svc *catalogservices.CatalogService) *DigitalFileHand
 func (h *DigitalFileHandler) List(c *gin.Context) {
 	productID := c.Query("product_id")
 	if productID == "" {
+		productID = c.Param("product_id")
+	}
+	if productID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "product_id is required"})
 		return
 	}

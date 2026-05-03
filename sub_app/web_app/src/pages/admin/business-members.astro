@@ -1,0 +1,9 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import BusinessMembersPage from "@/components/admin/businesses/BusinessMembersPage";
+export const prerender = false;
+---
+
+<AdminLayout title="Business Members">
+	<BusinessMembersPage client:load />
+</AdminLayout>

@@ -9,11 +9,13 @@ import (
 	catalogservices "go_framework/plugins/catalog/services"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type businessTeamInviteRequest struct {
-	Email string  `json:"email"`
-	Role  *string `json:"role"`
+	Email  string  `json:"email"`
+	UserID string  `json:"user_id"`
+	Role   *string `json:"role"`
 }
 
 type businessTeamStatusRequest struct {
@@ -31,6 +33,10 @@ type businessTeamInviteAcceptRequest struct {
 
 type businessTeamInviteResolveResponse struct {
 	Data *catalogservices.TeamInviteResolution `json:"data"`
+}
+
+type businessTeamInviteContextResponse struct {
+	Data *catalogservices.BusinessTeamInviteContext `json:"data"`
 }
 
 type BusinessTeamHandler struct {
@@ -99,6 +105,128 @@ func (h *BusinessTeamHandler) InviteMember(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"data": member, "message": "invite sent successfully"})
+}
+
+func (h *BusinessTeamHandler) AdminInviteContext(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+		return
+	}
+	data, err := h.svc.GetBusinessTeamInviteContext(c.Request.Context(), businessID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, businessTeamInviteContextResponse{Data: data})
+}
+
+func (h *BusinessTeamHandler) AdminInviteMember(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+		return
+	}
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	if adminID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing admin context"})
+		return
+	}
+
+	var req businessTeamInviteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	email := strings.ToLower(strings.TrimSpace(req.Email))
+	if email == "" && strings.TrimSpace(req.UserID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email or user_id is required"})
+		return
+	}
+
+	member, err := h.svc.InviteBusinessMemberByAdmin(c.Request.Context(), adminID, businessID, req.UserID, email, stringOrEmpty(req.Role))
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "record not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"data": member, "message": "invite sent successfully"})
+}
+
+func (h *BusinessTeamHandler) AdminListMembers(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+		return
+	}
+	page := parseQueryInt(c, "page", 1)
+	limit := parseQueryInt(c, "limit", 20)
+	status := strings.TrimSpace(c.Query("status"))
+
+	rows, total, err := h.svc.ListBusinessMembersForAdmin(c.Request.Context(), businessID, status, page, limit)
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "invalid member status") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": rows, "total": total, "page": page, "limit": limit})
+}
+
+func (h *BusinessTeamHandler) AdminSearchMemberCandidates(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+		return
+	}
+	page := parseQueryInt(c, "page", 1)
+	limit := parseQueryInt(c, "limit", 10)
+	query := strings.TrimSpace(c.Query("q"))
+
+	rows, total, err := h.svc.SearchBusinessMemberCandidates(c.Request.Context(), businessID, query, page, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": rows, "total": total, "page": page, "limit": limit})
+}
+
+func (h *BusinessTeamHandler) AdminListAudits(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "business_id is required"})
+		return
+	}
+	page := parseQueryInt(c, "page", 1)
+	limit := parseQueryInt(c, "limit", 20)
+
+	rows, total, err := h.svc.ListBusinessTeamAudits(c.Request.Context(), businessID, page, limit)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "business not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": rows, "total": total, "page": page, "limit": limit})
 }
 
 func (h *BusinessTeamHandler) ResolveInvite(c *gin.Context) {

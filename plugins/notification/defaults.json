@@ -151,7 +151,7 @@
       "enabled": true,
       "recipients": "{{.member_email}}",
       "subject": "[Undangan Tim] {{.business_name}}",
-      "body": "Halo {{.member_name}}, kamu diundang untuk bergabung ke {{.business_name}} sebagai {{.role}}. Klik tautan berikut untuk menerima undangan: {{.invite_url}}."
+      "body": "Halo {{.member_name}}, kamu diundang oleh {{.invited_by_label}} {{.invited_by_name}} untuk bergabung ke {{.business_name}} sebagai {{.role}}. Klik tautan berikut untuk menerima undangan: {{.invite_url}}."
     },
     "description": "Template email undangan ke member saat diundang ke tim (Indonesia)"
   },
@@ -320,7 +320,7 @@
       "enabled": true,
       "recipients": "{{.member_email}}",
       "subject": "[Team Invite] {{.business_name}}",
-      "body": "Hi {{.member_name}}, you have been invited to join {{.business_name}} as {{.role}}. Click here to accept the invitation: {{.invite_url}}."
+      "body": "Hi {{.member_name}}, you have been invited by {{.invited_by_label}} {{.invited_by_name}} to join {{.business_name}} as {{.role}}. Click here to accept the invitation: {{.invite_url}}."
     },
     "description": "Member invitation email template when a team member is invited (English)"
   },

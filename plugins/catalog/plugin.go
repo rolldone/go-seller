@@ -7,6 +7,7 @@ import (
 	authhandlers "go_framework/plugins/auth/handlers"
 	pluginhandlers "go_framework/plugins/catalog/handlers"
 	pluginservices "go_framework/plugins/catalog/services"
+	pluginregistry "go_framework/plugins/plugin_registry"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
@@ -79,6 +80,11 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	adminCatalog.PUT("/businesses/:business_id/translations/:locale", businessHandler.UpsertTranslation)
 	adminCatalog.PUT("/businesses/:business_id", businessHandler.Update)
 	adminCatalog.DELETE("/businesses/:business_id", businessHandler.Delete)
+	adminCatalog.GET("/businesses/:business_id/team/members", pluginregistry.RequirePermission("businesses.view"), teamHandler.AdminListMembers)
+	adminCatalog.GET("/businesses/:business_id/team/candidates", pluginregistry.RequirePermission("businesses.view"), teamHandler.AdminSearchMemberCandidates)
+	adminCatalog.GET("/businesses/:business_id/team/audits", pluginregistry.RequirePermission("audit.view"), teamHandler.AdminListAudits)
+	adminCatalog.GET("/businesses/:business_id/team/invite-context", pluginregistry.RequirePermission("businesses.view"), teamHandler.AdminInviteContext)
+	adminCatalog.POST("/businesses/:business_id/team/members/invite", pluginregistry.RequirePermission("businesses.manage"), teamHandler.AdminInviteMember)
 
 	memberCatalog := api.Group("/member")
 	memberPublic := api.Group("/member")

@@ -119,6 +119,9 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 	const [mediaLoading, setMediaLoading] = useState(false);
 	const [assetUploading, setAssetUploading] = useState(false);
 	const [digitalUploading, setDigitalUploading] = useState(false);
+	const [assetUsageTag, setAssetUsageTag] = useState("gallery");
+	const [assetSortMode, setAssetSortMode] = useState<"main_first" | "order_asc">("main_first");
+	const [mediaWarning, setMediaWarning] = useState<string | null>(null);
 	const [assetDrafts, setAssetDrafts] = useState<Record<string, { usage_tag: string; display_order: string }>>({});
 	const [digitalDrafts, setDigitalDrafts] = useState<Record<string, { file_name: string; is_active: boolean; download_limit: string; sort_order: string }>>({});
 	const [parentID, setParentID] = useState<string>("");
@@ -284,20 +287,100 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		}
 	}, [form.seo_content]);
 
+	const groupedProductAssets = useMemo(() => {
+		const groups: Record<string, ProductAsset[]> = {};
+		for (const asset of productAssets) {
+			const tag = (asset.usage_tag || "untagged").trim() || "untagged";
+			if (!groups[tag]) groups[tag] = [];
+			groups[tag].push(asset);
+		}
+
+		const tagOrder = ["thumbnail", "gallery", "social_1_1", "social_4_5", "header", "desktop_banner", "untagged"];
+		const orderMap = new Map(tagOrder.map((tag, index) => [tag, index]));
+
+		return Object.entries(groups)
+			.map(([tag, assets]) => [
+				tag,
+				[...assets].sort((a, b) => {
+					if (assetSortMode === "order_asc") {
+						const orderDiff = (a.display_order ?? 0) - (b.display_order ?? 0);
+						if (orderDiff !== 0) return orderDiff;
+						if (a.is_main && !b.is_main) return -1;
+						if (!a.is_main && b.is_main) return 1;
+						return a.original_name?.localeCompare(b.original_name || "") || 0;
+					}
+
+					if (a.is_main && !b.is_main) return -1;
+					if (!a.is_main && b.is_main) return 1;
+					const orderDiff = (a.display_order ?? 0) - (b.display_order ?? 0);
+					if (orderDiff !== 0) return orderDiff;
+					return a.original_name?.localeCompare(b.original_name || "") || 0;
+				}),
+			] as const)
+			.sort(([a], [b]) => {
+				const rankA = orderMap.has(a) ? (orderMap.get(a) as number) : Number.MAX_SAFE_INTEGER;
+				const rankB = orderMap.has(b) ? (orderMap.get(b) as number) : Number.MAX_SAFE_INTEGER;
+				if (rankA !== rankB) return rankA - rankB;
+				return a.localeCompare(b);
+			});
+	}, [productAssets, assetSortMode]);
+
+	const usageTagMeta = useMemo(() => ({
+		thumbnail: { label: "Thumbnail", badge: "bg-amber-100 text-amber-800 border-amber-200" },
+		gallery: { label: "Gallery", badge: "bg-sky-100 text-sky-800 border-sky-200" },
+		social_1_1: { label: "Social 1:1", badge: "bg-violet-100 text-violet-800 border-violet-200" },
+		social_4_5: { label: "Social 4:5", badge: "bg-indigo-100 text-indigo-800 border-indigo-200" },
+		header: { label: "Header", badge: "bg-emerald-100 text-emerald-800 border-emerald-200" },
+		desktop_banner: { label: "Desktop Banner", badge: "bg-cyan-100 text-cyan-800 border-cyan-200" },
+		untagged: { label: "Untagged", badge: "bg-slate-100 text-slate-700 border-slate-200" },
+	}), []);
+
+	const formatUsageTagLabel = (tag: string) => usageTagMeta[tag as keyof typeof usageTagMeta]?.label || tag;
+	const usageTagBadgeClass = (tag: string) => usageTagMeta[tag as keyof typeof usageTagMeta]?.badge || "bg-slate-100 text-slate-700 border-slate-200";
+	const sortModeLabel = assetSortMode === "order_asc" ? "Order asc" : "Main first";
+
+	const actionButtonBase = "inline-flex items-center justify-center rounded-full border px-3 py-1.5 text-xs font-semibold transition";
+	const saveButtonClass = `${actionButtonBase} border-slate-200 bg-slate-900 text-white hover:bg-slate-800`;
+	const mainActiveButtonClass = `${actionButtonBase} border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-700`;
+	const mainIdleButtonClass = `${actionButtonBase} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`;
+	const deleteButtonClass = `${actionButtonBase} border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100`;
+
 	const activeProductID = initialData?.id || "";
 
 	const refreshMedia = async (productID: string) => {
-		const [assets, files] = await Promise.all([listMemberProductAssets(productID), listMemberDigitalFiles(productID)]);
-		setProductAssets(assets);
-		setAssetDrafts(Object.fromEntries(assets.map((asset) => [asset.id, { usage_tag: asset.usage_tag || "", display_order: String(asset.display_order ?? 0) }] )));
-		setDigitalFiles(files);
-		setDigitalDrafts(Object.fromEntries(files.map((file) => [file.id, { file_name: file.file_name || "", is_active: file.is_active ?? true, download_limit: String(file.download_limit ?? 0), sort_order: String(file.sort_order ?? 0) }] )));
+		setMediaWarning(null);
+
+		const [assetsResult, filesResult] = await Promise.allSettled([
+			listMemberProductAssets(productID),
+			listMemberDigitalFiles(productID),
+		]);
+
+		if (assetsResult.status === "fulfilled") {
+			const assets = assetsResult.value;
+			setProductAssets(assets);
+			setAssetDrafts(Object.fromEntries(assets.map((asset) => [asset.id, { usage_tag: asset.usage_tag || "", display_order: String(asset.display_order ?? 0) }] )));
+		} else {
+			setProductAssets([]);
+			setAssetDrafts({});
+			throw new Error(assetsResult.reason instanceof Error ? assetsResult.reason.message : "Gagal memuat asset product");
+		}
+
+		if (filesResult.status === "fulfilled") {
+			const files = filesResult.value;
+			setDigitalFiles(files);
+			setDigitalDrafts(Object.fromEntries(files.map((file) => [file.id, { file_name: file.file_name || "", is_active: file.is_active ?? true, download_limit: String(file.download_limit ?? 0), sort_order: String(file.sort_order ?? 0) }] )));
+		} else {
+			setDigitalFiles([]);
+			setDigitalDrafts({});
+			setMediaWarning("Asset berhasil dimuat, tapi digital files gagal dimuat.");
+		}
 	};
 
 	useEffect(() => {
 		if (!open || !activeProductID) {
 			setProductAssets([]);
 			setDigitalFiles([]);
+			setMediaWarning(null);
 			setAssetUploadFiles([]);
 			setDigitalUploadFiles([]);
 			return;
@@ -305,10 +388,11 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		let cancelled = false;
 		setMediaLoading(true);
 		void refreshMedia(activeProductID)
-			.catch(() => {
+			.catch((err) => {
 				if (!cancelled) {
 					setProductAssets([]);
-					setDigitalFiles([]);
+					setAssetDrafts({});
+					setMediaWarning(err instanceof Error ? err.message : "Gagal memuat media product.");
 				}
 			})
 			.finally(() => {
@@ -335,7 +419,9 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 				formData.append("file_type", detectFileType(file));
 				formData.append("is_main", String(productAssets.length === 0 && index === 0));
 				formData.append("display_order", String(productAssets.length + index));
-				formData.append("usage_tag", "gallery");
+				if (assetUsageTag.trim()) {
+					formData.append("usage_tag", assetUsageTag.trim());
+				}
 				await uploadMemberProductAsset(activeProductID, formData);
 			}
 			setAssetUploadFiles([]);
@@ -631,19 +717,83 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 
 					<div className="mt-4">
 						{activeProductID ? (
-							<div className="grid gap-4 lg:grid-cols-2">
+							<div className="space-y-4">
 								<div className="rounded-2xl border border-slate-200 bg-white p-4">
-									<div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Product Assets</p><p className="text-sm text-slate-600">Upload gambar/video yang akan ditampilkan di katalog.</p></div><span className="text-xs text-slate-400">{mediaLoading ? "Loading..." : `${productAssets.length} files`}</span></div>
+									<div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Product Assets</p><p className="text-sm text-slate-600">Upload gambar/video yang akan ditampilkan di katalog.</p></div><div className="flex items-center gap-2"><label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sort</label><select value={assetSortMode} onChange={(e) => setAssetSortMode(e.target.value as "main_first" | "order_asc")} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm"><option value="main_first">Main first</option><option value="order_asc">Order asc</option></select><span className="text-xs text-slate-400">{mediaLoading ? "Loading..." : `${productAssets.length} files`}</span></div></div>
+									{mediaWarning ? <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{mediaWarning}</div> : null}
 									<div className="space-y-3">
+										<div className="grid gap-2 sm:grid-cols-2">
+											<label className="space-y-1 text-xs text-slate-600">
+												<span className="block font-semibold uppercase tracking-wide text-slate-500">Usage Tag</span>
+												<select value={assetUsageTag} onChange={(e) => setAssetUsageTag(e.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs">
+													<option value="thumbnail">thumbnail</option>
+													<option value="gallery">gallery</option>
+													<option value="social_1_1">social_1_1</option>
+													<option value="social_4_5">social_4_5</option>
+													<option value="header">header</option>
+													<option value="desktop_banner">desktop_banner</option>
+													<option value="">(none)</option>
+												</select>
+												<p className="text-[11px] text-slate-500">Tag ini akan diterapkan ke semua file pada upload batch berikutnya.</p>
+											</label>
+										</div>
 										<input type="file" multiple onChange={(e) => setAssetUploadFiles(e.target.files ? Array.from(e.target.files) : [])} className="block w-full text-xs" />
 										{assetUploadFiles.length > 0 ? <p className="text-xs text-slate-500">{assetUploadFiles.length} file dipilih</p> : null}
 										{assetUploadFiles.length > 0 ? <div className="max-h-24 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">{assetUploadFiles.map((file) => (<div key={`${file.name}-${file.lastModified}`} className="truncate py-0.5">{file.name}</div>))}</div> : null}
-										<div className="flex items-center gap-2"><button type="button" onClick={() => void handleUploadAsset()} disabled={assetUploadFiles.length === 0 || assetUploading} className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60">{assetUploading ? "Uploading..." : `Upload Asset (${assetUploadFiles.length || 0})`}</button>{assetUploadFiles.length > 0 ? <button type="button" onClick={() => setAssetUploadFiles([])} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100">Clear</button> : null}</div>
-										<div className="space-y-2">{productAssets.length === 0 ? <p className="text-xs text-slate-500">Belum ada asset.</p> : null}{productAssets.map((asset) => (<div key={asset.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="truncate font-medium text-slate-900">{asset.original_name || asset.file_path}</div><div className="mt-1 text-slate-500">{asset.file_type || "asset"}{asset.is_main ? " · main" : ""}</div>{asset.public_url ? <a href={asset.public_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-sky-600 hover:underline">Preview</a> : null}</div><div className="flex items-center gap-2"><label className="flex items-center gap-1 text-xs text-slate-600"><input type="radio" name="member-product-main-asset" checked={asset.is_main} onChange={() => void handleSetMainAsset(asset.id)} />Main</label><button type="button" onClick={() => void handleSaveAssetMeta(asset.id)} className="rounded-md bg-slate-900 px-2 py-1 font-medium text-white hover:bg-slate-800">Save</button><button type="button" onClick={() => void handleDeleteAsset(asset.id)} className="rounded-md bg-rose-100 px-2 py-1 font-medium text-rose-700 hover:bg-rose-200">Delete</button></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Usage Tag</span><input type="text" value={assetDrafts[asset.id]?.usage_tag ?? asset.usage_tag ?? ""} onChange={(e) => setAssetDrafts((prev) => ({ ...prev, [asset.id]: { usage_tag: e.target.value, display_order: prev[asset.id]?.display_order ?? String(asset.display_order ?? 0) } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" placeholder="gallery" /></label><label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Display Order</span><input type="number" min="0" step="1" value={assetDrafts[asset.id]?.display_order ?? String(asset.display_order ?? 0)} onChange={(e) => setAssetDrafts((prev) => ({ ...prev, [asset.id]: { usage_tag: prev[asset.id]?.usage_tag ?? asset.usage_tag ?? "", display_order: e.target.value } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" /></label></div></div>))}</div>
+										<div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => void handleUploadAsset()} disabled={assetUploadFiles.length === 0 || assetUploading} className={saveButtonClass}>{assetUploading ? "Uploading..." : `Upload Asset (${assetUploadFiles.length || 0})`}</button>{assetUploadFiles.length > 0 ? <button type="button" onClick={() => setAssetUploadFiles([])} className={mainIdleButtonClass}>Clear</button> : null}</div>
+										<div className="space-y-4">
+											{productAssets.length === 0 ? (
+												<div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+													<div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">+</div>
+													<p className="text-sm font-medium text-slate-700">Belum ada asset</p>
+													<p className="mt-1 text-xs text-slate-500">Pilih usage tag, upload file, lalu asset akan muncul di sini per grup.</p>
+												</div>
+											) : null}
+											{groupedProductAssets.map(([tag, assets]) => (
+												<div key={tag} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+													<div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-2">
+														<div>
+															<span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${usageTagBadgeClass(tag)}`}>{formatUsageTagLabel(tag)}</span>
+															<p className="mt-1 text-xs text-slate-500">Sorted by <span className="font-medium text-slate-700">{sortModeLabel}</span></p>
+														</div>
+														<span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 shadow-sm ring-1 ring-slate-200">{assets.length} file</span>
+													</div>
+													{assets.map((asset) => (
+														<div key={asset.id} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs text-slate-700">
+															<div className="flex items-start justify-between gap-3">
+																<div className="flex min-w-0 flex-1 gap-3">
+																	<div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+																		{asset.public_url ? <img src={asset.public_url} alt={asset.original_name || asset.file_path} className="h-full w-full object-cover" /> : null}
+																	</div>
+																	<div className="min-w-0 flex-1">
+																	<div className="truncate font-medium text-slate-900">{asset.original_name || asset.file_path}</div>
+																	<div className="mt-1 flex flex-wrap items-center gap-2 text-slate-500">
+																		<span>{asset.file_type || "asset"}{asset.is_main ? " · main" : ""}</span>
+																		{typeof asset.file_size === "number" ? <span>• {(asset.file_size / 1024 / 1024).toFixed(2)} MB</span> : null}
+																		{asset.mime_type ? <span>• {asset.mime_type}</span> : null}
+																	</div>
+																	{asset.public_url ? <a href={asset.public_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-sky-600 hover:underline">Preview</a> : null}
+																	</div>
+																</div>
+																<div className="flex flex-wrap items-center justify-end gap-2 rounded-full bg-slate-50 px-2 py-2 ring-1 ring-slate-200">
+																	<button type="button" onClick={() => void handleSetMainAsset(asset.id)} className={asset.is_main ? mainActiveButtonClass : mainIdleButtonClass}>{asset.is_main ? "Main" : "Set Main"}</button>
+																	<button type="button" onClick={() => void handleSaveAssetMeta(asset.id)} className={saveButtonClass}>Save</button>
+																	<button type="button" onClick={() => void handleDeleteAsset(asset.id)} className={deleteButtonClass}>Delete</button>
+																</div>
+															</div>
+															<div className="mt-3 grid gap-2 sm:grid-cols-2">
+																<label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Usage Tag</span><input type="text" value={assetDrafts[asset.id]?.usage_tag ?? asset.usage_tag ?? ""} onChange={(e) => setAssetDrafts((prev) => ({ ...prev, [asset.id]: { usage_tag: e.target.value, display_order: prev[asset.id]?.display_order ?? String(asset.display_order ?? 0) } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" placeholder="gallery" /></label>
+																<label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Display Order</span><input type="number" min="0" step="1" value={assetDrafts[asset.id]?.display_order ?? String(asset.display_order ?? 0)} onChange={(e) => setAssetDrafts((prev) => ({ ...prev, [asset.id]: { usage_tag: prev[asset.id]?.usage_tag ?? asset.usage_tag ?? "", display_order: e.target.value } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" /></label>
+															</div>
+														</div>
+													))}
+												</div>
+											))}
+										</div>
 									</div>
 
 									{form.product_type === "digital" ? (
-										<div className="rounded-2xl border border-slate-200 bg-white p-4 mt-4">
+										<div className="w-full rounded-2xl border border-slate-200 bg-white p-4">
 											<div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Digital Files</p><p className="text-sm text-slate-600">Upload file yang akan didownload setelah pembelian.</p></div><span className="text-xs text-slate-400">{digitalFiles.length} files</span></div>
 											<div className="space-y-3">
 												<input type="file" multiple onChange={(e) => setDigitalUploadFiles(e.target.files ? Array.from(e.target.files) : [])} className="block w-full text-xs" />
