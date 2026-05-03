@@ -202,7 +202,91 @@ func AdminCommands() []*cobra.Command {
 	adminUnbanCmd.Flags().StringVar(&adminEmail, "email", "", "admin email")
 	adminUnbanCmd.MarkFlagRequired("email")
 
-	adminCmd.AddCommand(adminCreateCmd, adminGetCmd, adminDeleteCmd, adminPasswdCmd, adminRestoreCmd, adminActivateCmd, adminDeactivateCmd, adminBanCmd, adminUnbanCmd)
+	// Superadmin management commands
+	adminSuperCmd := &cobra.Command{Use: "super", Short: "Manage superadmin status"}
+
+	adminSuperEnableCmd := &cobra.Command{
+		Use:   "enable",
+		Short: "Grant superadmin to an admin by email",
+		Run: func(cmd *cobra.Command, args []string) {
+			if adminEmail == "" {
+				log.Fatalf("email is required")
+			}
+			gdb, err := db.GetGormDB()
+			if err != nil {
+				log.Fatalf("failed to get db: %v", err)
+			}
+			svc := services.New(gdb)
+			admin, err := svc.GetAdminByEmail(context.Background(), adminEmail)
+			if err != nil {
+				log.Fatalf("failed to find admin: %v", err)
+			}
+			if admin.IsSuperAdmin {
+				fmt.Println("admin is already superadmin")
+				return
+			}
+			if err := gdb.WithContext(context.Background()).Model(&authmodels.Admin{}).Where("id = ?", admin.ID).Updates(map[string]interface{}{"is_superadmin": true, "updated_at": time.Now()}).Error; err != nil {
+				log.Fatalf("failed to update admin: %v", err)
+			}
+			if err := svc.SeedDefaultRBAC(context.Background()); err != nil {
+				log.Fatalf("failed to seed rbac: %v", err)
+			}
+			var role authmodels.Role
+			if err := gdb.WithContext(context.Background()).Where("name = ?", "superadmin").First(&role).Error; err != nil {
+				log.Fatalf("failed to find superadmin role: %v", err)
+			}
+			if err := svc.AssignRole(context.Background(), role.ID, admin.ID, nil); err != nil {
+				log.Fatalf("failed to assign role: %v", err)
+			}
+			fmt.Printf("superadmin enabled for %s\n", adminEmail)
+		},
+	}
+	adminSuperEnableCmd.Flags().StringVar(&adminEmail, "email", "", "admin email")
+	adminSuperEnableCmd.MarkFlagRequired("email")
+
+	adminSuperDisableCmd := &cobra.Command{
+		Use:   "disable",
+		Short: "Revoke superadmin from an admin by email",
+		Run: func(cmd *cobra.Command, args []string) {
+			if adminEmail == "" {
+				log.Fatalf("email is required")
+			}
+			gdb, err := db.GetGormDB()
+			if err != nil {
+				log.Fatalf("failed to get db: %v", err)
+			}
+			svc := services.New(gdb)
+			admin, err := svc.GetAdminByEmail(context.Background(), adminEmail)
+			if err != nil {
+				log.Fatalf("failed to find admin: %v", err)
+			}
+			if !admin.IsSuperAdmin {
+				fmt.Println("admin is not a superadmin")
+				return
+			}
+			var count int64
+			if err := gdb.Model(&authmodels.Admin{}).Where("is_superadmin = ?", true).Count(&count).Error; err != nil {
+				log.Fatalf("failed to count superadmins: %v", err)
+			}
+			if count <= 1 {
+				log.Fatalf("cannot revoke the last remaining superadmin")
+			}
+			if err := gdb.WithContext(context.Background()).Model(&authmodels.Admin{}).Where("id = ?", admin.ID).Updates(map[string]interface{}{"is_superadmin": false, "updated_at": time.Now()}).Error; err != nil {
+				log.Fatalf("failed to update admin: %v", err)
+			}
+			var role authmodels.Role
+			if err := gdb.WithContext(context.Background()).Where("name = ?", "superadmin").First(&role).Error; err == nil {
+				_ = svc.UnassignRole(context.Background(), role.ID, admin.ID, nil)
+			}
+			fmt.Printf("superadmin revoked for %s\n", adminEmail)
+		},
+	}
+	adminSuperDisableCmd.Flags().StringVar(&adminEmail, "email", "", "admin email")
+	adminSuperDisableCmd.MarkFlagRequired("email")
+
+	adminSuperCmd.AddCommand(adminSuperEnableCmd, adminSuperDisableCmd)
+
+	adminCmd.AddCommand(adminCreateCmd, adminGetCmd, adminDeleteCmd, adminPasswdCmd, adminRestoreCmd, adminActivateCmd, adminDeactivateCmd, adminBanCmd, adminUnbanCmd, adminSuperCmd)
 	return []*cobra.Command{adminCmd}
 }
 
