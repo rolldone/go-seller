@@ -236,7 +236,35 @@ func createAdmin(username, email, password string) error {
 		t := time.Now()
 		admin.IsActivatedAt = &t
 	}
-	return svc.CreateAdmin(context.Background(), admin)
+	// Determine if this is the first admin (no existing admins)
+	var count int64
+	if err := gdb.Model(&authmodels.Admin{}).Count(&count).Error; err != nil {
+		return err
+	}
+	isFirst := count == 0
+	if isFirst {
+		admin.IsSuperAdmin = true
+	}
+
+	if err := svc.CreateAdmin(context.Background(), admin); err != nil {
+		return err
+	}
+
+	if isFirst {
+		// Ensure RBAC seed exists and assign superadmin role
+		if err := svc.SeedDefaultRBAC(context.Background()); err != nil {
+			return err
+		}
+		var role authmodels.Role
+		if err := gdb.WithContext(context.Background()).Where("name = ?", "superadmin").First(&role).Error; err != nil {
+			return err
+		}
+		if err := svc.AssignRole(context.Background(), role.ID, admin.ID, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func getAdminByEmail(email string) (*authmodels.Admin, error) {
