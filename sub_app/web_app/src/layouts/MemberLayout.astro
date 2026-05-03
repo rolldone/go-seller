@@ -76,14 +76,14 @@ const groupedMenus = menuGroups
 	</head>
 	<body class="min-h-screen bg-[#f7f7f5] text-slate-900">
 		<div class="grid min-h-screen grid-cols-1 md:grid-cols-[240px_1fr]">
-			<aside class="hidden border-r border-[#e8e0d6] bg-[#fbfaf7] md:block">
+			<aside class="hidden border-r border-[#e8e0d6] bg-[#fbfaf7] md:sticky md:top-0 md:flex md:h-screen md:flex-col md:overflow-hidden">
 				<div class="border-b border-[#e8e0d6] px-5 py-4">
 					<p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Member Space</p>
 					<h1 class="mt-1 text-lg font-semibold text-slate-900">Member Portal</h1>
 					<p class="mt-1 text-xs text-slate-500">Dashboard operasional toko</p>
 				</div>
 
-				<nav class="px-3 py-4">
+				<nav class="flex-1 overflow-y-auto px-3 py-4">
 					<div class="space-y-4">
 						{groupedMenus.map((group) => (
 							<section>
@@ -363,6 +363,30 @@ const groupedMenus = menuGroups
 						}
 					});
 				});
+
+				// ensure the active menu item is visible inside the scrollable nav
+				const ensureActiveVisible = () => {
+					try {
+						const nav = document.querySelector('aside nav');
+						if (!nav) return;
+						const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+						if (!active) return;
+						const navHeight = nav.clientHeight || nav.getBoundingClientRect().height;
+						const offset = Math.round(navHeight * 0.3); // 30% offset
+						const navRect = nav.getBoundingClientRect();
+						const activeRect = active.getBoundingClientRect();
+						const relativeTop = activeRect.top - navRect.top + nav.scrollTop;
+						const target = Math.round(relativeTop - offset);
+						const maxScroll = Math.max(0, nav.scrollHeight - nav.clientHeight);
+						const top = Math.max(0, Math.min(target, maxScroll));
+						nav.scrollTo({ top, behavior: 'smooth' });
+					} catch (e) {
+						// ignore
+					}
+				};
+
+				// run after menu collapse/expand transitions settle
+				setTimeout(ensureActiveVisible, 350);
 			})();
 		</script>
 	</body>
