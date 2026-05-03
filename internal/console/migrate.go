@@ -8,7 +8,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
@@ -63,11 +65,9 @@ var migrateMakeCmd = &cobra.Command{
 		if err := os.MkdirAll(t.Path, 0o755); err != nil {
 			return err
 		}
-		nextNum, err := nextMigrationNumber(t.Path)
-		if err != nil {
-			return err
-		}
-		base := fmt.Sprintf("%06d_%s", nextNum, name)
+		// Use UTC timestamp prefix like Laravel (YYYY_MM_DD_HHMMSS)
+		now := time.Now().UTC().Format("2006_01_02_150405")
+		base := fmt.Sprintf("%s_%s", now, name)
 		upPath := filepath.Join(t.Path, base+".up.sql")
 		downPath := filepath.Join(t.Path, base+".down.sql")
 		if err := os.WriteFile(upPath, []byte("-- write your UP migration here\n"), 0o644); err != nil {
@@ -163,9 +163,23 @@ var migrateListCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("%s: %w", t.Name, err)
 			}
+			// Determine applied migration names to compute pending
+			rows, err := dbConn.Raw(`SELECT name FROM migrations WHERE target = ? ORDER BY version ASC`, t.Name).Rows()
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			applied := map[string]bool{}
+			for rows.Next() {
+				var nm string
+				if err := rows.Scan(&nm); err != nil {
+					return err
+				}
+				applied[nm] = true
+			}
 			pending := 0
 			for _, f := range files {
-				if f.Number > current {
+				if !applied[f.Name] {
 					pending++
 				}
 			}
@@ -270,8 +284,23 @@ func applyUp(t migrationTarget) error {
 	if err != nil {
 		return err
 	}
+	// build set of already applied migration names
+	rows, err := dbConn.Raw(`SELECT name FROM migrations WHERE target = ? ORDER BY version ASC`, t.Name).Rows()
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	applied := map[string]bool{}
+	for rows.Next() {
+		var nm string
+		if err := rows.Scan(&nm); err != nil {
+			return err
+		}
+		applied[nm] = true
+	}
+
 	for _, f := range files {
-		if f.Number <= current {
+		if applied[f.Name] {
 			continue
 		}
 		if err := setTargetDirty(dbConn, t.Name, true); err != nil {
@@ -281,13 +310,14 @@ func applyUp(t migrationTarget) error {
 			_ = setTargetDirty(dbConn, t.Name, true)
 			return fmt.Errorf("failed applying %s: %w", filepath.Base(f.UpPath), err)
 		}
-		if err := insertMigrationRecord(dbConn, t.Name, f.Number, f.Name); err != nil {
+		nextVersion := current + 1
+		if err := insertMigrationRecord(dbConn, t.Name, nextVersion, f.Name); err != nil {
 			return err
 		}
 		if err := setTargetDirty(dbConn, t.Name, false); err != nil {
 			return err
 		}
-		current = f.Number
+		current = nextVersion
 		fmt.Printf("%s applied %s\n", t.Name, filepath.Base(f.UpPath))
 	}
 	return nil
@@ -325,13 +355,13 @@ func applyDown(t migrationTarget) error {
 	}
 	var targetFile *migrationFile
 	for _, f := range files {
-		if f.Number == rec.Version {
+		if f.Name == rec.Name {
 			targetFile = &f
 			break
 		}
 	}
 	if targetFile == nil {
-		return fmt.Errorf("down file not found for version %d; restore the missing migration or run repair", rec.Version)
+		return fmt.Errorf("down file not found for migration %q; restore the missing migration or run repair", rec.Name)
 	}
 	if err := setTargetDirty(dbConn, t.Name, true); err != nil {
 		return err
@@ -392,7 +422,7 @@ type migrationFile struct {
 	DownPath string
 }
 
-var migNumRegexp = regexp.MustCompile(`^(\d+)_.*\.up\.sql$`)
+var migNumRegexp = regexp.MustCompile(`^([0-9_]+)_.*\.up\.sql$`)
 
 func listMigrationFiles(path string) ([]migrationFile, error) {
 	entries, err := os.ReadDir(path)
@@ -411,8 +441,10 @@ func listMigrationFiles(path string) ([]migrationFile, error) {
 		if len(matches) != 2 {
 			continue
 		}
-		var n int
-		_, _ = fmt.Sscanf(matches[1], "%d", &n)
+		// matches[1] may contain underscores for timestamped names (YYYY_MM_DD_HHMMSS)
+		digits := strings.ReplaceAll(matches[1], "_", "")
+		n64, _ := strconv.ParseInt(digits, 10, 64)
+		n := int(n64)
 		base := strings.TrimSuffix(e.Name(), ".up.sql")
 		upPath := filepath.Join(path, e.Name())
 		downPath := filepath.Join(path, base+".down.sql")
