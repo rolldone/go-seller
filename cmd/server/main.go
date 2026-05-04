@@ -28,6 +28,7 @@ import (
 	notificationplugin "go_framework/plugins/notification"
 	orderplugin "go_framework/plugins/order"
 	reviewplugin "go_framework/plugins/review"
+	seeddataplugin "go_framework/plugins/seed_data"
 	settingplugin "go_framework/plugins/setting"
 )
 
@@ -47,7 +48,7 @@ func main() {
 			// Example: register user plugins here
 			// plugins.RegisterPlugins([]plugins.Plugin{myPlugin.New()})
 			// plugins.RegisterPlugins([]plugins.Plugin{suppliers.New(), test_plugin.New()})
-			plugins.RegisterPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), financeplugin.New(), marketingplugin.New(), orderplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New()})
+			plugins.RegisterPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), financeplugin.New(), marketingplugin.New(), orderplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New(), seeddataplugin.New()})
 		},
 	})
 	if err != nil {

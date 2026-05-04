@@ -14,6 +14,7 @@ import (
 	notificationplugin "go_framework/plugins/notification"
 	orderplugin "go_framework/plugins/order"
 	reviewplugin "go_framework/plugins/review"
+	seeddataplugin "go_framework/plugins/seed_data"
 	settingplugin "go_framework/plugins/setting"
 )
 
@@ -22,6 +23,6 @@ func main() {
 	syscall.Umask(0o002)
 	// To register additional plugins and their console commands, use:
 	// console.RegisterAdditionalPlugins([]plugins.Plugin{plugin.New()})
-	console.RegisterAdditionalPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), financeplugin.New(), marketingplugin.New(), maintenanceplugin.New(), orderplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New()})
+	console.RegisterAdditionalPlugins([]plugins.Plugin{authplugin.New(), catalogplugin.New(), datasearchplugin.New(), financeplugin.New(), marketingplugin.New(), maintenanceplugin.New(), orderplugin.New(), reviewplugin.New(), settingplugin.New(), notificationplugin.New(), seeddataplugin.New()})
 	console.Execute()
 }

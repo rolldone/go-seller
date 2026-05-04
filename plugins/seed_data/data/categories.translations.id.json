@@ -1,0 +1,1202 @@
+{
+  "1": {
+    "name": "Elektronik",
+    "slug": "elektronik",
+    "short_description": "Pilihan Elektronik",
+    "description": "Koleksi elektronik pilihan."
+  },
+  "2": {
+    "name": "Fashion Wanita",
+    "slug": "fashion-wanita",
+    "short_description": "Pilihan Fashion Wanita",
+    "description": "Koleksi fashion wanita pilihan."
+  },
+  "3": {
+    "name": "Fashion Pria",
+    "slug": "fashion-pria",
+    "short_description": "Pilihan Fashion Pria",
+    "description": "Koleksi fashion pria pilihan."
+  },
+  "4": {
+    "name": "Fashion Anak & Bayi",
+    "slug": "fashion-anak-bayi",
+    "short_description": "Pilihan Fashion Anak & Bayi",
+    "description": "Koleksi fashion anak & bayi pilihan."
+  },
+  "5": {
+    "name": "Rumah & Taman",
+    "slug": "rumah-taman",
+    "short_description": "Pilihan Rumah & Taman",
+    "description": "Koleksi rumah & taman pilihan."
+  },
+  "6": {
+    "name": "Olahraga & Outdoor",
+    "slug": "olahraga-outdoor",
+    "short_description": "Pilihan Olahraga & Outdoor",
+    "description": "Koleksi olahraga & outdoor pilihan."
+  },
+  "7": {
+    "name": "Kecantikan & Perawatan",
+    "slug": "kecantikan-perawatan",
+    "short_description": "Pilihan Kecantikan & Perawatan",
+    "description": "Koleksi kecantikan & perawatan pilihan."
+  },
+  "8": {
+    "name": "Kesehatan",
+    "slug": "kesehatan",
+    "short_description": "Pilihan Kesehatan",
+    "description": "Koleksi kesehatan pilihan."
+  },
+  "9": {
+    "name": "Makanan & Minuman",
+    "slug": "makanan-minuman",
+    "short_description": "Pilihan Makanan & Minuman",
+    "description": "Koleksi makanan & minuman pilihan."
+  },
+  "10": {
+    "name": "Otomotif",
+    "slug": "otomotif",
+    "short_description": "Pilihan Otomotif",
+    "description": "Koleksi otomotif pilihan."
+  },
+  "11": {
+    "name": "Buku, Alat Tulis & Hobi",
+    "slug": "buku-alat-tulis-hobi",
+    "short_description": "Pilihan Buku, Alat Tulis & Hobi",
+    "description": "Koleksi buku, alat tulis & hobi pilihan."
+  },
+  "12": {
+    "name": "Mainan & Permainan",
+    "slug": "mainan-permainan",
+    "short_description": "Pilihan Mainan & Permainan",
+    "description": "Koleksi mainan & permainan pilihan."
+  },
+  "13": {
+    "name": "Hewan Peliharaan",
+    "slug": "hewan-peliharaan",
+    "short_description": "Pilihan Hewan Peliharaan",
+    "description": "Koleksi hewan peliharaan pilihan."
+  },
+  "14": {
+    "name": "Industri & Bisnis",
+    "slug": "industri-bisnis",
+    "short_description": "Pilihan Industri & Bisnis",
+    "description": "Koleksi industri & bisnis pilihan."
+  },
+  "15": {
+    "name": "Properti & Jasa",
+    "slug": "properti-jasa",
+    "short_description": "Pilihan Properti & Jasa",
+    "description": "Koleksi properti & jasa pilihan."
+  },
+  "16": {
+    "name": "Handphone & Aksesori",
+    "slug": "handphone-aksesori",
+    "short_description": "Pilihan Handphone & Aksesori",
+    "description": "Koleksi handphone & aksesori pilihan."
+  },
+  "17": {
+    "name": "Laptop & Komputer",
+    "slug": "laptop-komputer",
+    "short_description": "Pilihan Laptop & Komputer",
+    "description": "Koleksi laptop & komputer pilihan."
+  },
+  "18": {
+    "name": "Kamera & Fotografi",
+    "slug": "kamera-fotografi",
+    "short_description": "Pilihan Kamera & Fotografi",
+    "description": "Koleksi kamera & fotografi pilihan."
+  },
+  "19": {
+    "name": "TV & Elektronik Rumah",
+    "slug": "tv-elektronik-rumah",
+    "short_description": "Pilihan TV & Elektronik Rumah",
+    "description": "Koleksi tv & elektronik rumah pilihan."
+  },
+  "20": {
+    "name": "Audio & Headphone",
+    "slug": "audio-headphone",
+    "short_description": "Pilihan Audio & Headphone",
+    "description": "Koleksi audio & headphone pilihan."
+  },
+  "21": {
+    "name": "Gaming & Konsol",
+    "slug": "gaming-konsol",
+    "short_description": "Pilihan Gaming & Konsol",
+    "description": "Koleksi gaming & konsol pilihan."
+  },
+  "22": {
+    "name": "Tablet & e-Reader",
+    "slug": "tablet-ereader",
+    "short_description": "Pilihan Tablet & e-Reader",
+    "description": "Koleksi tablet & e-reader pilihan."
+  },
+  "23": {
+    "name": "Drone & Robotik",
+    "slug": "drone-robotik",
+    "short_description": "Pilihan Drone & Robotik",
+    "description": "Koleksi drone & robotik pilihan."
+  },
+  "24": {
+    "name": "Komponen Elektronik",
+    "slug": "komponen-elektronik",
+    "short_description": "Pilihan Komponen Elektronik",
+    "description": "Koleksi komponen elektronik pilihan."
+  },
+  "25": {
+    "name": "Smart Home & IoT",
+    "slug": "smart-home-iot",
+    "short_description": "Pilihan Smart Home & IoT",
+    "description": "Koleksi smart home & iot pilihan."
+  },
+  "26": {
+    "name": "Pakaian Wanita",
+    "slug": "pakaian-wanita",
+    "short_description": "Pilihan Pakaian Wanita",
+    "description": "Koleksi pakaian wanita pilihan."
+  },
+  "27": {
+    "name": "Baju Atasan Wanita",
+    "slug": "baju-atasan-wanita",
+    "short_description": "Pilihan Baju Atasan Wanita",
+    "description": "Koleksi baju atasan wanita pilihan."
+  },
+  "28": {
+    "name": "Celana & Rok",
+    "slug": "celana-rok",
+    "short_description": "Pilihan Celana & Rok",
+    "description": "Koleksi celana & rok pilihan."
+  },
+  "29": {
+    "name": "Gamis & Busana Muslim",
+    "slug": "gamis-busana-muslim",
+    "short_description": "Pilihan Gamis & Busana Muslim",
+    "description": "Koleksi gamis & busana muslim pilihan."
+  },
+  "30": {
+    "name": "Jaket & Mantel Wanita",
+    "slug": "jaket-mantel-wanita",
+    "short_description": "Pilihan Jaket & Mantel Wanita",
+    "description": "Koleksi jaket & mantel wanita pilihan."
+  },
+  "31": {
+    "name": "Tas Wanita",
+    "slug": "tas-wanita",
+    "short_description": "Pilihan Tas Wanita",
+    "description": "Koleksi tas wanita pilihan."
+  },
+  "32": {
+    "name": "Sepatu Wanita",
+    "slug": "sepatu-wanita",
+    "short_description": "Pilihan Sepatu Wanita",
+    "description": "Koleksi sepatu wanita pilihan."
+  },
+  "33": {
+    "name": "Aksesori Wanita",
+    "slug": "aksesori-wanita",
+    "short_description": "Pilihan Aksesori Wanita",
+    "description": "Koleksi aksesori wanita pilihan."
+  },
+  "34": {
+    "name": "Pakaian Pria",
+    "slug": "pakaian-pria",
+    "short_description": "Pilihan Pakaian Pria",
+    "description": "Koleksi pakaian pria pilihan."
+  },
+  "35": {
+    "name": "Kemeja & Polo Pria",
+    "slug": "kemeja-polo-pria",
+    "short_description": "Pilihan Kemeja & Polo Pria",
+    "description": "Koleksi kemeja & polo pria pilihan."
+  },
+  "36": {
+    "name": "Celana Pria",
+    "slug": "celana-pria",
+    "short_description": "Pilihan Celana Pria",
+    "description": "Koleksi celana pria pilihan."
+  },
+  "37": {
+    "name": "Jaket & Hoodie Pria",
+    "slug": "jaket-hoodie-pria",
+    "short_description": "Pilihan Jaket & Hoodie Pria",
+    "description": "Koleksi jaket & hoodie pria pilihan."
+  },
+  "38": {
+    "name": "Sepatu Pria",
+    "slug": "sepatu-pria",
+    "short_description": "Pilihan Sepatu Pria",
+    "description": "Koleksi sepatu pria pilihan."
+  },
+  "39": {
+    "name": "Tas Pria",
+    "slug": "tas-pria",
+    "short_description": "Pilihan Tas Pria",
+    "description": "Koleksi tas pria pilihan."
+  },
+  "40": {
+    "name": "Aksesori Pria",
+    "slug": "aksesori-pria",
+    "short_description": "Pilihan Aksesori Pria",
+    "description": "Koleksi aksesori pria pilihan."
+  },
+  "41": {
+    "name": "Pakaian Bayi",
+    "slug": "pakaian-bayi",
+    "short_description": "Pilihan Pakaian Bayi",
+    "description": "Koleksi pakaian bayi pilihan."
+  },
+  "42": {
+    "name": "Pakaian Anak",
+    "slug": "pakaian-anak",
+    "short_description": "Pilihan Pakaian Anak",
+    "description": "Koleksi pakaian anak pilihan."
+  },
+  "43": {
+    "name": "Sepatu Anak",
+    "slug": "sepatu-anak",
+    "short_description": "Pilihan Sepatu Anak",
+    "description": "Koleksi sepatu anak pilihan."
+  },
+  "44": {
+    "name": "Perlengkapan Bayi",
+    "slug": "perlengkapan-bayi",
+    "short_description": "Pilihan Perlengkapan Bayi",
+    "description": "Koleksi perlengkapan bayi pilihan."
+  },
+  "45": {
+    "name": "Mainan Bayi",
+    "slug": "mainan-bayi",
+    "short_description": "Pilihan Mainan Bayi",
+    "description": "Koleksi mainan bayi pilihan."
+  },
+  "46": {
+    "name": "Stroller & Kereta Bayi",
+    "slug": "stroller-kereta-bayi",
+    "short_description": "Pilihan Stroller & Kereta Bayi",
+    "description": "Koleksi stroller & kereta bayi pilihan."
+  },
+  "47": {
+    "name": "Furnitur",
+    "slug": "furnitur",
+    "short_description": "Pilihan Furnitur",
+    "description": "Koleksi furnitur pilihan."
+  },
+  "48": {
+    "name": "Dekorasi Rumah",
+    "slug": "dekorasi-rumah",
+    "short_description": "Pilihan Dekorasi Rumah",
+    "description": "Koleksi dekorasi rumah pilihan."
+  },
+  "49": {
+    "name": "Dapur & Memasak",
+    "slug": "dapur-memasak",
+    "short_description": "Pilihan Dapur & Memasak",
+    "description": "Koleksi dapur & memasak pilihan."
+  },
+  "50": {
+    "name": "Kamar Mandi",
+    "slug": "kamar-mandi",
+    "short_description": "Pilihan Kamar Mandi",
+    "description": "Koleksi kamar mandi pilihan."
+  },
+  "51": {
+    "name": "Peralatan Rumah Tangga",
+    "slug": "peralatan-rumah-tangga",
+    "short_description": "Pilihan Peralatan Rumah Tangga",
+    "description": "Koleksi peralatan rumah tangga pilihan."
+  },
+  "52": {
+    "name": "Lampu & Pencahayaan",
+    "slug": "lampu-pencahayaan",
+    "short_description": "Pilihan Lampu & Pencahayaan",
+    "description": "Koleksi lampu & pencahayaan pilihan."
+  },
+  "53": {
+    "name": "Taman & Berkebun",
+    "slug": "taman-berkebun",
+    "short_description": "Pilihan Taman & Berkebun",
+    "description": "Koleksi taman & berkebun pilihan."
+  },
+  "54": {
+    "name": "Perlengkapan Tidur",
+    "slug": "perlengkapan-tidur",
+    "short_description": "Pilihan Perlengkapan Tidur",
+    "description": "Koleksi perlengkapan tidur pilihan."
+  },
+  "55": {
+    "name": "Penyimpanan & Organizer",
+    "slug": "penyimpanan-organizer",
+    "short_description": "Pilihan Penyimpanan & Organizer",
+    "description": "Koleksi penyimpanan & organizer pilihan."
+  },
+  "56": {
+    "name": "Sepeda & Aksesori",
+    "slug": "sepeda-aksesori",
+    "short_description": "Pilihan Sepeda & Aksesori",
+    "description": "Koleksi sepeda & aksesori pilihan."
+  },
+  "57": {
+    "name": "Fitness & Gym",
+    "slug": "fitness-gym",
+    "short_description": "Pilihan Fitness & Gym",
+    "description": "Koleksi fitness & gym pilihan."
+  },
+  "58": {
+    "name": "Olahraga Tim",
+    "slug": "olahraga-tim",
+    "short_description": "Pilihan Olahraga Tim",
+    "description": "Koleksi olahraga tim pilihan."
+  },
+  "59": {
+    "name": "Renang & Diving",
+    "slug": "renang-diving",
+    "short_description": "Pilihan Renang & Diving",
+    "description": "Koleksi renang & diving pilihan."
+  },
+  "60": {
+    "name": "Hiking & Camping",
+    "slug": "hiking-camping",
+    "short_description": "Pilihan Hiking & Camping",
+    "description": "Koleksi hiking & camping pilihan."
+  },
+  "61": {
+    "name": "Olahraga Air",
+    "slug": "olahraga-air",
+    "short_description": "Pilihan Olahraga Air",
+    "description": "Koleksi olahraga air pilihan."
+  },
+  "62": {
+    "name": "Pakaian Olahraga",
+    "slug": "pakaian-olahraga",
+    "short_description": "Pilihan Pakaian Olahraga",
+    "description": "Koleksi pakaian olahraga pilihan."
+  },
+  "63": {
+    "name": "Nutrisi & Suplemen Olahraga",
+    "slug": "nutrisi-suplemen-olahraga",
+    "short_description": "Pilihan Nutrisi & Suplemen Olahraga",
+    "description": "Koleksi nutrisi & suplemen olahraga pilihan."
+  },
+  "64": {
+    "name": "Skincare",
+    "slug": "skincare",
+    "short_description": "Pilihan Skincare",
+    "description": "Koleksi skincare pilihan."
+  },
+  "65": {
+    "name": "Makeup & Kosmetik",
+    "slug": "makeup-kosmetik",
+    "short_description": "Pilihan Makeup & Kosmetik",
+    "description": "Koleksi makeup & kosmetik pilihan."
+  },
+  "66": {
+    "name": "Perawatan Rambut",
+    "slug": "perawatan-rambut",
+    "short_description": "Pilihan Perawatan Rambut",
+    "description": "Koleksi perawatan rambut pilihan."
+  },
+  "67": {
+    "name": "Parfum & Deodoran",
+    "slug": "parfum-deodoran",
+    "short_description": "Pilihan Parfum & Deodoran",
+    "description": "Koleksi parfum & deodoran pilihan."
+  },
+  "68": {
+    "name": "Perawatan Tubuh",
+    "slug": "perawatan-tubuh",
+    "short_description": "Pilihan Perawatan Tubuh",
+    "description": "Koleksi perawatan tubuh pilihan."
+  },
+  "69": {
+    "name": "Perawatan Kuku",
+    "slug": "perawatan-kuku",
+    "short_description": "Pilihan Perawatan Kuku",
+    "description": "Koleksi perawatan kuku pilihan."
+  },
+  "70": {
+    "name": "Alat Kecantikan",
+    "slug": "alat-kecantikan",
+    "short_description": "Pilihan Alat Kecantikan",
+    "description": "Koleksi alat kecantikan pilihan."
+  },
+  "71": {
+    "name": "Kecantikan Pria",
+    "slug": "kecantikan-pria",
+    "short_description": "Pilihan Kecantikan Pria",
+    "description": "Koleksi kecantikan pria pilihan."
+  },
+  "72": {
+    "name": "Suplemen & Vitamin",
+    "slug": "suplemen-vitamin",
+    "short_description": "Pilihan Suplemen & Vitamin",
+    "description": "Koleksi suplemen & vitamin pilihan."
+  },
+  "73": {
+    "name": "Alat Kesehatan",
+    "slug": "alat-kesehatan",
+    "short_description": "Pilihan Alat Kesehatan",
+    "description": "Koleksi alat kesehatan pilihan."
+  },
+  "74": {
+    "name": "Obat Bebas",
+    "slug": "obat-bebas",
+    "short_description": "Pilihan Obat Bebas",
+    "description": "Koleksi obat bebas pilihan."
+  },
+  "75": {
+    "name": "Perawatan Mata",
+    "slug": "perawatan-mata",
+    "short_description": "Pilihan Perawatan Mata",
+    "description": "Koleksi perawatan mata pilihan."
+  },
+  "76": {
+    "name": "Kesehatan Wanita",
+    "slug": "kesehatan-wanita",
+    "short_description": "Pilihan Kesehatan Wanita",
+    "description": "Koleksi kesehatan wanita pilihan."
+  },
+  "77": {
+    "name": "Produk Ibu & Bayi",
+    "slug": "produk-ibu-bayi",
+    "short_description": "Pilihan Produk Ibu & Bayi",
+    "description": "Koleksi produk ibu & bayi pilihan."
+  },
+  "78": {
+    "name": "Kesehatan Gigi",
+    "slug": "kesehatan-gigi",
+    "short_description": "Pilihan Kesehatan Gigi",
+    "description": "Koleksi kesehatan gigi pilihan."
+  },
+  "79": {
+    "name": "Makanan Pokok",
+    "slug": "makanan-pokok",
+    "short_description": "Pilihan Makanan Pokok",
+    "description": "Koleksi makanan pokok pilihan."
+  },
+  "80": {
+    "name": "Makanan Ringan & Snack",
+    "slug": "makanan-ringan-snack",
+    "short_description": "Pilihan Makanan Ringan & Snack",
+    "description": "Koleksi makanan ringan & snack pilihan."
+  },
+  "81": {
+    "name": "Minuman",
+    "slug": "minuman",
+    "short_description": "Pilihan Minuman",
+    "description": "Koleksi minuman pilihan."
+  },
+  "82": {
+    "name": "Bumbu & Rempah",
+    "slug": "bumbu-rempah",
+    "short_description": "Pilihan Bumbu & Rempah",
+    "description": "Koleksi bumbu & rempah pilihan."
+  },
+  "83": {
+    "name": "Makanan Sehat & Organik",
+    "slug": "makanan-sehat-organik",
+    "short_description": "Pilihan Makanan Sehat & Organik",
+    "description": "Koleksi makanan sehat & organik pilihan."
+  },
+  "84": {
+    "name": "Kopi & Teh",
+    "slug": "kopi-teh",
+    "short_description": "Pilihan Kopi & Teh",
+    "description": "Koleksi kopi & teh pilihan."
+  },
+  "85": {
+    "name": "Cokelat & Permen",
+    "slug": "cokelat-permen",
+    "short_description": "Pilihan Cokelat & Permen",
+    "description": "Koleksi cokelat & permen pilihan."
+  },
+  "86": {
+    "name": "Aksesori Mobil",
+    "slug": "aksesori-mobil",
+    "short_description": "Pilihan Aksesori Mobil",
+    "description": "Koleksi aksesori mobil pilihan."
+  },
+  "87": {
+    "name": "Aksesori Motor",
+    "slug": "aksesori-motor",
+    "short_description": "Pilihan Aksesori Motor",
+    "description": "Koleksi aksesori motor pilihan."
+  },
+  "88": {
+    "name": "Sparepart Mobil",
+    "slug": "sparepart-mobil",
+    "short_description": "Pilihan Sparepart Mobil",
+    "description": "Koleksi sparepart mobil pilihan."
+  },
+  "89": {
+    "name": "Sparepart Motor",
+    "slug": "sparepart-motor",
+    "short_description": "Pilihan Sparepart Motor",
+    "description": "Koleksi sparepart motor pilihan."
+  },
+  "90": {
+    "name": "Perawatan Kendaraan",
+    "slug": "perawatan-kendaraan",
+    "short_description": "Pilihan Perawatan Kendaraan",
+    "description": "Koleksi perawatan kendaraan pilihan."
+  },
+  "91": {
+    "name": "Oli & Pelumas",
+    "slug": "oli-pelumas",
+    "short_description": "Pilihan Oli & Pelumas",
+    "description": "Koleksi oli & pelumas pilihan."
+  },
+  "92": {
+    "name": "Ban & Velg",
+    "slug": "ban-velg",
+    "short_description": "Pilihan Ban & Velg",
+    "description": "Koleksi ban & velg pilihan."
+  },
+  "93": {
+    "name": "Buku",
+    "slug": "buku",
+    "short_description": "Pilihan Buku",
+    "description": "Koleksi buku pilihan."
+  },
+  "94": {
+    "name": "Alat Tulis & Perlengkapan Kantor",
+    "slug": "alat-tulis-kantor",
+    "short_description": "Pilihan Alat Tulis & Perlengkapan Kantor",
+    "description": "Koleksi alat tulis & perlengkapan kantor pilihan."
+  },
+  "95": {
+    "name": "Seni & Kerajinan",
+    "slug": "seni-kerajinan",
+    "short_description": "Pilihan Seni & Kerajinan",
+    "description": "Koleksi seni & kerajinan pilihan."
+  },
+  "96": {
+    "name": "Koleksi & Hobi",
+    "slug": "koleksi-hobi",
+    "short_description": "Pilihan Koleksi & Hobi",
+    "description": "Koleksi koleksi & hobi pilihan."
+  },
+  "97": {
+    "name": "Musik",
+    "slug": "musik",
+    "short_description": "Pilihan Musik",
+    "description": "Koleksi musik pilihan."
+  },
+  "98": {
+    "name": "Fotografi & Videografi",
+    "slug": "fotografi-videografi",
+    "short_description": "Pilihan Fotografi & Videografi",
+    "description": "Koleksi fotografi & videografi pilihan."
+  },
+  "99": {
+    "name": "Action Figure & Karakter",
+    "slug": "action-figure-karakter",
+    "short_description": "Pilihan Action Figure & Karakter",
+    "description": "Koleksi action figure & karakter pilihan."
+  },
+  "100": {
+    "name": "Boneka & Plushie",
+    "slug": "boneka-plushie",
+    "short_description": "Pilihan Boneka & Plushie",
+    "description": "Koleksi boneka & plushie pilihan."
+  },
+  "101": {
+    "name": "Kendaraan Mainan",
+    "slug": "kendaraan-mainan",
+    "short_description": "Pilihan Kendaraan Mainan",
+    "description": "Koleksi kendaraan mainan pilihan."
+  },
+  "102": {
+    "name": "Puzzle & Board Game",
+    "slug": "puzzle-board-game",
+    "short_description": "Pilihan Puzzle & Board Game",
+    "description": "Koleksi puzzle & board game pilihan."
+  },
+  "103": {
+    "name": "Remote Control & Outdoor Toys",
+    "slug": "remote-control-outdoor-toys",
+    "short_description": "Pilihan Remote Control & Outdoor Toys",
+    "description": "Koleksi remote control & outdoor toys pilihan."
+  },
+  "104": {
+    "name": "Edukasi & Belajar",
+    "slug": "edukasi-belajar",
+    "short_description": "Pilihan Edukasi & Belajar",
+    "description": "Koleksi edukasi & belajar pilihan."
+  },
+  "105": {
+    "name": "Anjing",
+    "slug": "anjing",
+    "short_description": "Pilihan Anjing",
+    "description": "Koleksi anjing pilihan."
+  },
+  "106": {
+    "name": "Kucing",
+    "slug": "kucing",
+    "short_description": "Pilihan Kucing",
+    "description": "Koleksi kucing pilihan."
+  },
+  "107": {
+    "name": "Burung & Reptil",
+    "slug": "burung-reptil",
+    "short_description": "Pilihan Burung & Reptil",
+    "description": "Koleksi burung & reptil pilihan."
+  },
+  "108": {
+    "name": "Ikan & Akuatik",
+    "slug": "ikan-akuatik",
+    "short_description": "Pilihan Ikan & Akuatik",
+    "description": "Koleksi ikan & akuatik pilihan."
+  },
+  "109": {
+    "name": "Aksesori & Kandang Hewan",
+    "slug": "aksesori-kandang-hewan",
+    "short_description": "Pilihan Aksesori & Kandang Hewan",
+    "description": "Koleksi aksesori & kandang hewan pilihan."
+  },
+  "110": {
+    "name": "Keamanan & Surveillance",
+    "slug": "keamanan-surveillance",
+    "short_description": "Pilihan Keamanan & Surveillance",
+    "description": "Koleksi keamanan & surveillance pilihan."
+  },
+  "111": {
+    "name": "Mesin & Peralatan",
+    "slug": "mesin-peralatan",
+    "short_description": "Pilihan Mesin & Peralatan",
+    "description": "Koleksi mesin & peralatan pilihan."
+  },
+  "112": {
+    "name": "Bahan Bangunan",
+    "slug": "bahan-bangunan",
+    "short_description": "Pilihan Bahan Bangunan",
+    "description": "Koleksi bahan bangunan pilihan."
+  },
+  "113": {
+    "name": "Alat Pertanian",
+    "slug": "alat-pertanian",
+    "short_description": "Pilihan Alat Pertanian",
+    "description": "Koleksi alat pertanian pilihan."
+  },
+  "114": {
+    "name": "Percetakan & Kemasan",
+    "slug": "percetakan-kemasan",
+    "short_description": "Pilihan Percetakan & Kemasan",
+    "description": "Koleksi percetakan & kemasan pilihan."
+  },
+  "115": {
+    "name": "Properti",
+    "slug": "properti",
+    "short_description": "Pilihan Properti",
+    "description": "Koleksi properti pilihan."
+  },
+  "116": {
+    "name": "Jasa Profesional",
+    "slug": "jasa-profesional",
+    "short_description": "Pilihan Jasa Profesional",
+    "description": "Koleksi jasa profesional pilihan."
+  },
+  "117": {
+    "name": "Jasa Rumah Tangga",
+    "slug": "jasa-rumah-tangga",
+    "short_description": "Pilihan Jasa Rumah Tangga",
+    "description": "Koleksi jasa rumah tangga pilihan."
+  },
+  "118": {
+    "name": "Event & Hiburan",
+    "slug": "event-hiburan",
+    "short_description": "Pilihan Event & Hiburan",
+    "description": "Koleksi event & hiburan pilihan."
+  },
+  "119": {
+    "name": "Pendidikan & Kursus",
+    "slug": "pendidikan-kursus",
+    "short_description": "Pilihan Pendidikan & Kursus",
+    "description": "Koleksi pendidikan & kursus pilihan."
+  },
+  "120": {
+    "name": "Handphone Android",
+    "slug": "handphone-android",
+    "short_description": "Pilihan Handphone Android",
+    "description": "Koleksi handphone android pilihan."
+  },
+  "121": {
+    "name": "iPhone & iOS",
+    "slug": "iphone-ios",
+    "short_description": "Pilihan iPhone & iOS",
+    "description": "Koleksi iphone & ios pilihan."
+  },
+  "122": {
+    "name": "Case & Cover Handphone",
+    "slug": "case-cover-handphone",
+    "short_description": "Pilihan Case & Cover Handphone",
+    "description": "Koleksi case & cover handphone pilihan."
+  },
+  "123": {
+    "name": "Charger & Kabel",
+    "slug": "charger-kabel",
+    "short_description": "Pilihan Charger & Kabel",
+    "description": "Koleksi charger & kabel pilihan."
+  },
+  "124": {
+    "name": "Screen Protector & Tempered Glass",
+    "slug": "screen-protector-tempered-glass",
+    "short_description": "Pilihan Screen Protector & Tempered Glass",
+    "description": "Koleksi screen protector & tempered glass pilihan."
+  },
+  "125": {
+    "name": "Laptop",
+    "slug": "laptop",
+    "short_description": "Pilihan Laptop",
+    "description": "Koleksi laptop pilihan."
+  },
+  "126": {
+    "name": "PC Desktop & All-in-One",
+    "slug": "pc-desktop-all-in-one",
+    "short_description": "Pilihan PC Desktop & All-in-One",
+    "description": "Koleksi pc desktop & all-in-one pilihan."
+  },
+  "127": {
+    "name": "Monitor",
+    "slug": "monitor",
+    "short_description": "Pilihan Monitor",
+    "description": "Koleksi monitor pilihan."
+  },
+  "128": {
+    "name": "Keyboard & Mouse",
+    "slug": "keyboard-mouse",
+    "short_description": "Pilihan Keyboard & Mouse",
+    "description": "Koleksi keyboard & mouse pilihan."
+  },
+  "129": {
+    "name": "Storage & Memori (SSD, HDD, RAM)",
+    "slug": "storage-memori",
+    "short_description": "Pilihan Storage & Memori (SSD, HDD, RAM)",
+    "description": "Koleksi storage & memori (ssd, hdd, ram) pilihan."
+  },
+  "130": {
+    "name": "Kamera DSLR & Mirrorless",
+    "slug": "kamera-dslr-mirrorless",
+    "short_description": "Pilihan Kamera DSLR & Mirrorless",
+    "description": "Koleksi kamera dslr & mirrorless pilihan."
+  },
+  "131": {
+    "name": "Kamera Action & Vlog",
+    "slug": "kamera-action-vlog",
+    "short_description": "Pilihan Kamera Action & Vlog",
+    "description": "Koleksi kamera action & vlog pilihan."
+  },
+  "132": {
+    "name": "Aksesori Kamera",
+    "slug": "aksesori-kamera",
+    "short_description": "Pilihan Aksesori Kamera",
+    "description": "Koleksi aksesori kamera pilihan."
+  },
+  "133": {
+    "name": "Tripod & Stabilizer",
+    "slug": "tripod-stabilizer",
+    "short_description": "Pilihan Tripod & Stabilizer",
+    "description": "Koleksi tripod & stabilizer pilihan."
+  },
+  "134": {
+    "name": "Headphone & Earphone",
+    "slug": "headphone-earphone",
+    "short_description": "Pilihan Headphone & Earphone",
+    "description": "Koleksi headphone & earphone pilihan."
+  },
+  "135": {
+    "name": "Speaker Bluetooth",
+    "slug": "speaker-bluetooth",
+    "short_description": "Pilihan Speaker Bluetooth",
+    "description": "Koleksi speaker bluetooth pilihan."
+  },
+  "136": {
+    "name": "Speaker Home Audio",
+    "slug": "speaker-home-audio",
+    "short_description": "Pilihan Speaker Home Audio",
+    "description": "Koleksi speaker home audio pilihan."
+  },
+  "137": {
+    "name": "Mikrofon & Aksesori Audio",
+    "slug": "mikrofon-aksesori-audio",
+    "short_description": "Pilihan Mikrofon & Aksesori Audio",
+    "description": "Koleksi mikrofon & aksesori audio pilihan."
+  },
+  "138": {
+    "name": "Konsol Game (PS, Xbox, Switch)",
+    "slug": "konsol-game",
+    "short_description": "Pilihan Konsol Game (PS, Xbox, Switch)",
+    "description": "Koleksi konsol game (ps, xbox, switch) pilihan."
+  },
+  "139": {
+    "name": "Controller & Joystick",
+    "slug": "controller-joystick",
+    "short_description": "Pilihan Controller & Joystick",
+    "description": "Koleksi controller & joystick pilihan."
+  },
+  "140": {
+    "name": "Gaming Headset",
+    "slug": "gaming-headset",
+    "short_description": "Pilihan Gaming Headset",
+    "description": "Koleksi gaming headset pilihan."
+  },
+  "141": {
+    "name": "Gaming Chair & Meja Gaming",
+    "slug": "gaming-chair-meja-gaming",
+    "short_description": "Pilihan Gaming Chair & Meja Gaming",
+    "description": "Koleksi gaming chair & meja gaming pilihan."
+  },
+  "142": {
+    "name": "Smart Speaker & Display",
+    "slug": "smart-speaker-display",
+    "short_description": "Pilihan Smart Speaker & Display",
+    "description": "Koleksi smart speaker & display pilihan."
+  },
+  "143": {
+    "name": "Kunci & Keamanan Pintar",
+    "slug": "kunci-keamanan-pintar",
+    "short_description": "Pilihan Kunci & Keamanan Pintar",
+    "description": "Koleksi kunci & keamanan pintar pilihan."
+  },
+  "144": {
+    "name": "Lampu Pintar",
+    "slug": "lampu-pintar",
+    "short_description": "Pilihan Lampu Pintar",
+    "description": "Koleksi lampu pintar pilihan."
+  },
+  "145": {
+    "name": "Dress & Terusan",
+    "slug": "dress-terusan",
+    "short_description": "Pilihan Dress & Terusan",
+    "description": "Koleksi dress & terusan pilihan."
+  },
+  "146": {
+    "name": "Blus & Kemeja Wanita",
+    "slug": "blus-kemeja-wanita",
+    "short_description": "Pilihan Blus & Kemeja Wanita",
+    "description": "Koleksi blus & kemeja wanita pilihan."
+  },
+  "147": {
+    "name": "Kaos & Tank Top Wanita",
+    "slug": "kaos-tank-top-wanita",
+    "short_description": "Pilihan Kaos & Tank Top Wanita",
+    "description": "Koleksi kaos & tank top wanita pilihan."
+  },
+  "148": {
+    "name": "Pakaian Dalam & Lingerie",
+    "slug": "pakaian-dalam-lingerie",
+    "short_description": "Pilihan Pakaian Dalam & Lingerie",
+    "description": "Koleksi pakaian dalam & lingerie pilihan."
+  },
+  "149": {
+    "name": "Gamis & Abaya",
+    "slug": "gamis-abaya",
+    "short_description": "Pilihan Gamis & Abaya",
+    "description": "Koleksi gamis & abaya pilihan."
+  },
+  "150": {
+    "name": "Hijab & Kerudung",
+    "slug": "hijab-kerudung",
+    "short_description": "Pilihan Hijab & Kerudung",
+    "description": "Koleksi hijab & kerudung pilihan."
+  },
+  "151": {
+    "name": "Baju Koko & Sarung",
+    "slug": "baju-koko-sarung",
+    "short_description": "Pilihan Baju Koko & Sarung",
+    "description": "Koleksi baju koko & sarung pilihan."
+  },
+  "152": {
+    "name": "Tas Tangan & Clutch",
+    "slug": "tas-tangan-clutch",
+    "short_description": "Pilihan Tas Tangan & Clutch",
+    "description": "Koleksi tas tangan & clutch pilihan."
+  },
+  "153": {
+    "name": "Tas Selempang & Bahu",
+    "slug": "tas-selempang-bahu",
+    "short_description": "Pilihan Tas Selempang & Bahu",
+    "description": "Koleksi tas selempang & bahu pilihan."
+  },
+  "154": {
+    "name": "Tas Ransel Wanita",
+    "slug": "tas-ransel-wanita",
+    "short_description": "Pilihan Tas Ransel Wanita",
+    "description": "Koleksi tas ransel wanita pilihan."
+  },
+  "155": {
+    "name": "Heels & Stiletto",
+    "slug": "heels-stiletto",
+    "short_description": "Pilihan Heels & Stiletto",
+    "description": "Koleksi heels & stiletto pilihan."
+  },
+  "156": {
+    "name": "Sandal & Flat Shoes",
+    "slug": "sandal-flat-shoes",
+    "short_description": "Pilihan Sandal & Flat Shoes",
+    "description": "Koleksi sandal & flat shoes pilihan."
+  },
+  "157": {
+    "name": "Sneakers Wanita",
+    "slug": "sneakers-wanita",
+    "short_description": "Pilihan Sneakers Wanita",
+    "description": "Koleksi sneakers wanita pilihan."
+  },
+  "158": {
+    "name": "Sofa & Kursi",
+    "slug": "sofa-kursi",
+    "short_description": "Pilihan Sofa & Kursi",
+    "description": "Koleksi sofa & kursi pilihan."
+  },
+  "159": {
+    "name": "Meja & Lemari",
+    "slug": "meja-lemari",
+    "short_description": "Pilihan Meja & Lemari",
+    "description": "Koleksi meja & lemari pilihan."
+  },
+  "160": {
+    "name": "Kasur & Bantal",
+    "slug": "kasur-bantal",
+    "short_description": "Pilihan Kasur & Bantal",
+    "description": "Koleksi kasur & bantal pilihan."
+  },
+  "161": {
+    "name": "Meja Makan & Kursi Makan",
+    "slug": "meja-makan-kursi-makan",
+    "short_description": "Pilihan Meja Makan & Kursi Makan",
+    "description": "Koleksi meja makan & kursi makan pilihan."
+  },
+  "162": {
+    "name": "Peralatan Masak (Panci & Wajan)",
+    "slug": "peralatan-masak",
+    "short_description": "Pilihan Peralatan Masak (Panci & Wajan)",
+    "description": "Koleksi peralatan masak (panci & wajan) pilihan."
+  },
+  "163": {
+    "name": "Peralatan Makan & Minum",
+    "slug": "peralatan-makan-minum",
+    "short_description": "Pilihan Peralatan Makan & Minum",
+    "description": "Koleksi peralatan makan & minum pilihan."
+  },
+  "164": {
+    "name": "Peralatan Baking",
+    "slug": "peralatan-baking",
+    "short_description": "Pilihan Peralatan Baking",
+    "description": "Koleksi peralatan baking pilihan."
+  },
+  "165": {
+    "name": "Barbel & Dumbbell",
+    "slug": "barbel-dumbbell",
+    "short_description": "Pilihan Barbel & Dumbbell",
+    "description": "Koleksi barbel & dumbbell pilihan."
+  },
+  "166": {
+    "name": "Treadmill & Kardio",
+    "slug": "treadmill-kardio",
+    "short_description": "Pilihan Treadmill & Kardio",
+    "description": "Koleksi treadmill & kardio pilihan."
+  },
+  "167": {
+    "name": "Matras Yoga & Pilates",
+    "slug": "matras-yoga-pilates",
+    "short_description": "Pilihan Matras Yoga & Pilates",
+    "description": "Koleksi matras yoga & pilates pilihan."
+  },
+  "168": {
+    "name": "Aksesori Gym",
+    "slug": "aksesori-gym",
+    "short_description": "Pilihan Aksesori Gym",
+    "description": "Koleksi aksesori gym pilihan."
+  },
+  "169": {
+    "name": "Pelembap & Moisturizer",
+    "slug": "pelembap-moisturizer",
+    "short_description": "Pilihan Pelembap & Moisturizer",
+    "description": "Koleksi pelembap & moisturizer pilihan."
+  },
+  "170": {
+    "name": "Sunscreen & SPF",
+    "slug": "sunscreen-spf",
+    "short_description": "Pilihan Sunscreen & SPF",
+    "description": "Koleksi sunscreen & spf pilihan."
+  },
+  "171": {
+    "name": "Serum & Essence",
+    "slug": "serum-essence",
+    "short_description": "Pilihan Serum & Essence",
+    "description": "Koleksi serum & essence pilihan."
+  },
+  "172": {
+    "name": "Pembersih Wajah",
+    "slug": "pembersih-wajah",
+    "short_description": "Pilihan Pembersih Wajah",
+    "description": "Koleksi pembersih wajah pilihan."
+  },
+  "173": {
+    "name": "Masker Wajah",
+    "slug": "masker-wajah",
+    "short_description": "Pilihan Masker Wajah",
+    "description": "Koleksi masker wajah pilihan."
+  },
+  "174": {
+    "name": "Foundation & BB Cream",
+    "slug": "foundation-bb-cream",
+    "short_description": "Pilihan Foundation & BB Cream",
+    "description": "Koleksi foundation & bb cream pilihan."
+  },
+  "175": {
+    "name": "Lipstik & Lip Gloss",
+    "slug": "lipstik-lip-gloss",
+    "short_description": "Pilihan Lipstik & Lip Gloss",
+    "description": "Koleksi lipstik & lip gloss pilihan."
+  },
+  "176": {
+    "name": "Eyeshadow & Eyeliner",
+    "slug": "eyeshadow-eyeliner",
+    "short_description": "Pilihan Eyeshadow & Eyeliner",
+    "description": "Koleksi eyeshadow & eyeliner pilihan."
+  },
+  "177": {
+    "name": "Blush On & Highlighter",
+    "slug": "blush-on-highlighter",
+    "short_description": "Pilihan Blush On & Highlighter",
+    "description": "Koleksi blush on & highlighter pilihan."
+  },
+  "178": {
+    "name": "Maskara & Bulu Mata",
+    "slug": "maskara-bulu-mata",
+    "short_description": "Pilihan Maskara & Bulu Mata",
+    "description": "Koleksi maskara & bulu mata pilihan."
+  },
+  "179": {
+    "name": "Vitamin C & Imunitas",
+    "slug": "vitamin-c-imunitas",
+    "short_description": "Pilihan Vitamin C & Imunitas",
+    "description": "Koleksi vitamin c & imunitas pilihan."
+  },
+  "180": {
+    "name": "Suplemen Tulang & Sendi",
+    "slug": "suplemen-tulang-sendi",
+    "short_description": "Pilihan Suplemen Tulang & Sendi",
+    "description": "Koleksi suplemen tulang & sendi pilihan."
+  },
+  "181": {
+    "name": "Multivitamin",
+    "slug": "multivitamin",
+    "short_description": "Pilihan Multivitamin",
+    "description": "Koleksi multivitamin pilihan."
+  },
+  "182": {
+    "name": "Beras & Sereal",
+    "slug": "beras-sereal",
+    "short_description": "Pilihan Beras & Sereal",
+    "description": "Koleksi beras & sereal pilihan."
+  },
+  "183": {
+    "name": "Mie & Pasta",
+    "slug": "mie-pasta",
+    "short_description": "Pilihan Mie & Pasta",
+    "description": "Koleksi mie & pasta pilihan."
+  },
+  "184": {
+    "name": "Tepung & Bahan Kue",
+    "slug": "tepung-bahan-kue",
+    "short_description": "Pilihan Tepung & Bahan Kue",
+    "description": "Koleksi tepung & bahan kue pilihan."
+  },
+  "185": {
+    "name": "Kopi Bubuk & Biji",
+    "slug": "kopi-bubuk-biji",
+    "short_description": "Pilihan Kopi Bubuk & Biji",
+    "description": "Koleksi kopi bubuk & biji pilihan."
+  },
+  "186": {
+    "name": "Kopi Instan & Sachet",
+    "slug": "kopi-instan-sachet",
+    "short_description": "Pilihan Kopi Instan & Sachet",
+    "description": "Koleksi kopi instan & sachet pilihan."
+  },
+  "187": {
+    "name": "Teh & Herbal",
+    "slug": "teh-herbal",
+    "short_description": "Pilihan Teh & Herbal",
+    "description": "Koleksi teh & herbal pilihan."
+  },
+  "188": {
+    "name": "Novel & Fiksi",
+    "slug": "novel-fiksi",
+    "short_description": "Pilihan Novel & Fiksi",
+    "description": "Koleksi novel & fiksi pilihan."
+  },
+  "189": {
+    "name": "Buku Non-Fiksi & Pengembangan Diri",
+    "slug": "buku-non-fiksi-pengembangan-diri",
+    "short_description": "Pilihan Buku Non-Fiksi & Pengembangan Diri",
+    "description": "Koleksi buku non-fiksi & pengembangan diri pilihan."
+  },
+  "190": {
+    "name": "Komik & Manga",
+    "slug": "komik-manga",
+    "short_description": "Pilihan Komik & Manga",
+    "description": "Koleksi komik & manga pilihan."
+  },
+  "191": {
+    "name": "Buku Pelajaran & Akademik",
+    "slug": "buku-pelajaran-akademik",
+    "short_description": "Pilihan Buku Pelajaran & Akademik",
+    "description": "Koleksi buku pelajaran & akademik pilihan."
+  },
+  "192": {
+    "name": "Board Game & Kartu",
+    "slug": "board-game-kartu",
+    "short_description": "Pilihan Board Game & Kartu",
+    "description": "Koleksi board game & kartu pilihan."
+  },
+  "193": {
+    "name": "Puzzle & Jigsaw",
+    "slug": "puzzle-jigsaw",
+    "short_description": "Pilihan Puzzle & Jigsaw",
+    "description": "Koleksi puzzle & jigsaw pilihan."
+  },
+  "194": {
+    "name": "Permainan Strategi",
+    "slug": "permainan-strategi",
+    "short_description": "Pilihan Permainan Strategi",
+    "description": "Koleksi permainan strategi pilihan."
+  },
+  "195": {
+    "name": "Makanan Anjing",
+    "slug": "makanan-anjing",
+    "short_description": "Pilihan Makanan Anjing",
+    "description": "Koleksi makanan anjing pilihan."
+  },
+  "196": {
+    "name": "Kandang & Tempat Tidur Anjing",
+    "slug": "kandang-tempat-tidur-anjing",
+    "short_description": "Pilihan Kandang & Tempat Tidur Anjing",
+    "description": "Koleksi kandang & tempat tidur anjing pilihan."
+  },
+  "197": {
+    "name": "Aksesori & Mainan Anjing",
+    "slug": "aksesori-mainan-anjing",
+    "short_description": "Pilihan Aksesori & Mainan Anjing",
+    "description": "Koleksi aksesori & mainan anjing pilihan."
+  },
+  "198": {
+    "name": "Makanan Kucing",
+    "slug": "makanan-kucing",
+    "short_description": "Pilihan Makanan Kucing",
+    "description": "Koleksi makanan kucing pilihan."
+  },
+  "199": {
+    "name": "Kandang & Pasir Kucing",
+    "slug": "kandang-pasir-kucing",
+    "short_description": "Pilihan Kandang & Pasir Kucing",
+    "description": "Koleksi kandang & pasir kucing pilihan."
+  },
+  "200": {
+    "name": "Aksesori & Mainan Kucing",
+    "slug": "aksesori-mainan-kucing",
+    "short_description": "Pilihan Aksesori & Mainan Kucing",
+    "description": "Koleksi aksesori & mainan kucing pilihan."
+  }
+}
