@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NumericFormat } from "react-number-format";
 
 import MemberModal from "../ui/MemberModal";
 import MemberRichTextEditor, { type RichTextValue } from "../ui/MemberRichTextEditor";
-import MemberAssetBundleField, { type ExistingMemberAsset, type MemberAssetRulesConfig, type MemberUploadFile, validateMemberFilesAgainstUsageConfig } from "../ui/MemberAssetBundleField";
-import { deleteMemberDigitalFile, deleteMemberProductAsset, listMemberDigitalFiles, listMemberProductAssets, updateMemberDigitalFile, updateMemberProductAsset, uploadMemberDigitalFile, uploadMemberProductAsset } from "./api";
+import MemberAssetBundleField, { type ExistingMemberAsset, type MemberAssetRulesConfig, validateMemberFilesAgainstUsageConfig } from "../ui/MemberAssetBundleField";
+import type { MemberUploadFile } from "../ui/MemberFileUploadDropzone";
+import { deleteMemberDigitalFile, deleteMemberProductAsset, listMemberDigitalFiles, listMemberProductAssets, updateMemberDigitalFile, updateMemberProductAsset, uploadMemberDigitalFile, uploadMemberProductAsset, listMemberCategoryChildren } from "./api";
 import type { BusinessOption, CategoryOption, Product, ProductDigitalFile, ProductPayload, TagOption } from "./types";
 import MemberSeoSegment from "./MemberSeoSegment";
 import { getAmountFormatSettings } from "../../../lib/amountFormat";
@@ -191,7 +192,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 
 	const categoriesByID = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
 
-	const buildCategoryChain = (id: string): CategoryOption[] => {
+	const buildCategoryChain = useCallback((id: string): CategoryOption[] => {
 		const chain: CategoryOption[] = [];
 		let current: CategoryOption | null = categoriesByID.get(id) || null;
 		let guard = 0;
@@ -201,7 +202,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 			current = current.parent_id ? categoriesByID.get(current.parent_id) || null : null;
 		}
 		return chain;
-	};
+	}, [categoriesByID]);
 
 	const applyCategoryChain = (chain: CategoryOption[]) => {
 		setForm((prev) => ({ ...prev, category_ids: chain.map((category) => category.id) }));
@@ -241,7 +242,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		setCurrentCategories([]);
 	};
 
-	const hydrateCategorySelection = (ids: string[]) => {
+	const hydrateCategorySelection = useCallback((ids: string[]) => {
 		const uniqueIDs = Array.from(new Set(ids.filter(Boolean)));
 		if (uniqueIDs.length === 0) {
 			clearCategorySelection();
@@ -254,9 +255,9 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		const longestChain = chains.reduce<CategoryOption[]>((best, chain) => (chain.length > best.length ? chain : best), []);
 		applyCategoryChain(longestChain);
 		setParentID(longestChain.length > 1 ? longestChain[longestChain.length - 2].id : "");
-	};
+	}, [buildCategoryChain]);
 
-	const loadChildren = async (pid: string) => {
+	const loadChildren = useCallback(async (pid: string) => {
 		setLoadingCategories(true);
 		setCategoriesError(null);
 		try {
@@ -268,7 +269,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		} finally {
 			setLoadingCategories(false);
 		}
-	};
+	}, []);
 
 	useEffect(() => {
 		if (!open) return;
@@ -318,7 +319,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		setCategoriesError(null);
 		setError("");
 		setTagSearch("");
-	}, [open, mode, initialData, businesses]);
+	}, [open, mode, initialData, businesses, hydrateCategorySelection]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -329,7 +330,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		}
 
 		setBreadcrumbs(buildCategoryChain(parentID));
-	}, [open, parentID, categoriesByID]);
+	}, [open, parentID, loadChildren, buildCategoryChain]);
 
 	const filteredTags = useMemo(() => {
 		const needle = tagSearch.trim().toLowerCase();
@@ -347,12 +348,12 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 
 	const activeProductID = initialData?.id || "";
 
-	const refreshExistingAssets = async (productID: string) => {
+	const refreshExistingAssets = useCallback(async (productID: string) => {
 		const assets = await listMemberProductAssets(productID);
 		setExistingAssets(assets.map((a) => ({
 			id: a.id,
 			file_path: a.file_path,
-			file_type: a.file_type,
+			file_type: a.file_type || "",
 			file_size: a.file_size,
 			original_name: a.original_name,
 			public_url: a.public_url,
@@ -360,13 +361,13 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 			display_order: a.display_order ?? 0,
 			usage_tag: a.usage_tag,
 		})));
-	};
+	}, []);
 
-	const refreshDigitalFiles = async (productID: string) => {
+	const refreshDigitalFiles = useCallback(async (productID: string) => {
 		const files = await listMemberDigitalFiles(productID);
 		setDigitalFiles(files);
 		setDigitalDrafts(Object.fromEntries(files.map((file) => [file.id, { file_name: file.file_name || "", is_active: file.is_active ?? true, download_limit: String(file.download_limit ?? 0), sort_order: String(file.sort_order ?? 0) }])));
-	};
+	}, []);
 
 	useEffect(() => {
 		if (!open || !activeProductID) {
@@ -400,7 +401,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		return () => {
 			cancelled = true;
 		};
-	}, [open, activeProductID]);
+	}, [open, activeProductID, refreshExistingAssets, refreshDigitalFiles]);
 
 	const detectFileType = (file: File) => {
 		if (file.type.startsWith("image/")) return "image";
