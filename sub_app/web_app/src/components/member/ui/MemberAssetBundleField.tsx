@@ -1,15 +1,10 @@
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
-import type { Area } from "react-easy-crop";
+import { useMemo, useRef, useState } from "react";
+import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 
 import MemberModal from "./MemberModal";
 import MemberFileUploadDropzone, { type MemberUploadFile } from "./MemberFileUploadDropzone";
 import MemberFilePreviewGrid from "./MemberFilePreviewGrid";
-
-const Cropper = lazy(async () => {
-  const module = await import("react-easy-crop");
-  return { default: module.default };
-});
 
 export type MemberAssetRule = {
   label: string;
@@ -203,6 +198,7 @@ export default function MemberAssetBundleField({
   const [cropError, setCropError] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [existingSortMode, setExistingSortMode] = useState<"main_first" | "order_asc">("main_first");
   const pendingCropQueueRef = useRef<MemberUploadFile[]>([]);
   const pendingCroppedFilesRef = useRef<MemberUploadFile[]>([]);
 
@@ -323,14 +319,31 @@ export default function MemberAssetBundleField({
     return acc;
   }, {});
 
-  const groupedEntries = Object.entries(groupedExistingAssets).map(([tag, assets]) => [
-    tag,
-    [...assets].sort((a, b) => {
-      if (a.is_main && !b.is_main) return -1;
-      if (!a.is_main && b.is_main) return 1;
-      return (a.display_order ?? 0) - (b.display_order ?? 0);
-    }),
-  ] as const);
+  const groupedEntries = Object.entries(groupedExistingAssets)
+    .map(([tag, assets]) => [
+      tag,
+      [...assets].sort((a, b) => {
+        if (existingSortMode === "order_asc") {
+          const orderDiff = (a.display_order ?? 0) - (b.display_order ?? 0);
+          if (orderDiff !== 0) return orderDiff;
+        }
+        if (a.is_main && !b.is_main) return -1;
+        if (!a.is_main && b.is_main) return 1;
+        const orderDiff = (a.display_order ?? 0) - (b.display_order ?? 0);
+        if (orderDiff !== 0) return orderDiff;
+        return (a.original_name || a.file_path).localeCompare(b.original_name || b.file_path);
+      }),
+    ] as const)
+    .sort(([a], [b]) => {
+      const rank = (tag: string) => {
+        if (!tag || tag === "untagged") return Number.MAX_SAFE_INTEGER;
+        const index = usageTagOptions.indexOf(tag);
+        return index === -1 ? Number.MAX_SAFE_INTEGER - 1 : index;
+      };
+      const diff = rank(a) - rank(b);
+      if (diff !== 0) return diff;
+      return a.localeCompare(b);
+    });
 
   const closeCropper = (abortQueue = false) => {
     revokeCropImageURL();
@@ -392,8 +405,16 @@ export default function MemberAssetBundleField({
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h4 className="mb-3 text-sm font-semibold text-slate-900">{title}</h4>
+    <section className="w-full rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h4 className="text-sm font-semibold text-slate-900">{title}</h4>
+          <p className="mt-1 text-xs text-slate-500">Kelola upload, crop, usage tag, dan urutan asset dari satu panel.</p>
+        </div>
+        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+          {selectedFiles.length + existingAssets.length} items
+        </span>
+      </div>
 
       {showExisting ? (
         <div className="mb-4 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -444,7 +465,20 @@ export default function MemberAssetBundleField({
 
       {showExisting ? (
         <div className="mb-4">
-          <h5 className="mb-2 text-sm font-medium text-slate-700">Existing Assets</h5>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h5 className="text-sm font-medium text-slate-700">Existing Assets</h5>
+            <div className="flex items-center gap-2">
+              <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sort</label>
+              <select
+                value={existingSortMode}
+                onChange={(e) => setExistingSortMode(e.target.value as "main_first" | "order_asc")}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm"
+              >
+                <option value="main_first">Main first</option>
+                <option value="order_asc">Order asc</option>
+              </select>
+            </div>
+          </div>
           {loadingExisting ? (
             <div className="text-sm text-slate-500">Loading assets...</div>
           ) : filteredExistingAssets.length === 0 ? (
@@ -452,8 +486,11 @@ export default function MemberAssetBundleField({
           ) : (
             <div className="space-y-4">
               {groupedEntries.map(([tag, assets]) => (
-                <div key={tag} className="space-y-2">
-                  <h6 className="text-xs font-semibold uppercase tracking-wide text-slate-600">{tag}</h6>
+                <div key={tag} className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                    <h6 className="text-xs font-semibold uppercase tracking-wide text-slate-600">{tag}</h6>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 shadow-sm ring-1 ring-slate-200">{assets.length} file</span>
+                  </div>
                   {assets.map((a) => (
                     <div key={a.id} className="flex items-center gap-3 rounded border p-2">
                       <div className="w-20 flex-shrink-0">
@@ -469,6 +506,11 @@ export default function MemberAssetBundleField({
                           <div>
                             <div className="text-sm font-medium text-slate-800">{a.original_name || a.file_path}</div>
                             <div className="text-xs text-slate-500">{a.file_type} • {a.file_size ? `${(a.file_size / 1024 / 1024).toFixed(2)} MB` : "-"}</div>
+                            {a.public_url ? (
+                              <a href={a.public_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-sky-600 hover:underline">
+                                Preview
+                              </a>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-2">
                             <button
@@ -627,7 +669,7 @@ export default function MemberAssetBundleField({
         </div>
       ) : null}
 
-      <div className="mb-3 max-w-xs">
+      <div className="mb-3 w-full">
         <label className="mb-1 block text-sm text-slate-700">Usage Tag (applies to all uploads)</label>
         <select value={usageTag} onChange={(e) => onUsageTagChange(e.target.value)} className="w-full rounded border border-slate-300 px-3 py-2 text-sm">
           <option value="">(none)</option>
@@ -642,9 +684,24 @@ export default function MemberAssetBundleField({
         ) : (
           <p className="mt-2 text-xs text-slate-500">Pilih usage tag agar aturan ukuran dan rasio bisa divalidasi.</p>
         )}
+        {enforceCrop && activeUsageRule?.aspectRatio ? (
+          <p className="mt-2 text-xs text-emerald-700">Crop akan dibuka otomatis untuk gambar baru pada usage tag ini.</p>
+        ) : null}
       </div>
 
       <MemberFileUploadDropzone onFilesAdded={handleFilesAdded} maxFiles={maxFiles} maxSizeMB={maxSizeMB} accept={accept} />
+      {selectedFiles.length > 0 ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <p className="text-xs text-slate-600">{selectedFiles.length} file siap diupload. Gunakan tombol Crop per file bila perlu.</p>
+          <button
+            type="button"
+            onClick={() => onSelectedFilesChange([])}
+            className="rounded border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+          >
+            Clear queue
+          </button>
+        </div>
+      ) : null}
       <MemberFilePreviewGrid files={selectedFiles} onRemove={handleRemoveFile} onSetMain={handleSetMainFile} onEditFile={openManualCropper} editLabel="Crop" />
 
       <MemberModal
@@ -682,17 +739,15 @@ export default function MemberAssetBundleField({
           ) : null}
           <div className="relative h-[380px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-900">
             {cropImageURL ? (
-              <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-slate-300">Loading cropper...</div>}>
-                <Cropper
-                  image={cropImageURL}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={activeUsageRule?.aspectRatio || 1}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={(_, areaPixels) => setCroppedAreaPixels(areaPixels)}
-                />
-              </Suspense>
+              <Cropper
+                image={cropImageURL}
+                crop={crop}
+                zoom={zoom}
+                aspect={activeUsageRule?.aspectRatio || 1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_, areaPixels) => setCroppedAreaPixels(areaPixels)}
+              />
             ) : null}
           </div>
           <div>

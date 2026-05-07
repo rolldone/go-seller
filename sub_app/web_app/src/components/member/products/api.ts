@@ -17,6 +17,10 @@ export async function listMemberProducts(params: ProductListParams): Promise<Pro
 	return memberGet<ProductListResponse>(`/api/member/products?${query.toString()}`);
 }
 
+export async function getMemberProduct(id: string): Promise<Product> {
+	return memberGet<Product>(`/api/member/products/${id}`);
+}
+
 export async function listMemberBusinesses(): Promise<BusinessOption[]> {
 	const res = await memberGet<{ data: BusinessOption[] }>("/api/member/businesses?page=1&limit=500");
 	return res.data || [];
@@ -92,6 +96,7 @@ export async function listMemberProductAssets(productID: string): Promise<Produc
 }
 
 export async function uploadMemberProductAsset(productID: string, formData: FormData): Promise<ProductAsset> {
+	formData.set("product_id", productID);
 	return memberPostForm<ProductAsset>(`/api/member/product-assets/${productID}/upload`, formData);
 }
 
@@ -113,6 +118,7 @@ export async function listMemberDigitalFiles(productID: string): Promise<Product
 }
 
 export async function uploadMemberDigitalFile(productID: string, formData: FormData): Promise<ProductDigitalFile> {
+	formData.set("product_id", productID);
 	return memberPostForm<ProductDigitalFile>(`/api/member/product-digital-files/${productID}/upload`, formData);
 }
 

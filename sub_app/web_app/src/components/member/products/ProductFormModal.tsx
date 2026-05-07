@@ -3,10 +3,12 @@ import { NumericFormat } from "react-number-format";
 
 import MemberModal from "../ui/MemberModal";
 import MemberRichTextEditor, { type RichTextValue } from "../ui/MemberRichTextEditor";
-import { deleteMemberDigitalFile, deleteMemberProductAsset, listMemberCategories, listMemberCategoryChildren, listMemberDigitalFiles, listMemberProductAssets, updateMemberDigitalFile, updateMemberProductAsset, uploadMemberDigitalFile, uploadMemberProductAsset } from "./api";
-import type { BusinessOption, CategoryOption, Product, ProductAsset, ProductDigitalFile, ProductPayload, TagOption } from "./types";
+import MemberAssetBundleField, { type ExistingMemberAsset, type MemberAssetRulesConfig, type MemberUploadFile, validateMemberFilesAgainstUsageConfig } from "../ui/MemberAssetBundleField";
+import { deleteMemberDigitalFile, deleteMemberProductAsset, listMemberDigitalFiles, listMemberProductAssets, updateMemberDigitalFile, updateMemberProductAsset, uploadMemberDigitalFile, uploadMemberProductAsset } from "./api";
+import type { BusinessOption, CategoryOption, Product, ProductDigitalFile, ProductPayload, TagOption } from "./types";
 import MemberSeoSegment from "./MemberSeoSegment";
 import { getAmountFormatSettings } from "../../../lib/amountFormat";
+import { notifyError, notifySuccess } from "../../../lib/notification";
 
 type Props = {
 	open: boolean;
@@ -92,6 +94,63 @@ function safeJsonString(value: unknown): string {
 	}
 }
 
+const productAssetUsageConfig: MemberAssetRulesConfig = {
+	type: "product_asset",
+	rules: {
+		thumbnail: {
+			label: "Thumbnail",
+			helper: "Crop rasio 1:1. Hasil upload mengikuti proporsi ini untuk card/listing.",
+			minWidth: 600,
+			minHeight: 600,
+			aspectRatio: 1,
+			targetWidth: 800,
+			targetHeight: 800,
+		},
+		gallery: {
+			label: "Gallery",
+			helper: "Fleksibel. Tidak ada crop wajib; gunakan untuk gambar yang bebas rasio.",
+			minWidth: 1200,
+			minHeight: 1200,
+		},
+		social_1_1: {
+			label: "Social 1:1",
+			helper: "Crop rasio 1:1. Hasil upload mengikuti proporsi ini.",
+			minWidth: 1080,
+			minHeight: 1080,
+			aspectRatio: 1,
+			targetWidth: 1080,
+			targetHeight: 1080,
+		},
+		social_4_5: {
+			label: "Social 4:5",
+			helper: "Crop rasio 4:5. Hasil upload mengikuti proporsi ini untuk feed portrait.",
+			minWidth: 1080,
+			minHeight: 1350,
+			aspectRatio: 4 / 5,
+			targetWidth: 1080,
+			targetHeight: 1350,
+		},
+		header: {
+			label: "Header",
+			helper: "Crop rasio 16:5. Hasil upload mengikuti proporsi ini untuk area judul halaman.",
+			minWidth: 1920,
+			minHeight: 600,
+			aspectRatio: 16 / 5,
+			targetWidth: 1920,
+			targetHeight: 600,
+		},
+		desktop_banner: {
+			label: "Desktop Banner",
+			helper: "Crop rasio 3:1. Hasil upload mengikuti proporsi ini untuk banner desktop.",
+			minWidth: 1920,
+			minHeight: 640,
+			aspectRatio: 3,
+			targetWidth: 1920,
+			targetHeight: 640,
+		},
+	},
+};
+
 function parseMaybeNumber(value: string): number | undefined {
 	const trimmed = value.trim();
 	if (!trimmed) return undefined;
@@ -112,17 +171,16 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 	const [error, setError] = useState("");
 	const [descriptionValue, setDescriptionValue] = useState<RichTextValue>({ html: "", plain: "", blocks: { type: "doc", content: [] } });
 	const [tagSearch, setTagSearch] = useState("");
-	const [productAssets, setProductAssets] = useState<ProductAsset[]>([]);
+	const [existingAssets, setExistingAssets] = useState<ExistingMemberAsset[]>([]);
+	const [loadingExisting, setLoadingExisting] = useState(false);
 	const [digitalFiles, setDigitalFiles] = useState<ProductDigitalFile[]>([]);
-	const [assetUploadFiles, setAssetUploadFiles] = useState<File[]>([]);
+	const [loadingDigitalFiles, setLoadingDigitalFiles] = useState(false);
+	const [selectedFiles, setSelectedFiles] = useState<MemberUploadFile[]>([]);
 	const [digitalUploadFiles, setDigitalUploadFiles] = useState<File[]>([]);
-	const [mediaLoading, setMediaLoading] = useState(false);
-	const [assetUploading, setAssetUploading] = useState(false);
+	const [uploading, setUploading] = useState(false);
+	const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
 	const [digitalUploading, setDigitalUploading] = useState(false);
-	const [assetUsageTag, setAssetUsageTag] = useState("gallery");
-	const [assetSortMode, setAssetSortMode] = useState<"main_first" | "order_asc">("main_first");
-	const [mediaWarning, setMediaWarning] = useState<string | null>(null);
-	const [assetDrafts, setAssetDrafts] = useState<Record<string, { usage_tag: string; display_order: string }>>({});
+	const [usageTag, setUsageTag] = useState("gallery");
 	const [digitalDrafts, setDigitalDrafts] = useState<Record<string, { file_name: string; is_active: boolean; download_limit: string; sort_order: string }>>({});
 	const [parentID, setParentID] = useState<string>("");
 	const [currentCategories, setCurrentCategories] = useState<CategoryOption[]>([]);
@@ -287,116 +345,57 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		}
 	}, [form.seo_content]);
 
-	const groupedProductAssets = useMemo(() => {
-		const groups: Record<string, ProductAsset[]> = {};
-		for (const asset of productAssets) {
-			const tag = (asset.usage_tag || "untagged").trim() || "untagged";
-			if (!groups[tag]) groups[tag] = [];
-			groups[tag].push(asset);
-		}
-
-		const tagOrder = ["thumbnail", "gallery", "social_1_1", "social_4_5", "header", "desktop_banner", "untagged"];
-		const orderMap = new Map(tagOrder.map((tag, index) => [tag, index]));
-
-		return Object.entries(groups)
-			.map(([tag, assets]) => [
-				tag,
-				[...assets].sort((a, b) => {
-					if (assetSortMode === "order_asc") {
-						const orderDiff = (a.display_order ?? 0) - (b.display_order ?? 0);
-						if (orderDiff !== 0) return orderDiff;
-						if (a.is_main && !b.is_main) return -1;
-						if (!a.is_main && b.is_main) return 1;
-						return a.original_name?.localeCompare(b.original_name || "") || 0;
-					}
-
-					if (a.is_main && !b.is_main) return -1;
-					if (!a.is_main && b.is_main) return 1;
-					const orderDiff = (a.display_order ?? 0) - (b.display_order ?? 0);
-					if (orderDiff !== 0) return orderDiff;
-					return a.original_name?.localeCompare(b.original_name || "") || 0;
-				}),
-			] as const)
-			.sort(([a], [b]) => {
-				const rankA = orderMap.has(a) ? (orderMap.get(a) as number) : Number.MAX_SAFE_INTEGER;
-				const rankB = orderMap.has(b) ? (orderMap.get(b) as number) : Number.MAX_SAFE_INTEGER;
-				if (rankA !== rankB) return rankA - rankB;
-				return a.localeCompare(b);
-			});
-	}, [productAssets, assetSortMode]);
-
-	const usageTagMeta = useMemo(() => ({
-		thumbnail: { label: "Thumbnail", badge: "bg-amber-100 text-amber-800 border-amber-200" },
-		gallery: { label: "Gallery", badge: "bg-sky-100 text-sky-800 border-sky-200" },
-		social_1_1: { label: "Social 1:1", badge: "bg-violet-100 text-violet-800 border-violet-200" },
-		social_4_5: { label: "Social 4:5", badge: "bg-indigo-100 text-indigo-800 border-indigo-200" },
-		header: { label: "Header", badge: "bg-emerald-100 text-emerald-800 border-emerald-200" },
-		desktop_banner: { label: "Desktop Banner", badge: "bg-cyan-100 text-cyan-800 border-cyan-200" },
-		untagged: { label: "Untagged", badge: "bg-slate-100 text-slate-700 border-slate-200" },
-	}), []);
-
-	const formatUsageTagLabel = (tag: string) => usageTagMeta[tag as keyof typeof usageTagMeta]?.label || tag;
-	const usageTagBadgeClass = (tag: string) => usageTagMeta[tag as keyof typeof usageTagMeta]?.badge || "bg-slate-100 text-slate-700 border-slate-200";
-	const sortModeLabel = assetSortMode === "order_asc" ? "Order asc" : "Main first";
-
-	const actionButtonBase = "inline-flex items-center justify-center rounded-full border px-3 py-1.5 text-xs font-semibold transition";
-	const saveButtonClass = `${actionButtonBase} border-slate-200 bg-slate-900 text-white hover:bg-slate-800`;
-	const mainActiveButtonClass = `${actionButtonBase} border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-700`;
-	const mainIdleButtonClass = `${actionButtonBase} border-slate-200 bg-white text-slate-700 hover:bg-slate-50`;
-	const deleteButtonClass = `${actionButtonBase} border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100`;
-
 	const activeProductID = initialData?.id || "";
 
-	const refreshMedia = async (productID: string) => {
-		setMediaWarning(null);
+	const refreshExistingAssets = async (productID: string) => {
+		const assets = await listMemberProductAssets(productID);
+		setExistingAssets(assets.map((a) => ({
+			id: a.id,
+			file_path: a.file_path,
+			file_type: a.file_type,
+			file_size: a.file_size,
+			original_name: a.original_name,
+			public_url: a.public_url,
+			is_main: a.is_main,
+			display_order: a.display_order ?? 0,
+			usage_tag: a.usage_tag,
+		})));
+	};
 
-		const [assetsResult, filesResult] = await Promise.allSettled([
-			listMemberProductAssets(productID),
-			listMemberDigitalFiles(productID),
-		]);
-
-		if (assetsResult.status === "fulfilled") {
-			const assets = assetsResult.value;
-			setProductAssets(assets);
-			setAssetDrafts(Object.fromEntries(assets.map((asset) => [asset.id, { usage_tag: asset.usage_tag || "", display_order: String(asset.display_order ?? 0) }] )));
-		} else {
-			setProductAssets([]);
-			setAssetDrafts({});
-			throw new Error(assetsResult.reason instanceof Error ? assetsResult.reason.message : "Gagal memuat asset product");
-		}
-
-		if (filesResult.status === "fulfilled") {
-			const files = filesResult.value;
-			setDigitalFiles(files);
-			setDigitalDrafts(Object.fromEntries(files.map((file) => [file.id, { file_name: file.file_name || "", is_active: file.is_active ?? true, download_limit: String(file.download_limit ?? 0), sort_order: String(file.sort_order ?? 0) }] )));
-		} else {
-			setDigitalFiles([]);
-			setDigitalDrafts({});
-			setMediaWarning("Asset berhasil dimuat, tapi digital files gagal dimuat.");
-		}
+	const refreshDigitalFiles = async (productID: string) => {
+		const files = await listMemberDigitalFiles(productID);
+		setDigitalFiles(files);
+		setDigitalDrafts(Object.fromEntries(files.map((file) => [file.id, { file_name: file.file_name || "", is_active: file.is_active ?? true, download_limit: String(file.download_limit ?? 0), sort_order: String(file.sort_order ?? 0) }])));
 	};
 
 	useEffect(() => {
 		if (!open || !activeProductID) {
-			setProductAssets([]);
+			setExistingAssets([]);
 			setDigitalFiles([]);
-			setMediaWarning(null);
-			setAssetUploadFiles([]);
+			setSelectedFiles([]);
 			setDigitalUploadFiles([]);
+			setUploadProgress(null);
 			return;
 		}
 		let cancelled = false;
-		setMediaLoading(true);
-		void refreshMedia(activeProductID)
+		setLoadingExisting(true);
+		void refreshExistingAssets(activeProductID)
 			.catch((err) => {
 				if (!cancelled) {
-					setProductAssets([]);
-					setAssetDrafts({});
-					setMediaWarning(err instanceof Error ? err.message : "Gagal memuat media product.");
+					setExistingAssets([]);
+					notifyError(err instanceof Error ? err.message : "Gagal memuat asset product.");
 				}
 			})
 			.finally(() => {
-				if (!cancelled) setMediaLoading(false);
+				if (!cancelled) setLoadingExisting(false);
+			});
+		setLoadingDigitalFiles(true);
+		void refreshDigitalFiles(activeProductID)
+			.catch(() => {
+				if (!cancelled) setDigitalFiles([]);
+			})
+			.finally(() => {
+				if (!cancelled) setLoadingDigitalFiles(false);
 			});
 		return () => {
 			cancelled = true;
@@ -409,52 +408,33 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		return "doc";
 	};
 
-	const handleUploadAsset = async () => {
-		if (!activeProductID || assetUploadFiles.length === 0) return;
-		setAssetUploading(true);
+	const uploadFiles = async (productID: string) => {
+		if (selectedFiles.length === 0) return;
+		setUploading(true);
+		setUploadProgress({ current: 0, total: selectedFiles.length });
 		try {
-			for (const [index, file] of assetUploadFiles.entries()) {
+			for (let i = 0; i < selectedFiles.length; i++) {
+				const uploadFile = selectedFiles[i];
 				const formData = new FormData();
-				formData.append("file", file);
-				formData.append("file_type", detectFileType(file));
-				formData.append("is_main", String(productAssets.length === 0 && index === 0));
-				formData.append("display_order", String(productAssets.length + index));
-				if (assetUsageTag.trim()) {
-					formData.append("usage_tag", assetUsageTag.trim());
+				formData.append("file", uploadFile.file);
+				formData.append("file_type", detectFileType(uploadFile.file));
+				formData.append("is_main", String(uploadFile.isMain ?? false));
+				formData.append("display_order", String(uploadFile.displayOrder ?? i));
+				if (usageTag) {
+					formData.append("usage_tag", usageTag);
 				}
-				await uploadMemberProductAsset(activeProductID, formData);
+				await uploadMemberProductAsset(productID, formData);
+				setUploadProgress({ current: i + 1, total: selectedFiles.length });
 			}
-			setAssetUploadFiles([]);
-			await refreshMedia(activeProductID);
+			setSelectedFiles([]);
+			setUploadProgress(null);
+			await refreshExistingAssets(productID);
+			notifySuccess("Product assets uploaded");
+		} catch (err) {
+			notifyError(err instanceof Error ? err.message : "Gagal upload assets");
 		} finally {
-			setAssetUploading(false);
+			setUploading(false);
 		}
-	};
-
-	const handleDeleteAsset = async (assetID: string) => {
-		if (!activeProductID) return;
-		await deleteMemberProductAsset(activeProductID, assetID);
-		await refreshMedia(activeProductID);
-	};
-
-	const handleSetMainAsset = async (assetID: string) => {
-		if (!activeProductID) return;
-		await updateMemberProductAsset(activeProductID, assetID, { is_main: true });
-		await refreshMedia(activeProductID);
-	};
-
-	const handleSaveAssetMeta = async (assetID: string) => {
-		if (!activeProductID) return;
-		const draft = assetDrafts[assetID];
-		if (!draft) return;
-		const displayOrder = draft.display_order.trim() ? Number(draft.display_order) : undefined;
-		if (draft.display_order.trim() && (Number.isNaN(displayOrder) || displayOrder === undefined)) {
-			setError("Display order asset harus berupa angka valid");
-			return;
-		}
-		setError("");
-		await updateMemberProductAsset(activeProductID, assetID, { usage_tag: draft.usage_tag.trim(), display_order: displayOrder });
-		await refreshMedia(activeProductID);
 	};
 
 	const handleUploadDigitalFile = async () => {
@@ -469,7 +449,10 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 				await uploadMemberDigitalFile(activeProductID, formData);
 			}
 			setDigitalUploadFiles([]);
-			await refreshMedia(activeProductID);
+			await refreshDigitalFiles(activeProductID);
+			notifySuccess("Digital files uploaded");
+		} catch (err) {
+			notifyError(err instanceof Error ? err.message : "Gagal upload digital files");
 		} finally {
 			setDigitalUploading(false);
 		}
@@ -478,7 +461,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 	const handleDeleteDigitalFile = async (fileID: string) => {
 		if (!activeProductID) return;
 		await deleteMemberDigitalFile(activeProductID, fileID);
-		await refreshMedia(activeProductID);
+		await refreshDigitalFiles(activeProductID);
 	};
 
 	const handleSaveDigitalFileMeta = async (fileID: string) => {
@@ -497,7 +480,7 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 		}
 		setError("");
 		await updateMemberDigitalFile(activeProductID, fileID, { file_name: draft.file_name.trim(), is_active: draft.is_active, download_limit: downloadLimit, sort_order: sortOrder });
-		await refreshMedia(activeProductID);
+		await refreshDigitalFiles(activeProductID);
 	};
 
 	const handleSave = async () => {
@@ -594,6 +577,15 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 			dimensions_width: dimensionsWidth,
 			dimensions_height: dimensionsHeight,
 		}, initialData?.id);
+
+		if (selectedFiles.length > 0 && activeProductID) {
+			const validationError = await validateMemberFilesAgainstUsageConfig(selectedFiles, usageTag, productAssetUsageConfig);
+			if (validationError) {
+				setError(validationError);
+				return;
+			}
+			await uploadFiles(activeProductID);
+		}
 	};
 
 	const toggleTag = (id: string) => {
@@ -603,8 +595,14 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 	return (
 		<MemberModal open={open} onClose={onClose} title={mode === "create" ? "Create Product" : `Edit Product: ${initialData?.name || ""}`} maxWidth="2xl" footer={
 			<>
-				<button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100">Cancel</button>
-				<button type="button" onClick={() => void handleSave()} disabled={submitting} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-70">{submitting ? "Saving..." : mode === "create" ? "Create" : "Save"}</button>
+				<button type="button" onClick={onClose} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100" disabled={submitting || uploading || digitalUploading}>Cancel</button>
+				<button type="button" onClick={() => void handleSave()} disabled={submitting || uploading || digitalUploading} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-70">
+					{uploading && uploadProgress
+						? `Uploading ${uploadProgress.current}/${uploadProgress.total}...`
+						: submitting
+						? "Saving..."
+						: mode === "create" ? "Create" : "Save"}
+				</button>
 			</>
 		}>
 			<div className="space-y-5">
@@ -706,111 +704,159 @@ export default function ProductFormModal({ open, mode, initialData, businesses, 
 					<MemberRichTextEditor value={descriptionValue.html} placeholder="Tulis deskripsi product" onChange={setDescriptionValue} />
 				</section>
 
-				<section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-					<div className="flex items-start justify-between gap-3">
-						<div>
-							<h4 className="text-sm font-semibold text-slate-900">Media Product</h4>
-							<p className="mt-1 text-xs text-slate-500">Kelola asset utama, urutan tampil, dan file digital langsung dari form ini.</p>
+				<MemberAssetBundleField
+					title="Product Images & Assets"
+					usageConfig={productAssetUsageConfig}
+					usageTag={usageTag}
+					onUsageTagChange={setUsageTag}
+					enforceCrop
+					selectedFiles={selectedFiles}
+					onSelectedFilesChange={setSelectedFiles}
+					existingAssets={existingAssets}
+					loadingExisting={loadingExisting}
+					showExisting={Boolean(activeProductID)}
+					maxFiles={20}
+					maxSizeMB={10}
+					accept="image/*"
+					onSetMainExisting={async (asset) => {
+						if (!activeProductID) return;
+						try {
+							await updateMemberProductAsset(activeProductID, asset.id, { is_main: true, usage_tag: asset.usage_tag || "" });
+							await refreshExistingAssets(activeProductID);
+							notifySuccess("Set as main");
+						} catch (err) {
+							notifyError(err instanceof Error ? err.message : "Gagal set main");
+						}
+					}}
+					onDeleteExisting={async (asset) => {
+						if (!activeProductID) return;
+						if (!confirm("Delete this asset?")) return;
+						try {
+							await deleteMemberProductAsset(activeProductID, asset.id);
+							await refreshExistingAssets(activeProductID);
+							notifySuccess("Deleted asset");
+						} catch (err) {
+							notifyError(err instanceof Error ? err.message : "Gagal hapus asset");
+						}
+					}}
+					onUpdateExisting={async (asset, patch) => {
+						if (!activeProductID) return;
+						try {
+							await updateMemberProductAsset(activeProductID, asset.id, {
+								...(typeof patch.usage_tag !== "undefined" ? { usage_tag: patch.usage_tag } : {}),
+								...(typeof patch.display_order !== "undefined" ? { display_order: patch.display_order } : {}),
+							});
+							setExistingAssets((prev) =>
+								prev.map((it) =>
+									it.id === asset.id
+										? {
+												...it,
+												...(typeof patch.usage_tag !== "undefined" ? { usage_tag: patch.usage_tag } : {}),
+												...(typeof patch.display_order !== "undefined" ? { display_order: patch.display_order } : {}),
+											}
+										: it,
+								),
+							);
+							notifySuccess(typeof patch.display_order !== "undefined" ? "Order updated" : "Tag updated");
+						} catch (err) {
+							notifyError(typeof patch.display_order !== "undefined" ? "Gagal update order" : "Gagal update tag");
+						}
+					}}
+					onCopyExistingLink={async (asset) => {
+						if (asset.public_url) {
+							await navigator.clipboard.writeText(asset.public_url);
+							notifySuccess("Link copied");
+						}
+					}}
+				/>
+
+				{form.product_type === "digital" && Boolean(activeProductID) ? (
+					<section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+						<div className="flex items-center justify-between gap-2">
+							<h4 className="text-sm font-semibold text-slate-900">Digital Files</h4>
+							<span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{digitalFiles.length} files</span>
 						</div>
-						<span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{productAssets.length + digitalFiles.length} items</span>
-					</div>
 
-					<div className="mt-4">
-						{activeProductID ? (
-							<div className="space-y-4">
-								<div className="rounded-2xl border border-slate-200 bg-white p-4">
-									<div className="mb-3 flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Product Assets</p><p className="text-sm text-slate-600">Upload gambar/video yang akan ditampilkan di katalog.</p></div><div className="flex items-center gap-2"><label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Sort</label><select value={assetSortMode} onChange={(e) => setAssetSortMode(e.target.value as "main_first" | "order_asc")} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 shadow-sm"><option value="main_first">Main first</option><option value="order_asc">Order asc</option></select><span className="text-xs text-slate-400">{mediaLoading ? "Loading..." : `${productAssets.length} files`}</span></div></div>
-									{mediaWarning ? <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{mediaWarning}</div> : null}
-									<div className="space-y-3">
-										<div className="grid gap-2 sm:grid-cols-2">
-											<label className="space-y-1 text-xs text-slate-600">
-												<span className="block font-semibold uppercase tracking-wide text-slate-500">Usage Tag</span>
-												<select value={assetUsageTag} onChange={(e) => setAssetUsageTag(e.target.value)} className="w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs">
-													<option value="thumbnail">thumbnail</option>
-													<option value="gallery">gallery</option>
-													<option value="social_1_1">social_1_1</option>
-													<option value="social_4_5">social_4_5</option>
-													<option value="header">header</option>
-													<option value="desktop_banner">desktop_banner</option>
-													<option value="">(none)</option>
-												</select>
-												<p className="text-[11px] text-slate-500">Tag ini akan diterapkan ke semua file pada upload batch berikutnya.</p>
-											</label>
-										</div>
-										<input type="file" multiple onChange={(e) => setAssetUploadFiles(e.target.files ? Array.from(e.target.files) : [])} className="block w-full text-xs" />
-										{assetUploadFiles.length > 0 ? <p className="text-xs text-slate-500">{assetUploadFiles.length} file dipilih</p> : null}
-										{assetUploadFiles.length > 0 ? <div className="max-h-24 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">{assetUploadFiles.map((file) => (<div key={`${file.name}-${file.lastModified}`} className="truncate py-0.5">{file.name}</div>))}</div> : null}
-										<div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => void handleUploadAsset()} disabled={assetUploadFiles.length === 0 || assetUploading} className={saveButtonClass}>{assetUploading ? "Uploading..." : `Upload Asset (${assetUploadFiles.length || 0})`}</button>{assetUploadFiles.length > 0 ? <button type="button" onClick={() => setAssetUploadFiles([])} className={mainIdleButtonClass}>Clear</button> : null}</div>
-										<div className="space-y-4">
-											{productAssets.length === 0 ? (
-												<div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
-													<div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">+</div>
-													<p className="text-sm font-medium text-slate-700">Belum ada asset</p>
-													<p className="mt-1 text-xs text-slate-500">Pilih usage tag, upload file, lalu asset akan muncul di sini per grup.</p>
-												</div>
-											) : null}
-											{groupedProductAssets.map(([tag, assets]) => (
-												<div key={tag} className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
-													<div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-2">
-														<div>
-															<span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${usageTagBadgeClass(tag)}`}>{formatUsageTagLabel(tag)}</span>
-															<p className="mt-1 text-xs text-slate-500">Sorted by <span className="font-medium text-slate-700">{sortModeLabel}</span></p>
-														</div>
-														<span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500 shadow-sm ring-1 ring-slate-200">{assets.length} file</span>
-													</div>
-													{assets.map((asset) => (
-														<div key={asset.id} className="rounded-xl border border-slate-200 bg-white px-3 py-3 text-xs text-slate-700">
-															<div className="flex items-start justify-between gap-3">
-																<div className="flex min-w-0 flex-1 gap-3">
-																	<div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-																		{asset.public_url ? <img src={asset.public_url} alt={asset.original_name || asset.file_path} className="h-full w-full object-cover" /> : null}
-																	</div>
-																	<div className="min-w-0 flex-1">
-																	<div className="truncate font-medium text-slate-900">{asset.original_name || asset.file_path}</div>
-																	<div className="mt-1 flex flex-wrap items-center gap-2 text-slate-500">
-																		<span>{asset.file_type || "asset"}{asset.is_main ? " · main" : ""}</span>
-																		{typeof asset.file_size === "number" ? <span>• {(asset.file_size / 1024 / 1024).toFixed(2)} MB</span> : null}
-																		{asset.mime_type ? <span>• {asset.mime_type}</span> : null}
-																	</div>
-																	{asset.public_url ? <a href={asset.public_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-sky-600 hover:underline">Preview</a> : null}
-																	</div>
-																</div>
-																<div className="flex flex-wrap items-center justify-end gap-2 rounded-full bg-slate-50 px-2 py-2 ring-1 ring-slate-200">
-																	<button type="button" onClick={() => void handleSetMainAsset(asset.id)} className={asset.is_main ? mainActiveButtonClass : mainIdleButtonClass}>{asset.is_main ? "Main" : "Set Main"}</button>
-																	<button type="button" onClick={() => void handleSaveAssetMeta(asset.id)} className={saveButtonClass}>Save</button>
-																	<button type="button" onClick={() => void handleDeleteAsset(asset.id)} className={deleteButtonClass}>Delete</button>
-																</div>
-															</div>
-															<div className="mt-3 grid gap-2 sm:grid-cols-2">
-																<label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Usage Tag</span><input type="text" value={assetDrafts[asset.id]?.usage_tag ?? asset.usage_tag ?? ""} onChange={(e) => setAssetDrafts((prev) => ({ ...prev, [asset.id]: { usage_tag: e.target.value, display_order: prev[asset.id]?.display_order ?? String(asset.display_order ?? 0) } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" placeholder="gallery" /></label>
-																<label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Display Order</span><input type="number" min="0" step="1" value={assetDrafts[asset.id]?.display_order ?? String(asset.display_order ?? 0)} onChange={(e) => setAssetDrafts((prev) => ({ ...prev, [asset.id]: { usage_tag: prev[asset.id]?.usage_tag ?? asset.usage_tag ?? "", display_order: e.target.value } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" /></label>
-															</div>
-														</div>
-													))}
-												</div>
-											))}
-										</div>
-									</div>
+						<div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+							<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Upload File Digital</p>
+							<input
+								type="file"
+								multiple
+								onChange={(e) => setDigitalUploadFiles(e.target.files ? Array.from(e.target.files) : [])}
+								className="w-full rounded border border-slate-300 px-2 py-2 text-sm"
+							/>
+							{digitalUploadFiles.length > 0 ? (
+								<div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2 text-xs text-slate-700">
+									{digitalUploadFiles.map((file) => (
+										<div key={`${file.name}-${file.lastModified}`} className="truncate">{file.name}</div>
+									))}
+								</div>
+							) : null}
+							<div className="mt-3 flex justify-end">
+								<button
+									type="button"
+									onClick={() => void handleUploadDigitalFile()}
+									disabled={digitalUploading || digitalUploadFiles.length === 0}
+									className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+								>
+									{digitalUploading ? "Uploading..." : "Upload Digital Files"}
+								</button>
+							</div>
+						</div>
 
-									{form.product_type === "digital" ? (
-										<div className="w-full rounded-2xl border border-slate-200 bg-white p-4">
-											<div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Digital Files</p><p className="text-sm text-slate-600">Upload file yang akan didownload setelah pembelian.</p></div><span className="text-xs text-slate-400">{digitalFiles.length} files</span></div>
-											<div className="space-y-3">
-												<input type="file" multiple onChange={(e) => setDigitalUploadFiles(e.target.files ? Array.from(e.target.files) : [])} className="block w-full text-xs" />
-												{digitalUploadFiles.length > 0 ? <p className="text-xs text-slate-500">{digitalUploadFiles.length} file dipilih</p> : null}
-												{digitalUploadFiles.length > 0 ? <div className="max-h-24 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">{digitalUploadFiles.map((file) => (<div key={`${file.name}-${file.lastModified}`} className="truncate py-0.5">{file.name}</div>))}</div> : null}
-												<div className="flex items-center gap-2"><button type="button" onClick={() => void handleUploadDigitalFile()} disabled={digitalUploadFiles.length === 0 || digitalUploading} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60">{digitalUploading ? "Uploading..." : `Upload Digital File (${digitalUploadFiles.length || 0})`}</button>{digitalUploadFiles.length > 0 ? <button type="button" onClick={() => setDigitalUploadFiles([])} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100">Clear</button> : null}</div>
-												<div className="space-y-2">{digitalFiles.length === 0 ? <p className="text-xs text-slate-500">Belum ada file digital.</p> : null}{digitalFiles.map((file) => (<div key={file.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-700"><div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="truncate font-medium text-slate-900">{file.file_name || file.file_path}</div><div className="mt-1 text-slate-500">{file.is_active ? "active" : "inactive"}</div></div><div className="flex items-center gap-2"><button type="button" onClick={() => void handleSaveDigitalFileMeta(file.id)} className="rounded-md bg-slate-900 px-2 py-1 font-medium text-white hover:bg-slate-800">Save</button><button type="button" onClick={() => void handleDeleteDigitalFile(file.id)} className="rounded-md bg-rose-100 px-2 py-1 font-medium text-rose-700 hover:bg-rose-200">Delete</button></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2"><label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">File Name</span><input type="text" value={digitalDrafts[file.id]?.file_name ?? file.file_name ?? ""} onChange={(e) => setDigitalDrafts((prev) => ({ ...prev, [file.id]: { file_name: e.target.value, is_active: prev[file.id]?.is_active ?? (file.is_active ?? true), download_limit: prev[file.id]?.download_limit ?? String(file.download_limit ?? 0), sort_order: prev[file.id]?.sort_order ?? String(file.sort_order ?? 0) } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" /></label><label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Sort Order</span><input type="number" min="0" step="1" value={digitalDrafts[file.id]?.sort_order ?? String(file.sort_order ?? 0)} onChange={(e) => setDigitalDrafts((prev) => ({ ...prev, [file.id]: { file_name: prev[file.id]?.file_name ?? file.file_name ?? "", is_active: prev[file.id]?.is_active ?? (file.is_active ?? true), download_limit: prev[file.id]?.download_limit ?? String(file.download_limit ?? 0), sort_order: e.target.value } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" /></label><label className="space-y-1"><span className="block text-[11px] uppercase tracking-wide text-slate-400">Download Limit</span><input type="number" min="0" step="1" value={digitalDrafts[file.id]?.download_limit ?? String(file.download_limit ?? 0)} onChange={(e) => setDigitalDrafts((prev) => ({ ...prev, [file.id]: { file_name: prev[file.id]?.file_name ?? file.file_name ?? "", is_active: prev[file.id]?.is_active ?? (file.is_active ?? true), download_limit: e.target.value, sort_order: prev[file.id]?.sort_order ?? String(file.sort_order ?? 0) } }))} className="w-full rounded-md border border-slate-200 px-2 py-1 text-xs" /></label><label className="flex items-center gap-2 pt-4 text-[11px] uppercase tracking-wide text-slate-400"><input type="checkbox" checked={digitalDrafts[file.id]?.is_active ?? (file.is_active ?? true)} onChange={(e) => setDigitalDrafts((prev) => ({ ...prev, [file.id]: { file_name: prev[file.id]?.file_name ?? file.file_name ?? "", is_active: e.target.checked, download_limit: prev[file.id]?.download_limit ?? String(file.download_limit ?? 0), sort_order: prev[file.id]?.sort_order ?? String(file.sort_order ?? 0) } }))} />Active</label></div></div>))}</div>
+						<div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+							<p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">File Tersimpan</p>
+							{loadingDigitalFiles ? (
+								<p className="text-sm text-slate-500">Loading files...</p>
+							) : digitalFiles.length === 0 ? (
+								<p className="text-sm text-slate-500">Belum ada digital file.</p>
+							) : (
+								<div className="space-y-2">
+									{digitalFiles.map((file) => (
+										<div key={file.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+											<div className="min-w-0 flex-1">
+												<p className="truncate text-sm font-medium text-slate-800">{file.file_name || file.file_path}</p>
+												<p className="text-xs text-slate-500">{file.is_active ? "active" : "inactive"}</p>
+											</div>
+											<div className="flex items-center gap-2">
+												<button
+													type="button"
+													onClick={async () => {
+														try {
+															await updateMemberDigitalFile(activeProductID, file.id, { is_active: !file.is_active });
+															await refreshDigitalFiles(activeProductID);
+															notifySuccess(file.is_active ? "File dinonaktifkan" : "File diaktifkan");
+														} catch (err) {
+															notifyError(err instanceof Error ? err.message : "Gagal update status file");
+														}
+													}}
+													className={`rounded px-2 py-1 text-xs font-medium ${file.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700"}`}
+												>
+													{file.is_active ? "Active" : "Inactive"}
+												</button>
+												<button
+													type="button"
+													onClick={async () => {
+														if (!confirm("Delete digital file ini?")) return;
+														try {
+															await handleDeleteDigitalFile(file.id);
+															notifySuccess("Digital file dihapus");
+														} catch (err) {
+															notifyError(err instanceof Error ? err.message : "Gagal hapus digital file");
+														}
+													}}
+													className="rounded bg-rose-100 px-2 py-1 text-xs font-medium text-rose-700"
+												>
+													Delete
+												</button>
 											</div>
 										</div>
-									) : null}
+									))}
 								</div>
-							</div>
-						) : (
-							<div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-4 text-sm text-slate-600">Klik <span className="font-semibold text-slate-900">Save Product</span> dulu supaya assets dan file digital bisa dikelola.</div>
-						)}
-					</div>
-				</section>
+							)}
+						</div>
+					</section>
+				) : null}
 			</div>
 		</MemberModal>
 	);

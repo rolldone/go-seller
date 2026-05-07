@@ -145,6 +145,8 @@ func (s *CatalogService) ListProducts(ctx context.Context, f ProductListFilter) 
 	}
 
 	q := s.DB.WithContext(ctx).Model(&catalogmodels.Product{})
+	// Preload relations via many2many so list handlers can build category/tag IDs without extra map queries.
+	q = q.Preload("Categories").Preload("Tags")
 	if f.OnlyPublished {
 		q = q.Where("status = ?", "published").Where("is_visible = ?", true)
 	}

@@ -46,4 +46,8 @@ type Product struct {
 	CreatedAt        time.Time      `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt        time.Time      `gorm:"autoUpdateTime" json:"updated_at"`
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Preloaded relations (not serialized in default product JSON)
+	Categories []Category `gorm:"many2many:product_category_map" json:"-"`
+	Tags       []Tag      `gorm:"many2many:product_tag_map" json:"-"`
 }

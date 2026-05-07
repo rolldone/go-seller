@@ -334,7 +334,36 @@ func (h *ProductHandler) MemberList(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
+
+	// Enrich product list with translations, category IDs and tag IDs so frontend can render relations
+	ids := make([]string, 0, len(items))
+	for _, p := range items {
+		ids = append(ids, p.ID)
+	}
+	locale := strings.TrimSpace(c.Query("locale"))
+	translationMap, err := h.svc.GetProductTranslationMapByProductIDs(c.Request.Context(), ids, locale)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	out := make([]productResponse, 0, len(items))
+	for _, p := range items {
+		if tr, ok := translationMap[p.ID]; ok {
+			applyTranslation(&p, tr)
+		}
+		// Use preloaded Categories if available
+		catIDs := make([]string, 0, len(p.Categories))
+		for _, cat := range p.Categories {
+			catIDs = append(catIDs, cat.ID)
+		}
+		tagIDs := make([]string, 0, len(p.Tags))
+		for _, tag := range p.Tags {
+			tagIDs = append(tagIDs, tag.ID)
+		}
+		out = append(out, productResponse{Product: p, CategoryIDs: catIDs, TagIDs: tagIDs})
+	}
+	c.JSON(http.StatusOK, gin.H{"data": out, "total": total})
 }
 
 func (h *ProductHandler) MemberCreate(c *gin.Context) {
@@ -775,22 +804,20 @@ func (h *ProductHandler) List(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	categoryMap, err := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	tagMap, err := h.svc.GetTagIDsByProductIDs(c.Request.Context(), ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	items := make([]productResponse, 0, len(products))
 	for _, p := range products {
 		if tr, ok := translationMap[p.ID]; ok {
 			applyTranslation(&p, tr)
 		}
-		items = append(items, productResponse{Product: p, CategoryIDs: categoryMap[p.ID], TagIDs: tagMap[p.ID]})
+		catIDs := make([]string, 0, len(p.Categories))
+		for _, cat := range p.Categories {
+			catIDs = append(catIDs, cat.ID)
+		}
+		tagIDs := make([]string, 0, len(p.Tags))
+		for _, tag := range p.Tags {
+			tagIDs = append(tagIDs, tag.ID)
+		}
+		items = append(items, productResponse{Product: p, CategoryIDs: catIDs, TagIDs: tagIDs})
 	}
 	c.JSON(http.StatusOK, gin.H{"data": items, "total": total})
 }
@@ -840,16 +867,6 @@ func (h *ProductHandler) PublicList(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	categoryMap, err := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	tagMap, err := h.svc.GetTagIDsByProductIDs(c.Request.Context(), ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	assetMap, err := h.svc.GetProductAssetsForProductIDs(c.Request.Context(), ids, "gallery")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -860,10 +877,18 @@ func (h *ProductHandler) PublicList(c *gin.Context) {
 		if tr, ok := translationMap[p.ID]; ok {
 			applyTranslation(&p, tr)
 		}
+		catIDs := make([]string, 0, len(p.Categories))
+		for _, cat := range p.Categories {
+			catIDs = append(catIDs, cat.ID)
+		}
+		tagIDs := make([]string, 0, len(p.Tags))
+		for _, tag := range p.Tags {
+			tagIDs = append(tagIDs, tag.ID)
+		}
 		items = append(items, productResponse{
 			Product:     p,
-			CategoryIDs: categoryMap[p.ID],
-			TagIDs:      tagMap[p.ID],
+			CategoryIDs: catIDs,
+			TagIDs:      tagIDs,
 			Gallery:     buildProductAssetResponses(base, assetMap[p.ID]),
 		})
 	}
@@ -913,16 +938,6 @@ func (h *ProductHandler) PublicListByBusinessSlug(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	categoryMap, err := h.svc.GetCategoryIDsByProductIDs(c.Request.Context(), ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	tagMap, err := h.svc.GetTagIDsByProductIDs(c.Request.Context(), ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	assetMap, err := h.svc.GetProductAssetsForProductIDs(c.Request.Context(), ids, "gallery")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -934,10 +949,18 @@ func (h *ProductHandler) PublicListByBusinessSlug(c *gin.Context) {
 		if tr, ok := translationMap[p.ID]; ok {
 			applyTranslation(&p, tr)
 		}
+		catIDs := make([]string, 0, len(p.Categories))
+		for _, cat := range p.Categories {
+			catIDs = append(catIDs, cat.ID)
+		}
+		tagIDs := make([]string, 0, len(p.Tags))
+		for _, tag := range p.Tags {
+			tagIDs = append(tagIDs, tag.ID)
+		}
 		items = append(items, productResponse{
 			Product:     p,
-			CategoryIDs: categoryMap[p.ID],
-			TagIDs:      tagMap[p.ID],
+			CategoryIDs: catIDs,
+			TagIDs:      tagIDs,
 			Gallery:     buildProductAssetResponses(base, assetMap[p.ID]),
 		})
 	}

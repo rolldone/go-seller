@@ -7,7 +7,7 @@ import ProductDeleteModal from "./ProductDeleteModal";
 import ProductTranslationsModal from "./ProductTranslationsModal";
 import ProductFormModal from "./ProductFormModal.tsx";
 import ProductDiscountsModal from "../discounts/ProductDiscountsModal";
-import { createMemberProduct, deleteMemberProduct, listMemberBusinesses, listMemberCategories, listMemberProducts, listMemberTags, publishMemberProduct, unpublishMemberProduct, updateMemberProduct } from "./api";
+import { createMemberProduct, deleteMemberProduct, listMemberBusinesses, listMemberCategories, listMemberProducts, listMemberTags, publishMemberProduct, unpublishMemberProduct, updateMemberProduct, getMemberProduct } from "./api";
 import type { BusinessOption, CategoryOption, Product, ProductPayload, TagOption } from "./types";
 
 const perPageOptions = [10, 20, 50];
@@ -37,6 +37,7 @@ export default function MemberProductsPage() {
 	const [formOpen, setFormOpen] = useState(false);
 	const [formMode, setFormMode] = useState<"create" | "edit">("create");
 	const [submitting, setSubmitting] = useState(false);
+	const [loadingDetail, setLoadingDetail] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [translationOpen, setTranslationOpen] = useState(false);
 	const [translationProduct, setTranslationProduct] = useState<Product | null>(null);
@@ -210,10 +211,18 @@ export default function MemberProductsPage() {
 		setFormOpen(true);
 	};
 
-	const handleEdit = (item: Product) => {
+	const handleEdit = async (item: Product) => {
 		setFormMode("edit");
-		setSelected(item);
-		setFormOpen(true);
+		setLoadingDetail(true);
+		try {
+			const product = await getMemberProduct(item.id);
+			setSelected(product);
+			setFormOpen(true);
+		} catch (err) {
+			notifyError(err instanceof Error ? err.message : "Gagal memuat product");
+		} finally {
+			setLoadingDetail(false);
+		}
 	};
 
 	const handleDelete = (item: Product) => {
@@ -514,6 +523,11 @@ export default function MemberProductsPage() {
 				</div>
 			</div>
 
+			{loadingDetail ? (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+					<div className="rounded-lg bg-white px-4 py-3 text-sm font-medium shadow">Memuat product...</div>
+				</div>
+			) : null}
 			<ProductFormModal open={formOpen} mode={formMode} initialData={selected} businesses={businesses} categories={categories} tags={tags} submitting={submitting} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} />
 			<ProductDeleteModal open={deleteOpen} product={selected} submitting={submitting} onClose={() => setDeleteOpen(false)} onConfirm={handleConfirmDelete} />
 			<ProductTranslationsModal open={translationOpen} product={translationProduct} onClose={() => setTranslationOpen(false)} />

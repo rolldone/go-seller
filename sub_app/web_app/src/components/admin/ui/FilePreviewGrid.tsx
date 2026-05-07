@@ -121,6 +121,33 @@ export default function FilePreviewGrid({ files, onRemove, onSetMain, onEditFile
                 {uploadFile.file.name}
               </p>
               <p className="text-xs text-slate-500">{formatFileSize(uploadFile.file.size)}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {onEditFile && uploadFile.file.type.startsWith("image/") && (
+                  <button
+                    type="button"
+                    onClick={() => onEditFile(uploadFile)}
+                    className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    {editLabel}
+                  </button>
+                )}
+                {onSetMain && !uploadFile.isMain && (
+                  <button
+                    type="button"
+                    onClick={() => onSetMain(uploadFile.id)}
+                    className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Set Main
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onRemove(uploadFile.id)}
+                  className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
           </div>
         ))}
