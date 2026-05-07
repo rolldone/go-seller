@@ -18,7 +18,10 @@ async function parseResponse<T>(res: Response): Promise<T> {
 	const payload = await res.json().catch(() => ({}));
 	if (!res.ok) {
 		const message = (payload && (payload.error || payload.message)) || `HTTP ${res.status}`;
-		throw new Error(message);
+		const err: any = new Error(message);
+		err.status = res.status;
+		err.payload = payload;
+		throw err;
 	}
 	return payload as T;
 }

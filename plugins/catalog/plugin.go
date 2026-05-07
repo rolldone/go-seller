@@ -8,6 +8,9 @@ import (
 	pluginhandlers "go_framework/plugins/catalog/handlers"
 	pluginservices "go_framework/plugins/catalog/services"
 	pluginregistry "go_framework/plugins/plugin_registry"
+	"os"
+	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
@@ -130,9 +133,12 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	memberCatalog.GET("/businesses/:business_id", businessHandler.MemberGetByID)
 	memberCatalog.PUT("/businesses/:business_id", businessHandler.MemberUpdate)
 	memberCatalog.DELETE("/businesses/:business_id", businessHandler.MemberDelete)
-	// Slug suggest/check endpoints (public)
-	api.GET("/catalog/businesses/slug/suggest", slugHandler.Suggest)
-	api.GET("/catalog/businesses/slug/check", slugHandler.Check)
+	// Slug suggest/check endpoints (public) with rate limiting
+	// Allow configuration via env `CATALOG_SLUG_RATE_LIMIT` (requests per minute).
+	slugLimit := getEnvInt("CATALOG_SLUG_RATE_LIMIT", 30)
+	slugLimiter := authhandlers.NewIPRateLimiter(slugLimit, time.Minute)
+	api.GET("/catalog/businesses/slug/suggest", slugLimiter, slugHandler.Suggest)
+	api.GET("/catalog/businesses/slug/check", slugLimiter, slugHandler.Check)
 	memberCatalog.GET("/businesses/:business_id/translations", businessHandler.MemberListTranslations)
 	memberCatalog.PUT("/businesses/:business_id/translations/:locale", businessHandler.MemberUpsertTranslation)
 	memberCatalog.POST("/businesses/:business_id/assets", businessAssetHandler.MemberCreate)
@@ -306,3 +312,15 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 func (p *Plugin) Seed() error { return nil }
 
 func (p *Plugin) ConsoleCommands() []*cobra.Command { return nil }
+
+func getEnvInt(key string, fallback int) int {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
+}

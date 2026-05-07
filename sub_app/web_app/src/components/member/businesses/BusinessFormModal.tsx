@@ -1,8 +1,9 @@
 /** @jsxRuntime classic */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import MemberModal from "../ui/MemberModal";
 import type { Business, BusinessPayload } from "./types";
+import { memberGet } from "./api";
 
 const defaultForm = {
 	name: "",
@@ -41,6 +42,13 @@ type Props = {
 export default function BusinessFormModal({ open, mode, initialData, submitting, onClose, onSubmit }: Props) {
 	const [form, setForm] = useState<FormState>(defaultForm);
 	const [error, setError] = useState("");
+
+	const [slugChecking, setSlugChecking] = useState(false);
+	const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+	const [slugSuggestions, setSlugSuggestions] = useState<string[]>([]);
+	const [slugError, setSlugError] = useState<string | null>(null);
+	const [generating, setGenerating] = useState(false);
+	const slugCheckTimer = useRef<number | null>(null);
 
 	useEffect(() => {
 		if (!open) return;
@@ -129,7 +137,87 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
 			show_phone: form.show_phone,
 		};
 
-		await onSubmit(payload, mode === "edit" ? initialData?.id : undefined);
+		try {
+			await onSubmit(payload, mode === "edit" ? initialData?.id : undefined);
+		} catch (e) {
+			const errAny: any = e;
+			// if conflict (409) or message hints slug conflict, fetch suggestions
+			if (errAny && (errAny.status === 409 || (errAny instanceof Error && String(errAny.message).toLowerCase().includes("slug")))) {
+				setError(errAny.message || "Conflict");
+				try {
+					const slugQuery = form.slug.trim() || form.name.trim();
+					if (slugQuery) {
+						const param = form.slug.trim() ? `slug=${encodeURIComponent(form.slug)}` : `name=${encodeURIComponent(form.name)}`;
+						const res = await memberGet<any>(`/api/catalog/businesses/slug/suggest?${param}&limit=5`);
+						if (res.slug) setForm((prev) => ({ ...prev, slug: res.slug }));
+						setSlugAvailable(Boolean(res.available));
+						setSlugSuggestions(Array.isArray(res.suggestions) ? res.suggestions : []);
+					}
+				} catch (e2) {
+					// ignore suggestion errors
+				}
+			}
+			return;
+		}
+	};
+
+	// debounce check when user edits slug manually
+	useEffect(() => {
+		setSlugError(null);
+		setSlugSuggestions([]);
+		setSlugAvailable(null);
+		if (slugCheckTimer.current) {
+			window.clearTimeout(slugCheckTimer.current);
+			slugCheckTimer.current = null;
+		}
+		const s = form.slug.trim();
+		if (!s) return;
+		slugCheckTimer.current = window.setTimeout(async () => {
+			setSlugChecking(true);
+			try {
+				const res = await memberGet<any>(`/api/catalog/businesses/slug/check?slug=${encodeURIComponent(s)}`);
+				setSlugAvailable(Boolean(res.available));
+				if (!res.available) {
+					try {
+						const suggestRes = await memberGet<any>(`/api/catalog/businesses/slug/suggest?slug=${encodeURIComponent(s)}&limit=5`);
+						setSlugSuggestions(Array.isArray(suggestRes.suggestions) ? suggestRes.suggestions : []);
+					} catch (e) {
+						// ignore
+					}
+				}
+			} catch (e) {
+				setSlugError(e instanceof Error ? e.message : String(e));
+			} finally {
+				setSlugChecking(false);
+			}
+		}, 450);
+
+		return () => {
+			if (slugCheckTimer.current) {
+				window.clearTimeout(slugCheckTimer.current);
+				slugCheckTimer.current = null;
+			}
+		};
+	}, [form.slug]);
+
+	const handleGenerate = async () => {
+		setSlugError(null);
+		setSlugSuggestions([]);
+		if (!form.name.trim()) {
+			setSlugError("Nama Toko harus diisi untuk generate slug");
+			return;
+		}
+		setGenerating(true);
+		try {
+			const res = await memberGet<any>(`/api/catalog/businesses/slug/suggest?name=${encodeURIComponent(form.name)}&limit=5`);
+			if (res.slug) setForm((prev) => ({ ...prev, slug: res.slug }));
+			setSlugAvailable(Boolean(res.available));
+			setSlugSuggestions(Array.isArray(res.suggestions) ? res.suggestions : []);
+		} catch (e) {
+			setSlugError(e instanceof Error ? e.message : String(e));
+		} finally {
+			setGenerating(false);
+		}
 	};
 
 	if (!open) return null;
@@ -169,7 +257,34 @@ export default function BusinessFormModal({ open, mode, initialData, submitting,
 					</div>
 					<div>
 						<label className={labelClass}>Slug *</label>
-						<input value={form.slug} onChange={(e) => setField("slug", e.target.value)} className={inputClass} />
+						<div className="flex items-center gap-2">
+							<input value={form.slug} onChange={(e) => setField("slug", e.target.value)} className={`${inputClass} flex-1`} placeholder="nama-toko" />
+							<button type="button" onClick={handleGenerate} disabled={generating} className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 hover:bg-slate-200 disabled:opacity-60">
+								{generating ? "Memproses..." : "Generate"}
+							</button>
+						</div>
+						<div className="mt-2 text-sm">
+							{slugChecking ? (
+								<span className="text-slate-500">Memeriksa ketersediaan...</span>
+							) : slugAvailable === true ? (
+								<span className="text-green-600">Slug tersedia</span>
+							) : slugAvailable === false ? (
+								<span className="text-red-600">Slug sudah dipakai</span>
+							) : null}
+							{slugError ? <div className="text-red-600 mt-1">{slugError}</div> : null}
+							{slugSuggestions && slugSuggestions.length > 0 ? (
+								<div className="mt-2">
+									<div className="text-slate-600 text-sm">Saran:</div>
+									<div className="mt-1 flex flex-wrap gap-2">
+										{slugSuggestions.map((s) => (
+											<button key={s} type="button" onClick={() => setField("slug", s)} className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-sm">
+												{s}
+											</button>
+										))}
+									</div>
+								</div>
+							) : null}
+						</div>
 					</div>
 				</div>
 
