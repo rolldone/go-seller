@@ -364,6 +364,32 @@
     "description": "Subscription confirmation template (English)"
   },
   {
+    "key": "notifications.customer_setup_customer.id",
+    "scope": "global",
+    "value": {
+      "name": "Customer Email Verification",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Verifikasi email akun - {{.business_name}}",
+      "body": "Halo {{.customer_name}},\n\nTerima kasih telah mendaftar. Silakan verifikasi email Anda dengan mengeklik tautan berikut:\n{{.activation_url}}\n\nTautan ini akan kedaluwarsa dalam {{.ExpiryMinutes}} menit.\n\nJika Anda tidak meminta ini, abaikan saja."
+    },
+    "description": "Template verifikasi email customer saat pendaftaran (Indonesia)"
+  },
+  {
+    "key": "notifications.customer_setup_customer.en",
+    "scope": "global",
+    "value": {
+      "name": "Customer Email Verification",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "Verify your email - {{.business_name}}",
+      "body": "Hi {{.customer_name}},\n\nThanks for signing up. Please verify your email by clicking the link below:\n{{.activation_url}}\n\nThis link will expire in {{.ExpiryMinutes}} minutes.\n\nIf you did not request this, please ignore this email."
+    },
+    "description": "Customer email verification template (English)"
+  },
+  {
     "key": "notifications.withdrawal_requested_member.id",
     "scope": "global",
     "value": {

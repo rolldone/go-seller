@@ -64,6 +64,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 
 	customerAuth := api.Group("/customer/auth")
 	customerAuth.POST("/register", customerHandler.Register)
+	customerAuth.GET("/verify", customerHandler.VerifyEmail)
 	customerAuth.POST("/login", loginLimiter, customerHandler.Login)
 	customerAuth.POST("/forgot-password", forgotLimiter, customerHandler.ForgotPassword)
 	customerAuth.POST("/reset-password", customerHandler.ResetPassword)

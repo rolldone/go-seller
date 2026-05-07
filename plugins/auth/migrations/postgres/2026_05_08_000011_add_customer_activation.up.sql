@@ -1,0 +1,2 @@
+ALTER TABLE customers
+    ADD COLUMN IF NOT EXISTS is_activated_at TIMESTAMPTZ NULL;

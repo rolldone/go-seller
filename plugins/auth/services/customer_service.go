@@ -40,6 +40,14 @@ func (s *AuthService) CreateCustomer(ctx context.Context, c *authmodels.Customer
 		return err
 	}
 	c.Locale = locale
+	if c.IsActive {
+		if c.IsActivatedAt == nil {
+			now := time.Now()
+			c.IsActivatedAt = &now
+		}
+	} else {
+		c.IsActivatedAt = nil
+	}
 	return s.DB.WithContext(ctx).Create(c).Error
 }
 
@@ -117,6 +125,11 @@ func (s *AuthService) UpdateCustomerByID(ctx context.Context, id string, name, e
 	}
 	if isActive != nil {
 		updates["is_active"] = *isActive
+		if *isActive {
+			updates["is_activated_at"] = time.Now()
+		} else {
+			updates["is_activated_at"] = nil
+		}
 	}
 
 	return s.DB.WithContext(ctx).Model(&authmodels.Customer{}).Where("id = ?", id).Updates(updates).Error

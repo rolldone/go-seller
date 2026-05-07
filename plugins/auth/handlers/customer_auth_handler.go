@@ -15,6 +15,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const customerEmailVerificationExpiryMinutes = 24 * 60
+
 type customerLoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -38,6 +40,10 @@ type customerResetPasswordRequest struct {
 	Password string `json:"password"`
 }
 
+type customerVerifyEmailRequest struct {
+	Token string `json:"token"`
+}
+
 func (h *CustomerHandler) Login(c *gin.Context) {
 	var req customerLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -49,6 +55,10 @@ func (h *CustomerHandler) Login(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(strings.ToLower(err.Error()), "invalid") {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+			return
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "verified") || strings.Contains(strings.ToLower(err.Error()), "activated") || strings.Contains(strings.ToLower(err.Error()), "not active") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "email customer belum diverifikasi"})
 			return
 		}
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -80,19 +90,32 @@ func (h *CustomerHandler) Register(c *gin.Context) {
 		return
 	}
 
+	locale, err := normalizeCustomerLocaleForRegister(req.Locale)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	id, err := uuid.New()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate id"})
 		return
 	}
 
+	verificationToken, _, err := h.svc.GenerateCustomerEmailVerificationToken(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	activationURL := buildCustomerVerificationURL(verificationToken, locale)
+
 	customer := &authmodels.Customer{
 		ID:       id,
 		Name:     strings.TrimSpace(req.Name),
 		Email:    strings.ToLower(strings.TrimSpace(req.Email)),
 		Phone:    strings.TrimSpace(req.Phone),
-		Locale:   strings.TrimSpace(req.Locale),
-		IsActive: true,
+		Locale:   locale,
+		IsActive: false,
 	}
 
 	if err := h.svc.CreateCustomerWithPassword(c.Request.Context(), customer, req.Password); err != nil {
@@ -104,18 +127,46 @@ func (h *CustomerHandler) Register(c *gin.Context) {
 		return
 	}
 
-	accessToken, exp, err := h.svc.IssueCustomerAccessToken(customer)
-	if err != nil {
+	pluginregistry.SendTemplateEventAsync(c.Request.Context(), h.svc.DB, "customer_setup_customer", map[string]interface{}{
+		"customer_name":   strings.TrimSpace(customer.Name),
+		"customer_email":  strings.TrimSpace(customer.Email),
+		"customer_locale": strings.TrimSpace(customer.Locale),
+		"activation_url":  activationURL,
+		"ConfirmLink":     activationURL,
+		"ExpiryMinutes":   customerEmailVerificationExpiryMinutes,
+		"app_name":        getAppName(),
+	})
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":               "Pendaftaran berhasil. Silakan cek email untuk verifikasi sebelum login.",
+		"verification_required": true,
+		"customer":              customer,
+	})
+}
+
+func (h *CustomerHandler) VerifyEmail(c *gin.Context) {
+	token := strings.TrimSpace(c.Query("token"))
+	if token == "" {
+		var req customerVerifyEmailRequest
+		if err := c.ShouldBindJSON(&req); err == nil {
+			token = strings.TrimSpace(req.Token)
+		}
+	}
+	if token == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "token is required"})
+		return
+	}
+
+	if err := h.svc.VerifyCustomerEmailWithToken(c.Request.Context(), token); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(strings.ToLower(err.Error()), "invalid") || strings.Contains(strings.ToLower(err.Error()), "expired") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired verification token"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"access_token": accessToken,
-		"token_type":   "bearer",
-		"expires_at":   exp,
-		"customer":     customer,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "email verified successfully"})
 }
 
 func (h *CustomerHandler) ForgotPassword(c *gin.Context) {
@@ -222,6 +273,46 @@ func appendResetTokenQuery(resetURL string, token string) string {
 	query.Set("token", token)
 	parsed.RawQuery = query.Encode()
 	return parsed.String()
+}
+
+func normalizeCustomerLocaleForRegister(locale string) (string, error) {
+	value := strings.ToLower(strings.TrimSpace(locale))
+	if value == "" {
+		return "id", nil
+	}
+	switch value {
+	case "id", "en":
+		return value, nil
+	default:
+		return "", errors.New("locale must be one of: id, en")
+	}
+}
+
+func getEnvOrDefault(key string, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
+}
+
+func buildCustomerVerificationURL(token, locale string) string {
+	base := strings.TrimRight(strings.TrimSpace(getEnvOrDefault("FRONT_URL", "")), "/")
+	if base == "" {
+		base = strings.TrimRight(strings.TrimSpace(getEnvOrDefault("PUBLIC_APP_URL", "")), "/")
+	}
+	if base == "" {
+		base = strings.TrimRight(strings.TrimSpace(getEnvOrDefault("APP_URL", "")), "/")
+	}
+	if base == "" {
+		base = "http://localhost:4321"
+	}
+
+	path := "/customer/auth/verify"
+	if strings.EqualFold(strings.TrimSpace(locale), "en") {
+		path = "/en/customer/auth/verify"
+	}
+
+	return base + path + "?token=" + url.QueryEscape(token)
 }
 
 func getAppName() string {

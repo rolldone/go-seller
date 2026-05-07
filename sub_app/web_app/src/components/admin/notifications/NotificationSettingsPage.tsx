@@ -180,6 +180,12 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     audience: "customer",
     description: "Notifikasi saat customer diminta mengonfirmasi langganan email.",
   },
+  {
+    id: "customer_setup_customer",
+    name: "Customer Email Verification",
+    audience: "customer",
+    description: "Notifikasi verifikasi email saat customer mendaftar.",
+  },
 ];
 
 const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplate, "enabled" | "recipients" | "subject" | "body">>> = {
@@ -321,6 +327,12 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "Konfirmasi langganan - {{.business_name}}",
       body: "Hai {{.Name}},\n\nTerima kasih telah berlangganan {{.business_name}}{{if .ProductName}} - {{.ProductName}}{{end}}.\nSilakan klik tautan berikut untuk mengonfirmasi langganan Anda:\n{{.ConfirmLink}}\n\nTautan ini akan kedaluwarsa dalam {{.ExpiryMinutes}} menit.\n\nJika Anda tidak meminta ini, abaikan saja.",
     },
+    customer_setup_customer: {
+      enabled: true,
+      recipients: "{{.customer_email}}",
+      subject: "Verifikasi email akun - {{.business_name}}",
+      body: "Halo {{.customer_name}},\n\nTerima kasih telah mendaftar. Silakan verifikasi email Anda dengan mengeklik tautan berikut:\n{{.activation_url}}\n\nTautan ini akan kedaluwarsa dalam {{.ExpiryMinutes}} menit.\n\nJika Anda tidak meminta ini, abaikan saja.",
+    },
   },
   en: {
     order_created: {
@@ -459,6 +471,12 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       recipients: "{{.email}}",
       subject: "Subscription confirmation - {{.business_name}}",
       body: "Hi {{.Name}},\n\nThanks for subscribing to {{.business_name}}{{if .ProductName}} - {{.ProductName}}{{end}}.\nPlease click the link below to confirm your subscription:\n{{.ConfirmLink}}\n\nThis link will expire in {{.ExpiryMinutes}} minutes.\n\nIf you did not request this, please ignore this email.",
+    },
+    customer_setup_customer: {
+      enabled: true,
+      recipients: "{{.customer_email}}",
+      subject: "Verify your email - {{.business_name}}",
+      body: "Hi {{.customer_name}},\n\nThanks for signing up. Please verify your email by clicking the link below:\n{{.activation_url}}\n\nThis link will expire in {{.ExpiryMinutes}} minutes.\n\nIf you did not request this, please ignore this email.",
     },
   },
 };

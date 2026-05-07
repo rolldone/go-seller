@@ -36,6 +36,14 @@ func (s *AuthService) CreateCustomerWithPassword(ctx context.Context, customer *
 	}
 	hash := string(hashed)
 	customer.PasswordHash = &hash
+	if customer.IsActive {
+		if customer.IsActivatedAt == nil {
+			now := time.Now()
+			customer.IsActivatedAt = &now
+		}
+	} else {
+		customer.IsActivatedAt = nil
+	}
 	return s.DB.WithContext(ctx).Create(customer).Error
 }
 
@@ -60,7 +68,7 @@ func (s *AuthService) AuthenticateCustomer(ctx context.Context, email, password 
 		return nil, err
 	}
 	if !customer.IsActive {
-		return nil, errors.New("customer is not active")
+		return nil, errors.New("customer email is not verified")
 	}
 	if customer.IsBanned {
 		if customer.BannedUntil == nil || customer.BannedUntil.After(time.Now()) {
@@ -90,6 +98,23 @@ func (s *AuthService) GenerateCustomerPasswordResetToken(customerID string) (str
 	return internalauth.GenerateAccessTokenWithLevel(customerID, "customer_password_reset", 15*time.Minute)
 }
 
+// GenerateCustomerEmailVerificationToken returns a short-lived token for customer email verification.
+func (s *AuthService) GenerateCustomerEmailVerificationToken(customerID string) (string, time.Time, error) {
+	return internalauth.GenerateAccessTokenWithLevel(customerID, "customer_email_verify", 24*time.Hour)
+}
+
+// VerifyCustomerEmailWithToken activates a customer account from a verification token.
+func (s *AuthService) VerifyCustomerEmailWithToken(ctx context.Context, token string) error {
+	claims, err := internalauth.ParseAccessTokenClaims(token)
+	if err != nil {
+		return err
+	}
+	if claims.Level != "customer_email_verify" {
+		return errors.New("invalid verification token")
+	}
+	return s.UpdateCustomerByID(ctx, claims.AdminID, nil, nil, nil, nil, nil, boolPtr(true))
+}
+
 // ResetCustomerPasswordWithToken parses reset token and updates target customer password.
 func (s *AuthService) ResetCustomerPasswordWithToken(ctx context.Context, token, newPassword string) error {
 	claims, err := internalauth.ParseAccessTokenClaims(token)
@@ -100,6 +125,10 @@ func (s *AuthService) ResetCustomerPasswordWithToken(ctx context.Context, token,
 		return errors.New("invalid reset token")
 	}
 	return s.UpdateCustomerPasswordByID(ctx, claims.AdminID, newPassword)
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 // UpdateCustomerPasswordByID hashes and updates password by customer id.
