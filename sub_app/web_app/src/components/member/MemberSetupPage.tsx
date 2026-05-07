@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { buildLocalizedPath } from "../../lib/siteLocale";
 
 type MemberSetupResponse = {
@@ -31,9 +31,15 @@ export default function MemberSetupPage({ locale }: MemberSetupPageProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [businessSlug, setBusinessSlug] = useState("");
+  const [slugChecking, setSlugChecking] = useState(false);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [slugSuggestions, setSlugSuggestions] = useState<string[]>([]);
+  const [slugError, setSlugError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<MemberSetupResponse["data"] | null>(null);
+  const slugCheckTimer = useRef<number | null>(null);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,14 +76,111 @@ export default function MemberSetupPage({ locale }: MemberSetupPageProps) {
       });
 
       const payload = (await response.json().catch(() => ({}))) as MemberSetupResponse & { error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Gagal setup member");
+      if (response.ok) {
+        setSuccess(payload.data ?? null);
+        setError("");
+        return;
       }
-      setSuccess(payload.data ?? null);
+
+      if (response.status === 409) {
+        // conflict: email or slug taken. Show friendly message and suggestions for slug
+        setError(payload.error || "Email atau business slug sudah digunakan");
+        try {
+          const apiBase = resolveApiBase();
+          const slugQuery = businessSlug?.trim() || businessName?.trim();
+          if (slugQuery) {
+            const suggestRes = await fetch(`${apiBase}/api/catalog/businesses/slug/suggest?${businessSlug?.trim() ? `slug=${encodeURIComponent(businessSlug)}` : `name=${encodeURIComponent(businessName)}`}&limit=5`);
+            const suggestJson = await suggestRes.json().catch(() => ({}));
+            if (suggestRes.ok && Array.isArray(suggestJson.suggestions)) {
+              setSlugSuggestions(suggestJson.suggestions || []);
+              setSlugAvailable(Boolean(suggestJson.available));
+            }
+          }
+        } catch (e) {
+          // ignore suggestion errors
+        }
+        return;
+      }
+
+      throw new Error(payload.error || "Gagal setup member");
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Gagal setup member");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // debounce check when user edits slug manually
+  useEffect(() => {
+    setSlugError(null);
+    setSlugSuggestions([]);
+    setSlugAvailable(null);
+    if (slugCheckTimer.current) {
+      window.clearTimeout(slugCheckTimer.current);
+      slugCheckTimer.current = null;
+    }
+    const s = businessSlug.trim();
+    if (!s) return;
+    slugCheckTimer.current = window.setTimeout(async () => {
+      setSlugChecking(true);
+      try {
+        const apiBase = resolveApiBase();
+        const res = await fetch(`${apiBase}/api/catalog/businesses/slug/check?slug=${encodeURIComponent(s)}`);
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setSlugError(j.error || "Gagal cek slug");
+          setSlugAvailable(null);
+        } else {
+          setSlugAvailable(Boolean(j.available));
+          if (!j.available) {
+            // fetch suggestions
+            try {
+              const suggestRes = await fetch(`${apiBase}/api/catalog/businesses/slug/suggest?slug=${encodeURIComponent(s)}&limit=5`);
+              const suggestJson = await suggestRes.json().catch(() => ({}));
+              setSlugSuggestions(Array.isArray(suggestJson.suggestions) ? suggestJson.suggestions : []);
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+      } catch (e) {
+        setSlugError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSlugChecking(false);
+      }
+    }, 450);
+
+    return () => {
+      if (slugCheckTimer.current) {
+        window.clearTimeout(slugCheckTimer.current);
+        slugCheckTimer.current = null;
+      }
+    };
+  }, [businessSlug]);
+
+  const handleGenerate = async () => {
+    setSlugError(null);
+    setSlugSuggestions([]);
+    if (!businessName.trim()) {
+      setSlugError("Nama Toko harus diisi untuk generate slug");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const apiBase = resolveApiBase();
+      const res = await fetch(`${apiBase}/api/catalog/businesses/slug/suggest?name=${encodeURIComponent(businessName)}&limit=5`);
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSlugError(j.error || "Gagal generate slug");
+        return;
+      }
+      if (j.slug) setBusinessSlug(j.slug);
+      setSlugAvailable(Boolean(j.available));
+      setSlugSuggestions(Array.isArray(j.suggestions) ? j.suggestions : []);
+    } catch (e) {
+      setSlugError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -155,12 +258,49 @@ export default function MemberSetupPage({ locale }: MemberSetupPageProps) {
 
           <label className="block text-sm">
             <span className="mb-1 block font-medium text-slate-700">Slug Toko (opsional)</span>
-            <input
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-emerald-500"
-              value={businessSlug}
-              onChange={(event) => setBusinessSlug(event.target.value)}
-              placeholder="nama-toko"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-slate-900 outline-none focus:border-emerald-500"
+                value={businessSlug}
+                onChange={(event) => setBusinessSlug(event.target.value)}
+                placeholder="nama-toko"
+              />
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating}
+                className="rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+              >
+                {generating ? "Memproses..." : "Generate"}
+              </button>
+            </div>
+            <div className="mt-2 text-sm">
+              {slugChecking ? (
+                <span className="text-slate-500">Memeriksa ketersediaan...</span>
+              ) : slugAvailable === true ? (
+                <span className="text-green-600">Slug tersedia</span>
+              ) : slugAvailable === false ? (
+                <span className="text-red-600">Slug sudah dipakai</span>
+              ) : null}
+              {slugError ? <div className="text-red-600 mt-1">{slugError}</div> : null}
+              {slugSuggestions && slugSuggestions.length > 0 ? (
+                <div className="mt-2">
+                  <div className="text-slate-600 text-sm">Saran:</div>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {slugSuggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setBusinessSlug(s)}
+                        className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-sm"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </label>
 
           <button

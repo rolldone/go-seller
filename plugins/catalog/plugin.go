@@ -48,6 +48,7 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 
 	productHandler := pluginhandlers.NewProductHandler(p.service)
 	businessHandler := pluginhandlers.NewBusinessHandler(p.service)
+	slugHandler := pluginhandlers.NewSlugHandler(p.service)
 	categoryHandler := pluginhandlers.NewCategoryHandler(p.service)
 	tagHandler := pluginhandlers.NewTagHandler(p.service)
 	assetHandler := pluginhandlers.NewProductAssetHandler(p.service)
@@ -129,6 +130,9 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	memberCatalog.GET("/businesses/:business_id", businessHandler.MemberGetByID)
 	memberCatalog.PUT("/businesses/:business_id", businessHandler.MemberUpdate)
 	memberCatalog.DELETE("/businesses/:business_id", businessHandler.MemberDelete)
+	// Slug suggest/check endpoints (public)
+	api.GET("/catalog/businesses/slug/suggest", slugHandler.Suggest)
+	api.GET("/catalog/businesses/slug/check", slugHandler.Check)
 	memberCatalog.GET("/businesses/:business_id/translations", businessHandler.MemberListTranslations)
 	memberCatalog.PUT("/businesses/:business_id/translations/:locale", businessHandler.MemberUpsertTranslation)
 	memberCatalog.POST("/businesses/:business_id/assets", businessAssetHandler.MemberCreate)
