@@ -1342,3 +1342,15 @@ func (s *PaymentService) GetPaymentByGatewayTransactionID(ctx context.Context, g
 	}
 	return &p, nil
 }
+
+// GetPaymentByID loads a payment by its primary key so callers can resolve the related order.
+func (s *PaymentService) GetPaymentByID(ctx context.Context, paymentID string) (*models.Payment, error) {
+	if strings.TrimSpace(paymentID) == "" {
+		return nil, errors.New("payment_id is required")
+	}
+	var p models.Payment
+	if err := s.DB.WithContext(ctx).Where("id = ?", paymentID).First(&p).Error; err != nil {
+		return nil, err
+	}
+	return &p, nil
+}

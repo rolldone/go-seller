@@ -50,6 +50,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	paymentHandler := NewPaymentHandler(s.Payment)
 	memberOrderHandler := NewMemberOrderHandler(s.Order, s.Payment, s.Catalog, authSvc)
 	memberShipmentHandler := NewMemberShipmentHandler(s.Shipment, s.Order, s.Catalog)
+	apiOrder.GET("/payments/:payment_id", paymentHandler.LookupByID)
 	adminPayment := adminOrder.Group("/payments")
 	adminPayment.POST("", paymentHandler.Create)
 	adminPayment.POST("/:id/status", paymentHandler.UpdateStatus)

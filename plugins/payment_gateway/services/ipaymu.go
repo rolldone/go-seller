@@ -37,6 +37,7 @@ type IPaymuCredentials struct {
 type IPaymuMethodConfig struct {
 	PaymentMethod  string `json:"payment_method"`
 	PaymentChannel string `json:"payment_channel"`
+	Mode           string `json:"mode"`
 }
 
 type IPaymuAdapter struct {
@@ -63,6 +64,19 @@ func (a *IPaymuAdapter) CreatePayment(ctx context.Context, in pgwtypes.CreatePay
 			return nil, fmt.Errorf("ipaymu: invalid method config: %w", err)
 		}
 	}
+
+	mode := strings.ToLower(strings.TrimSpace(in.Mode))
+	if mode == "" {
+		mode = strings.ToLower(strings.TrimSpace(mc.Mode))
+	}
+	if mode == "native" {
+		return a.createNativePayment(ctx, in, cfg, creds, mc)
+	}
+
+	return a.createDirectPayment(ctx, in, cfg, creds, mc)
+}
+
+func (a *IPaymuAdapter) createDirectPayment(ctx context.Context, in pgwtypes.CreatePaymentInput, cfg IPaymuProviderConfig, creds IPaymuCredentials, mc IPaymuMethodConfig) (*pgwtypes.CreatePaymentResult, error) {
 	if strings.TrimSpace(mc.PaymentMethod) == "" {
 		mc.PaymentMethod = "va"
 	}
@@ -117,6 +131,10 @@ func (a *IPaymuAdapter) CreatePayment(ctx context.Context, in pgwtypes.CreatePay
 	}
 
 	return a.parseCreatePaymentResponse(rawResp, in, mc)
+}
+
+func (a *IPaymuAdapter) createNativePayment(ctx context.Context, in pgwtypes.CreatePaymentInput, cfg IPaymuProviderConfig, creds IPaymuCredentials, mc IPaymuMethodConfig) (*pgwtypes.CreatePaymentResult, error) {
+	return a.createDirectPayment(ctx, in, cfg, creds, mc)
 }
 
 func (a *IPaymuAdapter) ParseWebhook(ctx context.Context, rawBody []byte, headers map[string]string, providerConfig json.RawMessage, credentialsEncrypted *string) (*pgwtypes.WebhookEvent, error) {

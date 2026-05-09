@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 	ordersvc "go_framework/plugins/order/services"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type PaymentHandler struct {
@@ -103,6 +106,59 @@ type createPaymentProviderReq struct {
 
 type replaceProviderSecretReq struct {
 	CredentialsEncrypted string `json:"credentials_encrypted" binding:"required"`
+}
+
+func parsePaymentMethodConfig(raw []byte) map[string]any {
+	cfg := map[string]any{}
+	if len(raw) == 0 {
+		return cfg
+	}
+
+	if err := json.Unmarshal(raw, &cfg); err == nil {
+		return cfg
+	}
+
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return cfg
+	}
+
+	valueString, ok := value.(string)
+	if !ok {
+		return cfg
+	}
+
+	valueString = strings.TrimSpace(valueString)
+	if valueString == "" {
+		return cfg
+	}
+
+	if err := json.Unmarshal([]byte(valueString), &cfg); err == nil {
+		return cfg
+	}
+
+	if decoded, err := base64.StdEncoding.DecodeString(valueString); err == nil {
+		if err := json.Unmarshal(decoded, &cfg); err == nil {
+			return cfg
+		}
+	}
+
+	return cfg
+}
+
+func paymentMethodResponse(item ordermodels.PaymentMethod) gin.H {
+	return gin.H{
+		"id":          item.ID,
+		"business_id": item.BusinessID,
+		"provider_id": item.ProviderID,
+		"name":        item.Name,
+		"is_active":   item.IsActive,
+		"sort_order":  item.SortOrder,
+		"config":      parsePaymentMethodConfig(item.Config),
+		"created_at":  item.CreatedAt,
+		"updated_at":  item.UpdatedAt,
+		"provider":    item.Provider,
+	}
 }
 
 func (h *PaymentHandler) ListProviders(c *gin.Context) {
@@ -434,6 +490,20 @@ func (h *PaymentHandler) ListProofs(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": proofs})
 }
 
+func (h *PaymentHandler) LookupByID(c *gin.Context) {
+	paymentID := strings.TrimSpace(c.Param("payment_id"))
+	payment, err := h.svc.GetPaymentByID(c.Request.Context(), paymentID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"id": payment.ID, "order_id": payment.OrderID}})
+}
+
 func (h *PaymentHandler) DeleteProof(c *gin.Context) {
 	paymentID := strings.TrimSpace(c.Param("id"))
 	proofID := strings.TrimSpace(c.Param("proof_id"))
@@ -569,7 +639,11 @@ func (h *PaymentHandler) ListMethods(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": items})
+	out := make([]gin.H, 0, len(items))
+	for _, item := range items {
+		out = append(out, paymentMethodResponse(item))
+	}
+	c.JSON(http.StatusOK, gin.H{"data": out})
 }
 
 func (h *PaymentHandler) GetMethod(c *gin.Context) {
@@ -578,7 +652,7 @@ func (h *PaymentHandler) GetMethod(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "payment method not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": item})
+	c.JSON(http.StatusOK, gin.H{"data": paymentMethodResponse(*item)})
 }
 
 type upsertPaymentMethodReq struct {
@@ -608,7 +682,7 @@ func (h *PaymentHandler) CreateMethod(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"data": item})
+	c.JSON(http.StatusCreated, gin.H{"data": paymentMethodResponse(*item)})
 }
 
 func (h *PaymentHandler) UpdateMethod(c *gin.Context) {
@@ -629,7 +703,7 @@ func (h *PaymentHandler) UpdateMethod(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": item})
+	c.JSON(http.StatusOK, gin.H{"data": paymentMethodResponse(*item)})
 }
 
 func (h *PaymentHandler) DeleteMethod(c *gin.Context) {

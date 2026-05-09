@@ -33,6 +33,7 @@ type CreatePaymentInput struct {
 	ExpiredAt *time.Time
 	// Metadata tambahan yang diteruskan ke gateway
 	Metadata map[string]any
+	Mode     string `json:"mode"` // Added field for explicit direct/native mode
 }
 
 // CreatePaymentResult hasil pembuatan transaksi dari gateway.

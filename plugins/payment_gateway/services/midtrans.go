@@ -83,6 +83,11 @@ func (a *MidtransAdapter) CreatePayment(ctx context.Context, in pgwtypes.CreateP
 		methodCfg.ChargeType = "bank_transfer"
 	}
 
+	// Explicitly check for direct/native mode
+	if in.Mode == "native" || isMidtransNativeChargeType(methodCfg.ChargeType) {
+		return a.createNativePayment(ctx, in, cfg, creds)
+	}
+
 	chargeURL := cfg.ChargeURL
 	if chargeURL == "" {
 		if cfg.IsProduction {
@@ -104,6 +109,102 @@ func (a *MidtransAdapter) CreatePayment(ctx context.Context, in pgwtypes.CreateP
 	}
 
 	return a.parseChargeResponse(rawResp, in, methodCfg)
+}
+
+func (a *MidtransAdapter) createNativePayment(ctx context.Context, in pgwtypes.CreatePaymentInput, cfg MidtransProviderConfig, creds MidtransCredentials) (*pgwtypes.CreatePaymentResult, error) {
+	snapURL := strings.TrimSpace(cfg.SnapURL)
+	if snapURL == "" {
+		if cfg.IsProduction {
+			snapURL = "https://app.midtrans.com/snap/v1/transactions"
+		} else {
+			snapURL = "https://app.sandbox.midtrans.com/snap/v1/transactions"
+		}
+	}
+
+	reqBody, err := a.buildNativeBody(in)
+	if err != nil {
+		return nil, err
+	}
+
+	rawResp, err := a.callMidtrans(ctx, http.MethodPost, snapURL, creds.ServerKey, reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.parseNativeResponse(rawResp, in)
+}
+
+func (a *MidtransAdapter) buildNativeBody(in pgwtypes.CreatePaymentInput) ([]byte, error) {
+	body := map[string]any{
+		"transaction_details": map[string]any{
+			"order_id":     in.PaymentID,
+			"gross_amount": int64(in.Amount),
+		},
+		"customer_details": map[string]any{
+			"first_name": in.CustomerName,
+			"email":      in.CustomerEmail,
+			"phone":      in.CustomerPhone,
+		},
+	}
+
+	if in.ExpiredAt != nil {
+		minutes := int(time.Until(*in.ExpiredAt).Minutes())
+		if minutes > 0 {
+			body["expiry"] = map[string]any{
+				"start_time": time.Now().Format("2006-01-02 15:04:05 -0700"),
+				"unit":       "minute",
+				"duration":   minutes,
+			}
+		}
+	}
+
+	return json.Marshal(body)
+}
+
+func (a *MidtransAdapter) parseNativeResponse(rawResp []byte, in pgwtypes.CreatePaymentInput) (*pgwtypes.CreatePaymentResult, error) {
+	var resp midtransSnapResponse
+	if err := json.Unmarshal(rawResp, &resp); err != nil {
+		return nil, fmt.Errorf("midtrans: failed to parse native response: %w", err)
+	}
+	if strings.TrimSpace(resp.RedirectURL) == "" {
+		return nil, fmt.Errorf("midtrans: native response missing redirect_url")
+	}
+
+	providerTxnID := in.PaymentID
+	instr := pgwtypes.PaymentInstruction{
+		Type:        pgwtypes.InstructionTypeRedirect,
+		DisplayName: "Midtrans",
+		RedirectURL: &resp.RedirectURL,
+		Amount:      in.Amount,
+		Currency:    in.Currency,
+	}
+	if strings.TrimSpace(resp.Token) != "" {
+		instr.ExtraInfo = map[string]any{"snap_token": resp.Token}
+	}
+	instr = instr.Normalize()
+
+	result := &pgwtypes.CreatePaymentResult{
+		GatewayTransactionID:  in.PaymentID,
+		ProviderTransactionID: &providerTxnID,
+		ExternalReference:     &resp.RedirectURL,
+		PaymentInstruction:    instr,
+		RawResponse:           rawResp,
+		InitialStatus:         pgwtypes.PaymentStatusPending,
+	}
+	if in.ExpiredAt != nil {
+		result.ExpiredAt = in.ExpiredAt
+	}
+
+	return result, nil
+}
+
+func isMidtransNativeChargeType(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "native", "snap", "snap_redirect":
+		return true
+	default:
+		return false
+	}
 }
 
 // buildChargeBody membangun payload JSON untuk Midtrans Charge API.
@@ -240,18 +341,21 @@ func (a *MidtransAdapter) ParseWebhook(
 	providerConfig json.RawMessage,
 	credentialsEncrypted *string,
 ) (*pgwtypes.WebhookEvent, error) {
-	_, creds, err := a.parseConfigs(providerConfig, credentialsEncrypted)
-	if err != nil {
-		return nil, err
-	}
-
 	var payload midtransWebhookPayload
 	if err := json.Unmarshal(rawBody, &payload); err != nil {
 		return nil, fmt.Errorf("midtrans: failed to parse webhook payload: %w", err)
 	}
 
-	// Verifikasi signature: SHA512(order_id + status_code + gross_amount + server_key)
-	signatureValid := a.verifyWebhookSignature(payload, creds.ServerKey)
+	signatureValid := false
+	if credentialsEncrypted != nil && strings.TrimSpace(*credentialsEncrypted) != "" {
+		_, creds, err := a.parseConfigs(providerConfig, credentialsEncrypted)
+		if err != nil {
+			return nil, err
+		}
+
+		// Verifikasi signature: SHA512(order_id + status_code + gross_amount + server_key)
+		signatureValid = a.verifyWebhookSignature(payload, creds.ServerKey)
+	}
 
 	// Map status Midtrans ke status internal
 	status := mapMidtransStatus(payload.TransactionStatus, payload.FraudStatus)
@@ -423,4 +527,9 @@ type midtransWebhookPayload struct {
 	SignatureKey      string `json:"signature_key"`
 	SettlementTime    string `json:"settlement_time"`
 	Currency          string `json:"currency"`
+}
+
+type midtransSnapResponse struct {
+	Token       string `json:"token"`
+	RedirectURL string `json:"redirect_url"`
 }
