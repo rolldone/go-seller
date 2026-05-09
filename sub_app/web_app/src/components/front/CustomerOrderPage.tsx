@@ -19,11 +19,14 @@ import {
   upsertMyOrderItemReview,
   updateMyOrderShippingAddress,
   startMyOrderPayment,
+  listOrderPaymentMethods,
   type ReviewableOrderItem,
   type MyOrderDetailResponse,
   type OrderPaymentProvider,
+  type OrderPaymentMethod,
   type Payment,
   type PaymentProof,
+  type PaymentInstruction,
 } from "../../lib/orderApi";
 
 type ReviewDraft = {
@@ -157,6 +160,15 @@ function parseMetadata(value: unknown): Record<string, any> | null {
   }
 }
 
+function pickLatestPaymentInstruction(payments?: Payment[] | null): PaymentInstruction | null {
+  if (!payments || payments.length === 0) return null;
+  for (let index = payments.length - 1; index >= 0; index -= 1) {
+    const instruction = payments[index]?.payment_instruction;
+    if (instruction) return instruction;
+  }
+  return null;
+}
+
 function parseShippingQuote(orderMetadata: unknown): Record<string, any> | null {
   const metadata = parseMetadata(orderMetadata);
   if (!metadata) return null;
@@ -218,6 +230,136 @@ function isAwaitingShippingQuote(
   return false;
 }
 
+
+function PaymentInstructionPanel({ instruction, onClose }: { instruction: PaymentInstruction; onClose: () => void }) {
+  const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (instruction.qr_string) {
+      import("qrcode").then((QRCode) => {
+        QRCode.toDataURL(instruction.qr_string!, { width: 240, margin: 2 })
+          .then(setQrDataUrl)
+          .catch(() => setQrDataUrl(null));
+      });
+    }
+  }, [instruction.qr_string]);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const expiredAtLabel = instruction.expired_at
+    ? new Date(instruction.expired_at).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" })
+    : null;
+
+  const paymentCode = (() => {
+    const extraInfo = instruction.extra_info;
+    if (!extraInfo) return "";
+    const rawPaymentCode = extraInfo["payment_code"];
+    return typeof rawPaymentCode === "string" ? rawPaymentCode.trim() : "";
+  })();
+
+  return (
+    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-semibold text-emerald-900">Instruksi Pembayaran — {instruction.display_name}</h3>
+        <button onClick={onClose} className="text-emerald-600 hover:text-emerald-800 text-lg leading-none" aria-label="Tutup">×</button>
+      </div>
+
+      {/* Virtual Account */}
+      {instruction.virtual_account_number && (
+        <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Nomor Virtual Account</p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-2xl font-bold tracking-widest text-slate-900">{instruction.virtual_account_number}</span>
+            <button
+              onClick={() => copyToClipboard(instruction.virtual_account_number!)}
+              className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200 transition-colors"
+            >
+              {copied ? "Tersalin!" : "Salin"}
+            </button>
+          </div>
+          {instruction.bank_code && (
+            <p className="mt-1 text-xs text-slate-500">Bank: <span className="font-medium uppercase text-slate-700">{instruction.bank_code}</span></p>
+          )}
+        </div>
+      )}
+
+      {/* QRIS */}
+      {instruction.qr_string && (
+        <div className="mt-3 flex flex-col items-center rounded-xl border border-emerald-200 bg-white p-3">
+          <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">Scan QR Code</p>
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt="QR Code Pembayaran" className="h-48 w-48 rounded-lg" />
+          ) : (
+            <div className="flex h-48 w-48 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">Memuat QR...</div>
+          )}
+        </div>
+      )}
+
+      {/* Redirect */}
+      {instruction.redirect_url && (
+        <div className="mt-3">
+          <a
+            href={instruction.redirect_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+          >
+            Lanjutkan Pembayaran →
+          </a>
+        </div>
+      )}
+
+      {paymentCode && (
+        <div className="mt-3 rounded-xl border border-emerald-200 bg-white p-3">
+          <p className="text-xs text-slate-500 uppercase tracking-wide">Kode Pembayaran</p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-2xl font-bold tracking-widest text-slate-900">{paymentCode}</span>
+            <button
+              onClick={() => copyToClipboard(paymentCode)}
+              className="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-200 transition-colors"
+            >
+              {copied ? "Tersalin!" : "Salin"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Amount & Expiry */}
+      <div className="mt-3 flex flex-wrap gap-4 text-sm text-slate-600">
+        <span>
+          Jumlah:{" "}
+          <span className="font-semibold text-slate-900">
+            {instruction.currency} {instruction.amount.toLocaleString("id-ID")}
+          </span>
+        </span>
+        {expiredAtLabel && (
+          <span>
+            Berlaku hingga: <span className="font-semibold text-slate-900">{expiredAtLabel}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Steps */}
+      {instruction.steps && instruction.steps.length > 0 && (
+        <ol className="mt-3 space-y-1 text-sm text-slate-700">
+          {instruction.steps.map((step, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="flex-shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-200 text-xs font-bold text-emerald-800">{i + 1}</span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 interface CustomerOrderPageProps {
   orderID?: string;
 }
@@ -235,6 +377,8 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [selectedProviderID, setSelectedProviderID] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<OrderPaymentMethod[]>([]);
+  const [selectedMethodID, setSelectedMethodID] = useState("");
   const [senderBankName, setSenderBankName] = useState("");
   const [senderAccountNumber, setSenderAccountNumber] = useState("");
   const [senderAccountHolder, setSenderAccountHolder] = useState("");
@@ -249,6 +393,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const [statusMessage, setStatusMessage] = useState("");
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressID, setSelectedAddressID] = useState("");
+  const [paymentInstruction, setPaymentInstruction] = useState<PaymentInstruction | null>(null);
   const [shippingAddressError, setShippingAddressError] = useState("");
   const [updatingShippingAddress, setUpdatingShippingAddress] = useState(false);
   const [reviewableItems, setReviewableItems] = useState<ReviewableOrderItem[]>([]);
@@ -288,8 +433,21 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     try {
       const response = await getMyOrderByID(resolvedOrderID);
       setDetail(response.data);
+      setPaymentInstruction(pickLatestPaymentInstruction(response.data.payments ?? response.data.order?.payments ?? null));
       const defaultProviderID = response.data.providers?.[0]?.id || "";
       setSelectedProviderID((current) => current || defaultProviderID);
+      // Fetch payment methods
+      const businessID = response.data.order?.business_id;
+      if (businessID) {
+        try {
+          const methodsRes = await listOrderPaymentMethods(businessID);
+          const activeMethods = (methodsRes.data || []).filter((m) => m.is_active);
+          setPaymentMethods(activeMethods);
+          setSelectedMethodID((current) => current || (activeMethods[0]?.id ?? ""));
+        } catch {
+          // fallback to providers
+        }
+      }
       setTransferAmount(String(Math.max(0, response.data.order.grand_total || 0)));
       setTransferredAt(new Date().toISOString().slice(0, 16));
       if (response.data?.order?.id) {
@@ -449,7 +607,10 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const payments = detail?.payments || [];
   const providers = detail?.providers || [];
   const appliedCoupons = order?.applied_coupons || [];
-  const selectedProvider = providers.find((item) => item.id === selectedProviderID) || null;
+  const selectedMethod = paymentMethods.find((m) => m.id === selectedMethodID) || null;
+  const selectedProvider: OrderPaymentProvider | null = selectedMethod
+    ? (providers.find((p) => p.id === selectedMethod.provider_id) ?? null)
+    : (providers.find((item) => item.id === selectedProviderID) ?? null);
   const isBankTransfer = (selectedProvider?.provider_key || "").toLowerCase() === "bank_transfer";
   const latestPayment = payments[0] || null;
   const latestBankTransferMeta = parseMetadata(latestPayment?.metadata)?.bank_transfer || null;
@@ -532,7 +693,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   }, [order?.id, payments]);
 
   const canSubmit = useMemo(() => {
-    if (!order || !selectedProviderID) return false;
+    if (!order || !(selectedMethodID || selectedProviderID)) return false;
     if (awaitingShippingQuote) return false;
     if ((order.payment_status || "").toLowerCase() === "paid") return false;
     if (!isBankTransfer) return true;
@@ -541,7 +702,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     if (!transferredAt.trim()) return false;
     if (proofFiles.length === 0) return false;
     return true;
-  }, [awaitingShippingQuote, isBankTransfer, order, proofFiles, selectedProviderID, senderAccountHolder, senderAccountNumber, senderBankName, transferAmount, transferredAt]);
+  }, [awaitingShippingQuote, isBankTransfer, order, proofFiles, selectedMethodID, selectedProviderID, senderAccountHolder, senderAccountNumber, senderBankName, transferAmount, transferredAt]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !order?.id) return;
@@ -566,6 +727,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       if (isBankTransfer) {
         const form = new FormData();
         form.set("provider_id", selectedProvider.id);
+        if (selectedMethodID) form.set("payment_method_id", selectedMethodID);
         form.set("sender_bank_name", senderBankName.trim());
         form.set("sender_account_number", senderAccountNumber.trim());
         form.set("sender_account_holder", senderAccountHolder.trim());
@@ -577,16 +739,19 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
         }
         proofFiles.forEach((file) => form.append("proof", file));
         await startMyOrderPayment(order.id, form);
+        setPaymentInstruction(null);
       } else {
-        await startMyOrderPayment(order.id, { provider_id: selectedProvider.id });
+        const res = await startMyOrderPayment(order.id, {
+          provider_id: selectedProvider.id,
+          ...(selectedMethodID ? { payment_method_id: selectedMethodID } : {}),
+        });
+        setPaymentInstruction(res.data.payment_instruction ?? res.payment_instruction ?? null);
       }
 
       notifySuccess(t("paymentCreated", "Pembayaran berhasil dibuat."));
-      setStatusMessage(
-        isBankTransfer
-          ? t("bankTransferConfirmationSent", "Konfirmasi pembayaran terkirim. Tim kami akan memverifikasi bukti transfer Anda.")
-          : t("paymentCreatedInstructions", "Pembayaran baru berhasil dibuat. Silakan lanjutkan sesuai instruksi metode pembayaran."),
-      );
+      if (isBankTransfer) {
+        setStatusMessage(t("bankTransferConfirmationSent", "Konfirmasi pembayaran terkirim. Tim kami akan memverifikasi bukti transfer Anda."));
+      }
       setProofFiles([]);
       setProofNotes("");
       await loadDetail();
@@ -666,6 +831,9 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
         ) : null}
         {statusMessage ? (
           <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{statusMessage}</div>
+        ) : null}
+        {paymentInstruction ? (
+          <PaymentInstructionPanel instruction={paymentInstruction} onClose={() => setPaymentInstruction(null)} />
         ) : null}
 
         {loading ? (
@@ -944,7 +1112,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                         <article key={payment.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <div className="text-sm font-semibold text-slate-900">{payment.gateway_name || payment.payment_method || payment.provider_key || t("paymentFallback", "Payment")}</div>
+                              <div className="text-sm font-semibold text-slate-900">{payment.payment_method || payment.gateway_name || payment.provider_key || t("paymentFallback", "Payment")}</div>
                               <div className="mt-1 text-xs text-slate-500">{payment.id}</div>
                             </div>
                             <div className="text-right">
@@ -1200,21 +1368,37 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                       </div>
                     ) : (
                       <div className="mt-4 space-y-3">
-                        {providers.map((provider: OrderPaymentProvider) => (
-                          <label key={provider.id} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 transition hover:border-emerald-300">
-                            <input
-                              type="radio"
-                              name="payment_provider"
-                              className="mt-1"
-                              checked={selectedProviderID === provider.id}
-                              onChange={() => setSelectedProviderID(provider.id)}
-                            />
-                            <div>
-                              <div className="text-sm font-semibold text-slate-900">{provider.name}</div>
-                              <div className="text-xs text-slate-500">{provider.provider_key}</div>
-                            </div>
-                          </label>
-                        ))}
+                        {paymentMethods.length > 0
+                          ? paymentMethods.map((method) => (
+                              <label key={method.id} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 transition hover:border-emerald-300 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50">
+                                <input
+                                  type="radio"
+                                  name="payment_method"
+                                  className="mt-1"
+                                  checked={selectedMethodID === method.id}
+                                  onChange={() => setSelectedMethodID(method.id)}
+                                />
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-900">{method.name}</div>
+                                  <div className="text-xs text-slate-500">{method.provider?.provider_key || ""}</div>
+                                </div>
+                              </label>
+                            ))
+                          : providers.map((provider: OrderPaymentProvider) => (
+                              <label key={provider.id} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 px-4 py-3 transition hover:border-emerald-300 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50">
+                                <input
+                                  type="radio"
+                                  name="payment_provider"
+                                  className="mt-1"
+                                  checked={selectedProviderID === provider.id}
+                                  onChange={() => setSelectedProviderID(provider.id)}
+                                />
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-900">{provider.name}</div>
+                                  <div className="text-xs text-slate-500">{provider.provider_key}</div>
+                                </div>
+                              </label>
+                            ))}
                       </div>
                     )}
 

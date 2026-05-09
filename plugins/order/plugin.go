@@ -45,13 +45,5 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 func (p *Plugin) Seed() error { return nil }
 
 func (p *Plugin) ConsoleCommands() []*cobra.Command {
-
-	cmd := &cobra.Command{
-		Use:   "order:hello",
-		Short: "hello from order",
-		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Printf("hello from plugin order\\n")
-		},
-	}
-	return []*cobra.Command{cmd}
+	return buildConsoleCommands()
 }

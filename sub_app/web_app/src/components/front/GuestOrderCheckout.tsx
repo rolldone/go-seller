@@ -4,6 +4,7 @@ import type { CustomerAddress } from "../customer/auth/authApi";
 import { notifyError, notifySuccess } from "../../lib/notification";
 import { useTranslations } from "../../i18n";
 import { formatAmount } from "../../lib/amountFormat";
+import { buildPaymentConfirmationPath } from "../../lib/paymentRedirect";
 
 type OrderItem = {
   id: string;
@@ -56,6 +57,7 @@ type Order = {
   fulfillment_type?: string;
   grand_total: number;
   metadata?: unknown;
+  business_id?: string | null;
   extra_charges?: Array<{
     id: string;
     name: string;
@@ -72,6 +74,19 @@ type Provider = {
   provider_key: string;
   is_active: boolean;
   config?: BankConfig;
+};
+
+type PaymentMethod = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  provider_id: string;
+  provider?: {
+    id: string;
+    name: string;
+    provider_key: string;
+  } | null;
 };
 
 type GuestDetailResponse = {
@@ -225,6 +240,8 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedProviderID, setSelectedProviderID] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [selectedMethodID, setSelectedMethodID] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [lastPayment, setLastPayment] = useState<Payment | null>(null);
@@ -279,6 +296,20 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
         setTransferredAt(new Date().toISOString().slice(0, 16));
         if ((data.providers || []).length > 0) {
           setSelectedProviderID(data.providers[0].id);
+        }
+        // Fetch payment methods for this business
+        const businessID = data.order?.business_id;
+        if (businessID) {
+          try {
+            const methodsRes = await guestGet<{ data: PaymentMethod[] }>(`/api/order/payment-methods?business_id=${encodeURIComponent(businessID)}`);
+            const activeMethods = (methodsRes.data || []).filter((m) => m.is_active);
+            setPaymentMethods(activeMethods);
+            if (activeMethods.length > 0) {
+              setSelectedMethodID(activeMethods[0].id);
+            }
+          } catch {
+            // fallback to providers
+          }
         }
       } catch (err) {
           // handle token_revoked flag from server (guest revisited after confirmation)
@@ -428,9 +459,9 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
     if (paymentStatus === "awaiting_shipping" || paymentStatus === "pending_shipping" || paymentStatus === "awaiting_quote") return false;
     if ((status === "pending" || paymentStatus === "unpaid") && !shippingQuoteReady) return false;
     if (order.payment_status === "paid") return false;
-    if (!selectedProviderID) return false;
+    if (!selectedMethodID && !selectedProviderID) return false;
     return true;
-  }, [order, selectedProviderID, shippingAddressID, shippingQuoteReady]);
+  }, [order, selectedMethodID, selectedProviderID, shippingAddressID, shippingQuoteReady]);
 
   useEffect(() => {
     if (shippingAddressID) {
@@ -469,7 +500,14 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
     );
   }, [order, shippingAddressID, shippingQuoteReady]);
 
-  const selectedProvider = useMemo(() => providers.find((p) => p.id === selectedProviderID) || null, [providers, selectedProviderID]);
+  const selectedMethod = useMemo(() => paymentMethods.find((m) => m.id === selectedMethodID) || null, [paymentMethods, selectedMethodID]);
+  const selectedProvider = useMemo(
+    () =>
+      selectedMethod
+        ? (providers.find((p) => p.id === selectedMethod.provider_id) || null)
+        : (providers.find((p) => p.id === selectedProviderID) || null),
+    [selectedMethod, providers, selectedMethodID, selectedProviderID],
+  );
   const isBankTransfer = useMemo(() => (selectedProvider?.provider_key || "").toLowerCase() === "bank_transfer", [selectedProvider]);
 
   const canSubmitBankTransfer = useMemo(() => {
@@ -490,7 +528,8 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
       if (isBankTransfer) {
         if (!proofFiles || proofFiles.length === 0) throw new Error(t("guestOrder.proofRequired", "Bukti transfer wajib diunggah"));
         const form = new FormData();
-        form.set("provider_id", selectedProviderID);
+        form.set("provider_id", selectedProvider?.id || selectedProviderID);
+        if (selectedMethodID) form.set("payment_method_id", selectedMethodID);
         form.set("sender_bank_name", senderBankName.trim());
         form.set("sender_account_number", senderAccountNumber.trim());
         form.set("sender_account_holder", senderAccountHolder.trim());
@@ -506,14 +545,15 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
         res = await guestPostForm<StartPaymentResponse>(`/api/order/guest-checkout/${encodeURIComponent(resolvedToken)}/start-payment`, form);
       } else {
         res = await guestPost<StartPaymentResponse>(`/api/order/guest-checkout/${encodeURIComponent(resolvedToken)}/start-payment`, {
-          provider_id: selectedProviderID,
+          provider_id: selectedProvider?.id || selectedProviderID,
+          ...(selectedMethodID ? { payment_method_id: selectedMethodID } : {}),
         });
       }
       setLastPayment(res.data);
       // redirect to thank-you page and include payment id
       try {
-        const pid = encodeURIComponent(res.data.id || "");
-        window.location.href = `/order/confirmed?payment_id=${pid}`;
+        const pid = String(res.data.id || "").trim();
+        window.location.href = buildPaymentConfirmationPath(pid);
         return;
       } catch (e) {
         // fallback: keep inline confirmation
@@ -809,22 +849,46 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
         ) : null}
 
         <div className="mt-3 space-y-3">
-          <label className="block space-y-1 text-sm text-slate-900">
-            <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.paymentProvider", "Provider pembayaran")}</span>
-            <select
-              value={selectedProviderID}
-              onChange={(event) => setSelectedProviderID(event.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
-              disabled={awaitingShippingQuote}
-            >
-              <option value="">{t("guestOrder.selectProvider", "Pilih provider")}</option>
-              {providers.map((provider) => (
-                <option key={provider.id} value={provider.id}>
-                  {provider.name} ({provider.provider_key})
-                </option>
+          {paymentMethods.length > 0 ? (
+            <div className="space-y-2">
+              {paymentMethods.map((method) => (
+                <label
+                  key={method.id}
+                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 transition hover:border-emerald-300 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50"
+                >
+                  <input
+                    type="radio"
+                    name="payment_method"
+                    value={method.id}
+                    checked={selectedMethodID === method.id}
+                    onChange={() => setSelectedMethodID(method.id)}
+                    disabled={awaitingShippingQuote}
+                  />
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{method.name}</div>
+                    <div className="text-xs text-slate-500">{method.provider?.provider_key || ""}</div>
+                  </div>
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+          ) : (
+            <label className="block space-y-1 text-sm text-slate-900">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-700">{t("guestOrder.paymentProvider", "Provider pembayaran")}</span>
+              <select
+                value={selectedProviderID}
+                onChange={(event) => setSelectedProviderID(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                disabled={awaitingShippingQuote}
+              >
+                <option value="">{t("guestOrder.selectProvider", "Pilih provider")}</option>
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} ({provider.provider_key})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           {isBankTransfer ? (
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">

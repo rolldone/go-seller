@@ -4,9 +4,10 @@ export type PaymentProvider = {
   name: string;
   provider_key: string;
   is_active: boolean;
-  is_used: boolean;
   config?: Record<string, unknown> | null;
   credentials_encrypted?: string | null;
+  credentials_encrypted_status?: string | null;
+  credentials_encrypted_message?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -16,11 +17,9 @@ export type PaymentMethod = {
   business_id?: string | null;
   provider_id: string;
   name: string;
-  code: string;
-  category: string;
   is_active: boolean;
   sort_order: number;
-  icon_url?: string | null;
+  config?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   provider?: PaymentProvider | null;

@@ -56,6 +56,7 @@ export type Payment = {
   gateway_name?: string | null;
   gateway_transaction_id?: string | null;
   metadata?: unknown;
+  payment_instruction?: PaymentInstruction | null;
   paid_at?: string | null;
   failed_at?: string | null;
   created_at: string;
@@ -101,7 +102,6 @@ export type OrderPaymentProvider = {
   name: string;
   provider_key: string;
   is_active: boolean;
-  is_used?: boolean;
   config?: {
     bank_name?: string;
     account_number?: string;
@@ -110,6 +110,35 @@ export type OrderPaymentProvider = {
     reference?: string;
     instructions?: string;
   };
+};
+
+export type PaymentInstruction = {
+  type: "va" | "qris" | "redirect" | "ewallet" | "cash" | "cstore" | string;
+  display_name: string;
+  virtual_account_number?: string | null;
+  bank_code?: string | null;
+  qr_string?: string | null;
+  redirect_url?: string | null;
+  amount: number;
+  currency: string;
+  expired_at?: string | null;
+  steps?: string[];
+  extra_info?: Record<string, unknown> | null;
+};
+
+export type OrderPaymentMethod = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  provider_id: string;
+  business_id?: string | null;
+  config?: Record<string, unknown> | null;
+  provider?: {
+    id: string;
+    name: string;
+    provider_key: string;
+  } | null;
 };
 
 export type MyOrderDetailResponse = {
@@ -227,6 +256,21 @@ export async function getMyOrderByID(orderID: string): Promise<MyOrderDetailResp
   return customerApiRequest<MyOrderDetailResponse>(`/api/order/orders/me/${encodeURIComponent(orderID)}`, { method: "GET" });
 }
 
+export async function listOrderPaymentMethods(businessID: string): Promise<{ data: OrderPaymentMethod[] }> {
+  const apiUrl = getApiUrl();
+  if (!apiUrl) throw new Error("PUBLIC_API_URL belum dikonfigurasi");
+  const qs = businessID ? `?business_id=${encodeURIComponent(businessID)}` : "";
+  const response = await fetch(`${apiUrl}/api/order/payment-methods${qs}`, {
+    method: "GET",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error((payload as { error?: string; message?: string })?.error || (payload as { error?: string; message?: string })?.message || `HTTP ${response.status}`);
+  }
+  return response.json() as Promise<{ data: OrderPaymentMethod[] }>;
+}
+
 export async function updateMyOrderShippingAddress(orderID: string, addressID: string): Promise<{ data: Order }> {
   return customerApiRequest<{ data: Order }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/shipping-address`, {
     method: "POST",
@@ -234,12 +278,12 @@ export async function updateMyOrderShippingAddress(orderID: string, addressID: s
   });
 }
 
-export async function startMyOrderPayment(orderID: string, payload: FormData | Record<string, unknown>): Promise<{ data: Payment }> {
+export async function startMyOrderPayment(orderID: string, payload: FormData | Record<string, unknown>): Promise<{ data: Payment; payment_instruction?: PaymentInstruction }> {
   const init: RequestInit = {
     method: "POST",
     body: payload instanceof FormData ? payload : JSON.stringify(payload),
   };
-  return customerApiRequest<{ data: Payment }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/start-payment`, init);
+  return customerApiRequest<{ data: Payment; payment_instruction?: PaymentInstruction }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/start-payment`, init);
 }
 
 export async function listMyOrderPaymentProofs(orderID: string, paymentID: string): Promise<{ data: PaymentProof[] }> {

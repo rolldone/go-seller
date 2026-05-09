@@ -1,0 +1,2 @@
+ALTER TABLE payment_methods
+    ADD COLUMN IF NOT EXISTS config JSONB NOT NULL DEFAULT '{}';

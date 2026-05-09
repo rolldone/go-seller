@@ -541,7 +541,7 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 								{payments.map((payment) => (
 									<div key={payment.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
 										<div className="flex items-center justify-between gap-3">
-											<p className="font-medium text-slate-900">{payment.provider_key || payment.payment_method || payment.id}</p>
+											<p className="font-medium text-slate-900">{payment.payment_method || payment.gateway_name || payment.provider_key || payment.id}</p>
 											<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.status)}`}>{payment.status}</span>
 										</div>
 										<p className="mt-1 text-xs text-slate-500">{money(payment.currency, payment.amount)} · {payment.external_reference || payment.provider_transaction_id || "-"}</p>

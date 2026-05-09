@@ -15,7 +15,6 @@ export type UpsertProviderPayload = {
   name: string;
   provider_key: string;
   is_active: boolean;
-  is_used?: boolean;
   config?: Record<string, unknown>;
   credentials_encrypted?: string;
 };
@@ -33,6 +32,13 @@ export async function createPaymentProvider(payload: UpsertProviderPayload): Pro
 
 export async function updatePaymentProvider(id: string, payload: UpsertProviderPayload): Promise<PaymentProvider> {
   const res = await adminPut<ProviderItemResponse>(`/admin/order/payment-providers/${id}`, payload);
+  return res.data;
+}
+
+export async function replacePaymentProviderSecret(id: string, credentialsEncrypted: string): Promise<PaymentProvider> {
+  const res = await adminPost<ProviderItemResponse>(`/admin/order/payment-providers/${id}/replace-secret`, {
+    credentials_encrypted: credentialsEncrypted,
+  });
   return res.data;
 }
 
@@ -69,21 +75,17 @@ export type UpsertMethodPayload = {
   business_id?: string;
   provider_id: string;
   name: string;
-  code: string;
-  category?: string;
   is_active: boolean;
   sort_order?: number;
-  icon_url?: string;
+  config?: Record<string, unknown>;
 };
 
 export async function listPaymentMethods(params?: {
   provider_id?: string;
-  category?: string;
   include_inactive?: boolean;
 }): Promise<PaymentMethod[]> {
   const sp = new URLSearchParams();
   if (params?.provider_id) sp.set("provider_id", params.provider_id);
-  if (params?.category) sp.set("category", params.category);
   if (params?.include_inactive) sp.set("include_inactive", "true");
   const q = sp.toString();
   const res = await adminGet<MethodListResponse>(`/admin/order/payment-methods${q ? `?${q}` : ""}`);

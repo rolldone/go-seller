@@ -14,8 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"go_framework/internal/secrets"
 	"go_framework/internal/storage"
 	"go_framework/plugins/order/models"
+	"go_framework/plugins/payment_gateway/pgwtypes"
+	pgwservices "go_framework/plugins/payment_gateway/services"
 	pluginregistry "go_framework/plugins/plugin_registry"
 
 	"go_framework/internal/uuid"
@@ -27,10 +30,34 @@ type PaymentService struct {
 	DB                   *gorm.DB
 	Store                storage.Store
 	SellerBalanceService *SellerBalanceService
+	AdapterRegistry      *pgwtypes.Registry
 }
 
 func NewPaymentService(db *gorm.DB, store storage.Store, sbService *SellerBalanceService) *PaymentService {
-	return &PaymentService{DB: db, Store: store, SellerBalanceService: sbService}
+	registry := pgwtypes.NewRegistry()
+	registry.Register(pgwservices.NewMidtransAdapter())
+	registry.Register(pgwservices.NewXenditAdapter())
+	registry.Register(pgwservices.NewDuitkuAdapter())
+	registry.Register(pgwservices.NewTripayAdapter())
+	registry.Register(pgwservices.NewIPaymuAdapter())
+
+	return &PaymentService{
+		DB:                   db,
+		Store:                store,
+		SellerBalanceService: sbService,
+		AdapterRegistry:      registry,
+	}
+}
+
+// NewPaymentServiceWithRegistry membuat PaymentService dengan adapter registry yang sudah terwire.
+func NewPaymentServiceWithRegistry(db *gorm.DB, store storage.Store, registry *pgwtypes.Registry) *PaymentService {
+	sbService := NewSellerBalanceService(db)
+	return &PaymentService{
+		DB:                   db,
+		Store:                store,
+		SellerBalanceService: sbService,
+		AdapterRegistry:      registry,
+	}
 }
 
 // PaymentStatus is the canonical set of payment status values used across the service.
@@ -55,7 +82,6 @@ type UpsertPaymentProviderInput struct {
 	Name                 string
 	ProviderKey          string
 	IsActive             bool
-	IsUsed               bool
 	Config               json.RawMessage
 	CredentialsEncrypted *string
 	UpdatedByAdminID     *string
@@ -125,6 +151,77 @@ func normalizeProviderKey(v string) string {
 	return strings.ToLower(strings.TrimSpace(v))
 }
 
+func normalizeEncryptedProviderCredentials(in *string) (*string, error) {
+	if in == nil {
+		return nil, nil
+	}
+	normalized, err := secrets.EnsureEncryptedBlob(*in)
+	if err != nil {
+		return nil, err
+	}
+	if normalized == "" {
+		return nil, nil
+	}
+	return &normalized, nil
+}
+
+// EncryptProviderCredentials inspects a provider `config` JSON blob, extracts
+// common secret keys (if present), encrypts them into an envelope using
+// internal/secrets.EncryptBlob, and returns a sanitized config (with secrets
+// removed) plus the encrypted credentials string pointer (or nil if no
+// secrets were found).
+func (s *PaymentService) EncryptProviderCredentials(providerKey string, config json.RawMessage) (json.RawMessage, *string, error) {
+	// If config is empty, nothing to do
+	if len(config) == 0 {
+		return config, nil, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(config, &m); err != nil {
+		return nil, nil, fmt.Errorf("invalid config JSON: %w", err)
+	}
+
+	// Candidate secret keys (include provider-specific and generic names)
+	secretKeys := []string{"server_key", "api_key", "secret_key", "private_key", "client_secret", "secret"}
+	// provider-specific additions
+	switch strings.ToLower(strings.TrimSpace(providerKey)) {
+	case "midtrans":
+		secretKeys = append([]string{"server_key"}, secretKeys...)
+	case "xendit":
+		secretKeys = append([]string{"api_key", "secret_key"}, secretKeys...)
+	}
+
+	secretMap := make(map[string]any)
+	for _, k := range secretKeys {
+		if v, ok := m[k]; ok {
+			secretMap[k] = v
+			delete(m, k)
+		}
+	}
+
+	if len(secretMap) == 0 {
+		// nothing to encrypt; return original config unchanged
+		return config, nil, nil
+	}
+
+	// marshal secret map and encrypt
+	secretB, err := json.Marshal(secretMap)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal secret keys: %w", err)
+	}
+	enc, err := secrets.EncryptBlob(secretB)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to encrypt credentials: %w", err)
+	}
+
+	// marshal sanitized config back
+	newCfg, err := json.Marshal(m)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal sanitized config: %w", err)
+	}
+	encStr := enc
+	return json.RawMessage(newCfg), &encStr, nil
+}
+
 func (s *PaymentService) ListProviders(ctx context.Context, f PaymentProviderFilter) ([]models.PaymentProvider, error) {
 	var items []models.PaymentProvider
 	q := s.DB.WithContext(ctx).Model(&models.PaymentProvider{}).Where("deleted_at IS NULL")
@@ -166,6 +263,28 @@ func (s *PaymentService) CreateProvider(ctx context.Context, in UpsertPaymentPro
 	if providerKey == "" {
 		return nil, errors.New("provider_key is required")
 	}
+	var creds *string
+	var credsErr error
+	config := in.Config
+
+	if in.CredentialsEncrypted != nil {
+		creds, credsErr = normalizeEncryptedProviderCredentials(in.CredentialsEncrypted)
+		if credsErr != nil {
+			return nil, fmt.Errorf("credentials_encrypted: %w", credsErr)
+		}
+	} else {
+		// attempt to extract secret keys from config and encrypt them automatically
+		newCfg, enc, err := s.EncryptProviderCredentials(providerKey, in.Config)
+		if err != nil {
+			return nil, fmt.Errorf("credentials_encrypted: %w", err)
+		}
+		if enc != nil {
+			creds = enc
+		}
+		if len(newCfg) > 0 {
+			config = newCfg
+		}
+	}
 
 	item := &models.PaymentProvider{
 		ID:                   uuid.NewString(),
@@ -173,9 +292,8 @@ func (s *PaymentService) CreateProvider(ctx context.Context, in UpsertPaymentPro
 		Name:                 strings.TrimSpace(in.Name),
 		ProviderKey:          providerKey,
 		IsActive:             in.IsActive,
-		IsUsed:               in.IsUsed,
-		Config:               in.Config,
-		CredentialsEncrypted: in.CredentialsEncrypted,
+		Config:               config,
+		CredentialsEncrypted: creds,
 		CreatedByAdminID:     in.UpdatedByAdminID,
 		UpdatedByAdminID:     in.UpdatedByAdminID,
 		CreatedAt:            time.Now(),
@@ -185,18 +303,11 @@ func (s *PaymentService) CreateProvider(ctx context.Context, in UpsertPaymentPro
 		item.Config = []byte("{}")
 	}
 
-	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if item.IsUsed {
-			if err := tx.Model(&models.PaymentProvider{}).
-				Where("deleted_at IS NULL").
-				Update("is_used", false).Error; err != nil {
-				return err
-			}
-		}
+	txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return tx.Create(item).Error
 	})
-	if err != nil {
-		return nil, err
+	if txErr != nil {
+		return nil, txErr
 	}
 	return item, nil
 }
@@ -214,28 +325,61 @@ func (s *PaymentService) UpdateProvider(ctx context.Context, id string, in Upser
 		item.ProviderKey = normalizeProviderKey(in.ProviderKey)
 	}
 	item.IsActive = in.IsActive
-	item.IsUsed = in.IsUsed
 	item.BusinessID = in.BusinessID
 	if len(in.Config) > 0 {
-		item.Config = in.Config
+		// If credentials_encrypted is explicitly provided, prefer it and keep config as-is.
+		if in.CredentialsEncrypted != nil {
+			item.Config = in.Config
+		} else {
+			// attempt to auto-encrypt secret fields inside the provided config
+			newCfg, enc, err := s.EncryptProviderCredentials(item.ProviderKey, in.Config)
+			if err != nil {
+				return nil, fmt.Errorf("credentials_encrypted: %w", err)
+			}
+			item.Config = newCfg
+			if enc != nil {
+				item.CredentialsEncrypted = enc
+			}
+		}
 	}
 	if in.CredentialsEncrypted != nil {
-		item.CredentialsEncrypted = in.CredentialsEncrypted
+		creds, err := normalizeEncryptedProviderCredentials(in.CredentialsEncrypted)
+		if err != nil {
+			return nil, fmt.Errorf("credentials_encrypted: %w", err)
+		}
+		item.CredentialsEncrypted = creds
 	}
 	item.UpdatedByAdminID = in.UpdatedByAdminID
 	item.UpdatedAt = time.Now()
 
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if item.IsUsed {
-			if err := tx.Model(&models.PaymentProvider{}).
-				Where("deleted_at IS NULL AND id <> ?", item.ID).
-				Update("is_used", false).Error; err != nil {
-				return err
-			}
-		}
 		return tx.Save(&item).Error
 	})
 	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *PaymentService) ReplaceProviderCredentials(ctx context.Context, id string, credentialsEncrypted *string, adminID *string) (*models.PaymentProvider, error) {
+	var item models.PaymentProvider
+	if err := s.DB.WithContext(ctx).Where("id = ? AND deleted_at IS NULL", id).First(&item).Error; err != nil {
+		return nil, err
+	}
+
+	creds, err := normalizeEncryptedProviderCredentials(credentialsEncrypted)
+	if err != nil {
+		return nil, fmt.Errorf("credentials_encrypted: %w", err)
+	}
+	if creds == nil || strings.TrimSpace(*creds) == "" {
+		return nil, errors.New("credentials_encrypted is required")
+	}
+
+	item.CredentialsEncrypted = creds
+	item.UpdatedByAdminID = adminID
+	item.UpdatedAt = time.Now()
+
+	if err := s.DB.WithContext(ctx).Save(&item).Error; err != nil {
 		return nil, err
 	}
 	return &item, nil
@@ -1056,7 +1200,6 @@ func (s *PaymentService) GetReconciliationReport(ctx context.Context, f PaymentR
 type PaymentMethodFilter struct {
 	BusinessID      *string
 	ProviderID      *string
-	Category        *string
 	IncludeInactive bool
 }
 
@@ -1064,11 +1207,9 @@ type UpsertPaymentMethodInput struct {
 	BusinessID *string
 	ProviderID string
 	Name       string
-	Code       string
-	Category   string
 	IsActive   bool
 	SortOrder  int
-	IconURL    *string
+	Config     json.RawMessage
 }
 
 func (s *PaymentService) ListPaymentMethods(ctx context.Context, f PaymentMethodFilter) ([]models.PaymentMethod, error) {
@@ -1080,9 +1221,6 @@ func (s *PaymentService) ListPaymentMethods(ctx context.Context, f PaymentMethod
 	}
 	if f.ProviderID != nil && strings.TrimSpace(*f.ProviderID) != "" {
 		q = q.Where("payment_methods.provider_id = ?", strings.TrimSpace(*f.ProviderID))
-	}
-	if f.Category != nil && strings.TrimSpace(*f.Category) != "" {
-		q = q.Where("payment_methods.category = ?", strings.TrimSpace(*f.Category))
 	}
 	if !f.IncludeInactive {
 		q = q.Where("payment_methods.is_active = ?", true)
@@ -1108,10 +1246,6 @@ func (s *PaymentService) CreatePaymentMethod(ctx context.Context, in UpsertPayme
 	if strings.TrimSpace(in.ProviderID) == "" {
 		return nil, errors.New("provider_id is required")
 	}
-	code := strings.ToLower(strings.TrimSpace(in.Code))
-	if code == "" {
-		return nil, errors.New("code is required")
-	}
 
 	// verify provider exists
 	var provider models.PaymentProvider
@@ -1119,16 +1253,19 @@ func (s *PaymentService) CreatePaymentMethod(ctx context.Context, in UpsertPayme
 		return nil, errors.New("provider not found")
 	}
 
+	methodConfig := json.RawMessage("{}")
+	if len(in.Config) > 0 {
+		methodConfig = in.Config
+	}
+
 	item := &models.PaymentMethod{
 		ID:         uuid.NewString(),
 		BusinessID: in.BusinessID,
 		ProviderID: in.ProviderID,
 		Name:       strings.TrimSpace(in.Name),
-		Code:       code,
-		Category:   strings.ToLower(strings.TrimSpace(in.Category)),
 		IsActive:   in.IsActive,
 		SortOrder:  in.SortOrder,
-		IconURL:    in.IconURL,
+		Config:     []byte(methodConfig),
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
@@ -1154,19 +1291,13 @@ func (s *PaymentService) UpdatePaymentMethod(ctx context.Context, id string, in 
 	if strings.TrimSpace(in.Name) != "" {
 		item.Name = strings.TrimSpace(in.Name)
 	}
-	if strings.TrimSpace(in.Code) != "" {
-		item.Code = strings.ToLower(strings.TrimSpace(in.Code))
-	}
-	if strings.TrimSpace(in.Category) != "" {
-		item.Category = strings.ToLower(strings.TrimSpace(in.Category))
-	}
 	item.IsActive = in.IsActive
 	item.SortOrder = in.SortOrder
-	if in.IconURL != nil {
-		item.IconURL = in.IconURL
-	}
 	if in.BusinessID != nil {
 		item.BusinessID = in.BusinessID
+	}
+	if len(in.Config) > 0 {
+		item.Config = []byte(in.Config)
 	}
 	item.UpdatedAt = time.Now()
 
@@ -1194,4 +1325,20 @@ func (s *PaymentService) ResolveProviderByMethodID(ctx context.Context, methodID
 		return nil, nil, errors.New("payment provider not configured for this method")
 	}
 	return method.Provider, &method, nil
+}
+
+// GetPaymentByGatewayTransactionID mencari Payment berdasarkan identifier gateway yang dikenal.
+// Digunakan oleh webhook handler untuk mencocokkan event dari gateway ke Payment internal.
+func (s *PaymentService) GetPaymentByGatewayTransactionID(ctx context.Context, gatewayTxID string) (*models.Payment, error) {
+	if strings.TrimSpace(gatewayTxID) == "" {
+		return nil, errors.New("gateway_transaction_id is required")
+	}
+	var p models.Payment
+	err := s.DB.WithContext(ctx).
+		Where("gateway_transaction_id = ? OR idempotency_key = ? OR provider_transaction_id = ? OR external_reference = ?", gatewayTxID, gatewayTxID, gatewayTxID, gatewayTxID).
+		First(&p).Error
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
 }

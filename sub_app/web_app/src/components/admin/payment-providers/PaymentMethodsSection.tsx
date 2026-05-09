@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { deletePaymentMethod, listPaymentMethods } from "./api";
 import type { PaymentMethod, PaymentProvider } from "./types";
 import { notifyError, notifySuccess } from "../../../lib/notification";
-import PaymentMethodModal, { METHOD_CATEGORIES } from "./PaymentMethodForm";
+import PaymentMethodModal from "./PaymentMethodForm";
 
 type Props = {
   providers: PaymentProvider[];
@@ -54,9 +54,6 @@ export default function PaymentMethodsSection({ providers }: Props) {
     }
   };
 
-  const categoryLabel = (cat: string) =>
-    METHOD_CATEGORIES.find((c) => c.value === cat)?.label ?? cat;
-
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex items-center justify-between mb-3">
@@ -106,8 +103,6 @@ export default function PaymentMethodsSection({ providers }: Props) {
             <thead className="bg-slate-50">
               <tr>
                 <th className="px-3 py-2 text-left">Nama</th>
-                <th className="px-3 py-2 text-left">Code</th>
-                <th className="px-3 py-2 text-left">Kategori</th>
                 <th className="px-3 py-2 text-left">Provider</th>
                 <th className="px-3 py-2 text-left">Aktif</th>
                 <th className="px-3 py-2 text-left">Order</th>
@@ -118,8 +113,6 @@ export default function PaymentMethodsSection({ providers }: Props) {
               {items.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50">
                   <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
-                  <td className="px-3 py-2 font-mono text-xs text-slate-600">{item.code}</td>
-                  <td className="px-3 py-2 text-slate-600">{categoryLabel(item.category)}</td>
                   <td className="px-3 py-2 text-slate-600">
                     {item.provider ? (
                       <span className="inline-flex items-center gap-1">

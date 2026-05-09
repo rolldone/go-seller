@@ -8,7 +8,6 @@ type PaymentProvider struct {
 	Name                 string     `gorm:"size:80" json:"name"`
 	ProviderKey          string     `gorm:"size:50;index" json:"provider_key"`
 	IsActive             bool       `gorm:"index" json:"is_active"`
-	IsUsed               bool       `gorm:"index" json:"is_used"`
 	Config               []byte     `gorm:"type:jsonb" json:"config"`
 	CredentialsEncrypted *string    `gorm:"type:text" json:"credentials_encrypted,omitempty"`
 	CreatedByAdminID     *string    `gorm:"type:uuid" json:"created_by_admin_id"`

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"go_framework/internal/secrets"
 	ordermodels "go_framework/plugins/order/models"
 	ordersvc "go_framework/plugins/order/services"
 
@@ -96,9 +97,12 @@ type createPaymentProviderReq struct {
 	Name                 string          `json:"name" binding:"required"`
 	ProviderKey          string          `json:"provider_key" binding:"required"`
 	IsActive             bool            `json:"is_active"`
-	IsUsed               bool            `json:"is_used"`
 	Config               json.RawMessage `json:"config"`
 	CredentialsEncrypted *string         `json:"credentials_encrypted"`
+}
+
+type replaceProviderSecretReq struct {
+	CredentialsEncrypted string `json:"credentials_encrypted" binding:"required"`
 }
 
 func (h *PaymentHandler) ListProviders(c *gin.Context) {
@@ -130,7 +134,6 @@ func (h *PaymentHandler) ListProviders(c *gin.Context) {
 			"name":                  p.Name,
 			"provider_key":          p.ProviderKey,
 			"is_active":             p.IsActive,
-			"is_used":               p.IsUsed,
 			"config":                cfg,
 			"credentials_encrypted": p.CredentialsEncrypted,
 			"created_by_admin_id":   p.CreatedByAdminID,
@@ -148,27 +151,46 @@ func (h *PaymentHandler) GetProvider(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "payment provider not found"})
 		return
 	}
-	var cfg interface{}
+	cfg := map[string]interface{}{}
 	if len(item.Config) > 0 {
 		if err := json.Unmarshal(item.Config, &cfg); err != nil {
 			cfg = map[string]interface{}{}
 		}
-	} else {
-		cfg = map[string]interface{}{}
+	}
+	credentialsStatus := "missing"
+	credentialsMessage := ""
+	if item.CredentialsEncrypted != nil && strings.TrimSpace(*item.CredentialsEncrypted) != "" {
+		decrypted, decryptErr := secrets.DecryptBlob(*item.CredentialsEncrypted)
+		if decryptErr != nil {
+			credentialsStatus = "decrypt_failed"
+			credentialsMessage = "Gagal decrypt kredensial. Isi ulang secret di Provider Config lalu simpan ulang."
+		} else {
+			var secretCfg map[string]interface{}
+			if err := json.Unmarshal(decrypted, &secretCfg); err != nil {
+				credentialsStatus = "invalid_json"
+				credentialsMessage = "Kredensial berhasil didekripsi, tetapi format JSON tidak valid. Isi ulang secret lalu simpan ulang."
+			} else {
+				for key, value := range secretCfg {
+					cfg[key] = value
+				}
+				credentialsStatus = "ok"
+			}
+		}
 	}
 	resp := gin.H{
-		"id":                    item.ID,
-		"business_id":           item.BusinessID,
-		"name":                  item.Name,
-		"provider_key":          item.ProviderKey,
-		"is_active":             item.IsActive,
-		"is_used":               item.IsUsed,
-		"config":                cfg,
-		"credentials_encrypted": item.CredentialsEncrypted,
-		"created_by_admin_id":   item.CreatedByAdminID,
-		"updated_by_admin_id":   item.UpdatedByAdminID,
-		"created_at":            item.CreatedAt,
-		"updated_at":            item.UpdatedAt,
+		"id":                            item.ID,
+		"business_id":                   item.BusinessID,
+		"name":                          item.Name,
+		"provider_key":                  item.ProviderKey,
+		"is_active":                     item.IsActive,
+		"config":                        cfg,
+		"credentials_encrypted_status":  credentialsStatus,
+		"credentials_encrypted_message": credentialsMessage,
+		"credentials_encrypted":         item.CredentialsEncrypted,
+		"created_by_admin_id":           item.CreatedByAdminID,
+		"updated_by_admin_id":           item.UpdatedByAdminID,
+		"created_at":                    item.CreatedAt,
+		"updated_at":                    item.UpdatedAt,
 	}
 	c.JSON(http.StatusOK, gin.H{"data": resp})
 }
@@ -189,7 +211,6 @@ func (h *PaymentHandler) CreateProvider(c *gin.Context) {
 		Name:                 req.Name,
 		ProviderKey:          req.ProviderKey,
 		IsActive:             req.IsActive,
-		IsUsed:               req.IsUsed,
 		Config:               req.Config,
 		CredentialsEncrypted: req.CredentialsEncrypted,
 		UpdatedByAdminID:     adminIDPtr,
@@ -217,11 +238,36 @@ func (h *PaymentHandler) UpdateProvider(c *gin.Context) {
 		Name:                 req.Name,
 		ProviderKey:          req.ProviderKey,
 		IsActive:             req.IsActive,
-		IsUsed:               req.IsUsed,
 		Config:               req.Config,
 		CredentialsEncrypted: req.CredentialsEncrypted,
 		UpdatedByAdminID:     adminIDPtr,
 	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": item})
+}
+
+func (h *PaymentHandler) ReplaceProviderSecret(c *gin.Context) {
+	var req replaceProviderSecretReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	secret := strings.TrimSpace(req.CredentialsEncrypted)
+	if secret == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "credentials_encrypted is required"})
+		return
+	}
+
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	var adminIDPtr *string
+	if adminID != "" {
+		adminIDPtr = &adminID
+	}
+
+	item, err := h.svc.ReplaceProviderCredentials(c.Request.Context(), c.Param("id"), &secret, adminIDPtr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -507,12 +553,9 @@ func (h *PaymentHandler) Report(c *gin.Context) {
 
 func (h *PaymentHandler) ListMethods(c *gin.Context) {
 	includeInactive := strings.EqualFold(c.Query("include_inactive"), "true")
-	var providerIDPtr, categoryPtr, businessIDPtr *string
+	var providerIDPtr, businessIDPtr *string
 	if v := strings.TrimSpace(c.Query("provider_id")); v != "" {
 		providerIDPtr = &v
-	}
-	if v := strings.TrimSpace(c.Query("category")); v != "" {
-		categoryPtr = &v
 	}
 	if v := strings.TrimSpace(c.Query("business_id")); v != "" {
 		businessIDPtr = &v
@@ -520,7 +563,6 @@ func (h *PaymentHandler) ListMethods(c *gin.Context) {
 	items, err := h.svc.ListPaymentMethods(c.Request.Context(), ordersvc.PaymentMethodFilter{
 		BusinessID:      businessIDPtr,
 		ProviderID:      providerIDPtr,
-		Category:        categoryPtr,
 		IncludeInactive: includeInactive,
 	})
 	if err != nil {
@@ -540,14 +582,12 @@ func (h *PaymentHandler) GetMethod(c *gin.Context) {
 }
 
 type upsertPaymentMethodReq struct {
-	BusinessID *string `json:"business_id"`
-	ProviderID string  `json:"provider_id" binding:"required"`
-	Name       string  `json:"name" binding:"required"`
-	Code       string  `json:"code" binding:"required"`
-	Category   string  `json:"category"`
-	IsActive   bool    `json:"is_active"`
-	SortOrder  int     `json:"sort_order"`
-	IconURL    *string `json:"icon_url"`
+	BusinessID *string         `json:"business_id"`
+	ProviderID string          `json:"provider_id" binding:"required"`
+	Name       string          `json:"name" binding:"required"`
+	IsActive   bool            `json:"is_active"`
+	SortOrder  int             `json:"sort_order"`
+	Config     json.RawMessage `json:"config"`
 }
 
 func (h *PaymentHandler) CreateMethod(c *gin.Context) {
@@ -560,11 +600,9 @@ func (h *PaymentHandler) CreateMethod(c *gin.Context) {
 		BusinessID: req.BusinessID,
 		ProviderID: req.ProviderID,
 		Name:       req.Name,
-		Code:       req.Code,
-		Category:   req.Category,
 		IsActive:   req.IsActive,
 		SortOrder:  req.SortOrder,
-		IconURL:    req.IconURL,
+		Config:     req.Config,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -583,11 +621,9 @@ func (h *PaymentHandler) UpdateMethod(c *gin.Context) {
 		BusinessID: req.BusinessID,
 		ProviderID: req.ProviderID,
 		Name:       req.Name,
-		Code:       req.Code,
-		Category:   req.Category,
 		IsActive:   req.IsActive,
 		SortOrder:  req.SortOrder,
-		IconURL:    req.IconURL,
+		Config:     req.Config,
 	})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

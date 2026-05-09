@@ -3,6 +3,7 @@ import { notifyError } from "../../../lib/notification";
 import { getPaymentReconciliationReport, listPaymentProviders } from "./api";
 import type { PaymentProvider, PaymentReconciliationItem, PaymentReconciliationSummary } from "./types";
 import PaymentProviderModal, { PROVIDER_OPTIONS } from "./PaymentProviderForm";
+import ProviderInfoModal from "./ProviderInfoModal";
 import PaymentMethodsSection from "./PaymentMethodsSection";
 import { formatAmount } from "../../../lib/amountFormat";
 
@@ -12,6 +13,8 @@ export default function PaymentProvidersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingProvider, setEditingProvider] = useState<PaymentProvider | null>(null);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [infoProvider, setInfoProvider] = useState<PaymentProvider | null>(null);
 
   const [reportRows, setReportRows] = useState<PaymentReconciliationItem[]>([]);
   const [reportSummary, setReportSummary] = useState<PaymentReconciliationSummary>({
@@ -71,6 +74,11 @@ export default function PaymentProvidersPage() {
     setModalOpen(true);
   };
 
+  const openInfo = (item: PaymentProvider) => {
+    setInfoProvider(item);
+    setInfoOpen(true);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -95,6 +103,8 @@ export default function PaymentProvidersPage() {
         onSaved={() => void loadProviders()}
       />
 
+      <ProviderInfoModal open={infoOpen} provider={infoProvider} onClose={() => setInfoOpen(false)} />
+
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold text-slate-900">Provider List</h4>
@@ -115,7 +125,6 @@ export default function PaymentProvidersPage() {
                   <th className="px-3 py-2 text-left">Name</th>
                   <th className="px-3 py-2 text-left">Provider Key</th>
                   <th className="px-3 py-2 text-left">Active</th>
-                  <th className="px-3 py-2 text-left">In Use</th>
                   <th className="px-3 py-2 text-right">Action</th>
                 </tr>
               </thead>
@@ -133,21 +142,15 @@ export default function PaymentProvidersPage() {
                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Inactive</span>
                       )}
                     </td>
-                    <td className="px-3 py-2">
-                      {item.is_used ? (
-                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">In Use</span>
-                      ) : (
-                        <span className="text-xs text-slate-400">—</span>
-                      )}
-                    </td>
                     <td className="px-3 py-2 text-right">
+                      <button type="button" onClick={() => openInfo(item)} className="mr-3 text-xs font-medium text-slate-700 hover:text-slate-900">Info</button>
                       <button type="button" onClick={() => openEdit(item)} className="text-xs font-medium text-slate-700 hover:text-slate-900">Edit</button>
                     </td>
                   </tr>
                 ))}
                 {items.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-4 text-center text-sm text-slate-500">Belum ada provider.</td>
+                    <td colSpan={4} className="px-3 py-4 text-center text-sm text-slate-500">Belum ada provider.</td>
                   </tr>
                 )}
               </tbody>

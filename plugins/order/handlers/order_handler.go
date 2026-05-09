@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	catalogservices "go_framework/plugins/catalog/services"
 	ordermodels "go_framework/plugins/order/models"
 	ordersvc "go_framework/plugins/order/services"
+	"go_framework/plugins/payment_gateway/pgwtypes"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -546,7 +548,6 @@ func (h *OrderHandler) MeGetByID(c *gin.Context) {
 			"name":         p.Name,
 			"provider_key": p.ProviderKey,
 			"is_active":    p.IsActive,
-			"is_used":      p.IsUsed,
 			"config":       config,
 		})
 	}
@@ -649,40 +650,57 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
 		return
 	}
+	strVal := func(value *string) string {
+		if value == nil {
+			return ""
+		}
+		return strings.TrimSpace(*value)
+	}
+	log.Printf("[order start-payment] begin order_id=%s customer_id=%s content_type=%s", c.Param("id"), customerID, c.GetHeader("Content-Type"))
 
 	req, isMultipart, err := parseGuestStartPaymentReq(c)
 	if err != nil {
+		log.Printf("[order start-payment] parse request failed order_id=%s customer_id=%s err=%v", c.Param("id"), customerID, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	log.Printf("[order start-payment] parsed request order_id=%s multipart=%t provider_id=%s provider_key=%s payment_method_id=%s payment_method=%s gateway_name=%s", c.Param("id"), isMultipart, strVal(req.ProviderID), strVal(req.ProviderKey), strVal(req.PaymentMethodID), strVal(req.PaymentMethod), strVal(req.GatewayName))
 
 	ord, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), c.Param("id"), customerID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Printf("[order start-payment] order not found order_id=%s customer_id=%s", c.Param("id"), customerID)
 			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
 			return
 		}
+		log.Printf("[order start-payment] load order failed order_id=%s customer_id=%s err=%v", c.Param("id"), customerID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	log.Printf("[order start-payment] loaded order order_id=%s status=%s payment_status=%s channel=%s grand_total=%.2f business_id=%s", ord.ID, ord.Status, ord.PaymentStatus, ord.Channel, ord.GrandTotal, strVal(ord.BusinessID))
 	if strings.EqualFold(ord.Status, "expired") || strings.EqualFold(ord.PaymentStatus, "expired") {
+		log.Printf("[order start-payment] order expired order_id=%s payment_status=%s status=%s", ord.ID, ord.PaymentStatus, ord.Status)
 		c.JSON(http.StatusConflict, gin.H{"error": "order expired"})
 		return
 	}
 	if !ordersvc.HasShippingAddress(ord) {
+		log.Printf("[order start-payment] shipping address missing order_id=%s", ord.ID)
 		c.JSON(http.StatusConflict, gin.H{"error": "shipping address is required"})
 		return
 	}
 	if strings.EqualFold(ord.Status, "awaiting_shipping") || strings.EqualFold(ord.Status, "pending_shipping") || strings.EqualFold(ord.Status, "awaiting_quote") ||
 		strings.EqualFold(ord.PaymentStatus, "awaiting_shipping") || strings.EqualFold(ord.PaymentStatus, "pending_shipping") || strings.EqualFold(ord.PaymentStatus, "awaiting_quote") {
+		log.Printf("[order start-payment] shipping quote pending order_id=%s status=%s payment_status=%s", ord.ID, ord.Status, ord.PaymentStatus)
 		c.JSON(http.StatusConflict, gin.H{"error": "shipping quote is pending; we will contact you via WhatsApp"})
 		return
 	}
 	if strings.EqualFold(ord.Channel, "web") && (strings.EqualFold(ord.Status, "pending") || strings.EqualFold(ord.PaymentStatus, "unpaid")) && !ordersvc.HasReadyShippingQuote(ord) {
+		log.Printf("[order start-payment] shipping quote not ready order_id=%s status=%s payment_status=%s", ord.ID, ord.Status, ord.PaymentStatus)
 		c.JSON(http.StatusConflict, gin.H{"error": "shipping quote is pending; we will contact you via WhatsApp"})
 		return
 	}
 	if strings.EqualFold(ord.PaymentStatus, "paid") || ord.PaidAt != nil {
+		log.Printf("[order start-payment] order already paid order_id=%s paid_at=%v payment_status=%s", ord.ID, ord.PaidAt, ord.PaymentStatus)
 		c.JSON(http.StatusConflict, gin.H{"error": "order already paid"})
 		return
 	}
@@ -690,8 +708,10 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 	var selectedProvider *ordermodels.PaymentProvider
 	var selectedMethodID *string
 	if req.PaymentMethodID != nil && strings.TrimSpace(*req.PaymentMethodID) != "" {
+		log.Printf("[order start-payment] resolving via payment_method_id order_id=%s payment_method_id=%s", ord.ID, strings.TrimSpace(*req.PaymentMethodID))
 		provider, method, resolveErr := h.paymentSvc.ResolveProviderByMethodID(c.Request.Context(), strings.TrimSpace(*req.PaymentMethodID))
 		if resolveErr != nil {
+			log.Printf("[order start-payment] resolve payment method failed order_id=%s payment_method_id=%s err=%v", ord.ID, strings.TrimSpace(*req.PaymentMethodID), resolveErr)
 			c.JSON(http.StatusBadRequest, gin.H{"error": resolveErr.Error()})
 			return
 		}
@@ -699,16 +719,21 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 		methodIDStr := method.ID
 		selectedMethodID = &methodIDStr
 		if req.PaymentMethod == nil || strings.TrimSpace(*req.PaymentMethod) == "" {
-			req.PaymentMethod = &method.Code
+			req.PaymentMethod = &method.Name
 		}
+		log.Printf("[order start-payment] resolved payment method order_id=%s provider_id=%s provider_key=%s method_id=%s method_name=%s", ord.ID, provider.ID, provider.ProviderKey, method.ID, method.Name)
 	} else if req.ProviderID != nil && strings.TrimSpace(*req.ProviderID) != "" {
+		log.Printf("[order start-payment] resolving via provider_id order_id=%s provider_id=%s", ord.ID, strings.TrimSpace(*req.ProviderID))
 		item, getErr := h.paymentSvc.GetProviderByID(c.Request.Context(), strings.TrimSpace(*req.ProviderID))
 		if getErr != nil {
+			log.Printf("[order start-payment] provider lookup failed order_id=%s provider_id=%s err=%v", ord.ID, strings.TrimSpace(*req.ProviderID), getErr)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "payment provider not found"})
 			return
 		}
 		selectedProvider = item
+		log.Printf("[order start-payment] resolved provider order_id=%s provider_id=%s provider_key=%s", ord.ID, item.ID, item.ProviderKey)
 	} else if req.ProviderKey != nil && strings.TrimSpace(*req.ProviderKey) != "" {
+		log.Printf("[order start-payment] resolving via provider_key order_id=%s provider_key=%s", ord.ID, strings.TrimSpace(*req.ProviderKey))
 		var businessIDPtr *string
 		if ord.BusinessID != nil && strings.TrimSpace(*ord.BusinessID) != "" {
 			bid := strings.TrimSpace(*ord.BusinessID)
@@ -716,6 +741,7 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 		}
 		items, listErr := h.paymentSvc.ListProviders(c.Request.Context(), ordersvc.PaymentProviderFilter{BusinessID: businessIDPtr, IncludeInactive: false})
 		if listErr != nil {
+			log.Printf("[order start-payment] list providers failed order_id=%s provider_key=%s err=%v", ord.ID, strings.TrimSpace(*req.ProviderKey), listErr)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": listErr.Error()})
 			return
 		}
@@ -726,17 +752,23 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 				break
 			}
 		}
+		if selectedProvider != nil {
+			log.Printf("[order start-payment] resolved provider by key order_id=%s provider_id=%s provider_key=%s", ord.ID, selectedProvider.ID, selectedProvider.ProviderKey)
+		}
 	}
 
 	if selectedProvider == nil {
+		log.Printf("[order start-payment] no provider resolved order_id=%s provider_id=%s provider_key=%s payment_method_id=%s", ord.ID, strVal(req.ProviderID), strVal(req.ProviderKey), strVal(req.PaymentMethodID))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "provider_id or provider_key is required"})
 		return
 	}
 	if !selectedProvider.IsActive {
+		log.Printf("[order start-payment] provider inactive order_id=%s provider_id=%s provider_key=%s", ord.ID, selectedProvider.ID, selectedProvider.ProviderKey)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "payment provider is inactive"})
 		return
 	}
 	if selectedProvider.BusinessID != nil && ord.BusinessID != nil && strings.TrimSpace(*selectedProvider.BusinessID) != strings.TrimSpace(*ord.BusinessID) {
+		log.Printf("[order start-payment] provider business mismatch order_id=%s provider_business_id=%s order_business_id=%s", ord.ID, strings.TrimSpace(*selectedProvider.BusinessID), strings.TrimSpace(*ord.BusinessID))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "provider business mismatch"})
 		return
 	}
@@ -752,6 +784,7 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 	if req.GatewayName != nil && strings.TrimSpace(*req.GatewayName) != "" {
 		gatewayName = strings.TrimSpace(*req.GatewayName)
 	}
+	log.Printf("[order start-payment] using provider order_id=%s provider_id=%s provider_key=%s payment_method=%s gateway_name=%s selected_method_id=%s", ord.ID, providerID, providerKey, paymentMethod, gatewayName, strVal(selectedMethodID))
 
 	metadata := map[string]any{
 		"source":      "customer_order",
@@ -761,15 +794,19 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 		metadata[k] = v
 	}
 	if providerKeyLower == "bank_transfer" {
+		log.Printf("[order start-payment] bank transfer branch order_id=%s payment_method=%s is_multipart=%t", ord.ID, paymentMethod, isMultipart)
 		if !isMultipart {
+			log.Printf("[order start-payment] bank transfer rejected because request is not multipart order_id=%s", ord.ID)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "bank transfer requires multipart form-data with proof upload"})
 			return
 		}
 		if req.SenderBank == nil {
+			log.Printf("[order start-payment] bank transfer rejected because sender bank missing order_id=%s", ord.ID)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "sender bank information is required for bank transfer"})
 			return
 		}
 		if strings.TrimSpace(req.SenderBank.BankName) == "" || strings.TrimSpace(req.SenderBank.AccountNumber) == "" || strings.TrimSpace(req.SenderBank.AccountHolder) == "" {
+			log.Printf("[order start-payment] bank transfer rejected because sender bank fields incomplete order_id=%s bank_name=%s account_number_present=%t account_holder_present=%t", ord.ID, strings.TrimSpace(req.SenderBank.BankName), strings.TrimSpace(req.SenderBank.AccountNumber) != "", strings.TrimSpace(req.SenderBank.AccountHolder) != "")
 			c.JSON(http.StatusBadRequest, gin.H{"error": "sender bank fields are required"})
 			return
 		}
@@ -804,10 +841,13 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 	metadataJSON, _ := json.Marshal(metadata)
 
 	cancelReason := "replaced by new customer order payment"
+	log.Printf("[order start-payment] cancelling previous pending payments order_id=%s", ord.ID)
 	if err := h.paymentSvc.CancelPendingPaymentsByOrder(c.Request.Context(), ord.ID, "customer", &customerID, &cancelReason); err != nil {
+		log.Printf("[order start-payment] cancel pending payments failed order_id=%s err=%v", ord.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	log.Printf("[order start-payment] creating payment record order_id=%s provider_key=%s payment_method=%s", ord.ID, providerKeyLower, paymentMethod)
 
 	payment := &ordermodels.Payment{
 		OrderID:         ord.ID,
@@ -825,31 +865,134 @@ func (h *OrderHandler) MeStartPayment(c *gin.Context) {
 		UpdatedAt:       time.Now(),
 	}
 	if err := h.paymentSvc.CreatePayment(c.Request.Context(), payment); err != nil {
+		log.Printf("[order start-payment] create payment record failed order_id=%s err=%v", ord.ID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	log.Printf("[order start-payment] payment record created order_id=%s payment_id=%s provider_key=%s", ord.ID, payment.ID, providerKeyLower)
 
 	if providerKeyLower == "bank_transfer" {
+		log.Printf("[order start-payment] bank transfer proof branch order_id=%s payment_id=%s", ord.ID, payment.ID)
 		mform, mErr := c.MultipartForm()
 		if mErr != nil {
+			log.Printf("[order start-payment] multipart parse failed order_id=%s payment_id=%s err=%v", ord.ID, payment.ID, mErr)
 			_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
 			c.JSON(http.StatusBadRequest, gin.H{"error": "proof file is required for bank transfer"})
 			return
 		}
 		files := mform.File["proof"]
 		if len(files) == 0 {
+			log.Printf("[order start-payment] proof file missing order_id=%s payment_id=%s", ord.ID, payment.ID)
 			_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
 			c.JSON(http.StatusBadRequest, gin.H{"error": "proof file is required for bank transfer"})
 			return
 		}
 		for _, fh := range files {
+			log.Printf("[order start-payment] uploading proof order_id=%s payment_id=%s filename=%s size=%d", ord.ID, payment.ID, fh.Filename, fh.Size)
 			if _, uploadErr := h.paymentSvc.UploadPaymentProofAsGuest(c.Request.Context(), payment.ID, customerID, fh, req.ProofNotes); uploadErr != nil {
+				log.Printf("[order start-payment] upload proof failed order_id=%s payment_id=%s filename=%s err=%v", ord.ID, payment.ID, fh.Filename, uploadErr)
 				_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
 				c.JSON(http.StatusBadRequest, gin.H{"error": uploadErr.Error()})
 				return
 			}
 		}
 		_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Where("id = ?", payment.ID).First(payment).Error
+		log.Printf("[order start-payment] bank transfer proof uploaded order_id=%s payment_id=%s", ord.ID, payment.ID)
+	} else if h.paymentSvc.AdapterRegistry != nil {
+		// Coba panggil payment gateway adapter jika tersedia
+		if adapter, ok := h.paymentSvc.AdapterRegistry.Get(providerKeyLower); ok {
+			var methodConfig []byte
+			if selectedMethodID != nil {
+				// Ambil method config dari DB jika payment method dipilih
+				if pm, pmErr := h.paymentSvc.GetPaymentMethodByID(c.Request.Context(), *selectedMethodID); pmErr == nil && pm != nil {
+					methodConfig = pm.Config
+				}
+			}
+
+			var customerName, customerEmail, customerPhone string
+			// Ambil data customer dari relasi jika tersedia
+			if ord.Customer != nil {
+				customerName = ord.Customer.Name
+				customerEmail = ord.Customer.Email
+				customerPhone = ord.Customer.Phone
+			}
+
+			adapterIn := pgwtypes.CreatePaymentInput{
+				OrderID:              ord.ID,
+				PaymentID:            payment.ID,
+				Amount:               ord.GrandTotal,
+				Currency:             ord.Currency,
+				MethodConfig:         methodConfig,
+				ProviderConfig:       selectedProvider.Config,
+				CredentialsEncrypted: selectedProvider.CredentialsEncrypted,
+				CustomerName:         customerName,
+				CustomerEmail:        customerEmail,
+				CustomerPhone:        customerPhone,
+			}
+			log.Printf("[order start-payment] calling adapter order_id=%s payment_id=%s provider_key=%s method_id=%s", ord.ID, payment.ID, providerKeyLower, strVal(selectedMethodID))
+
+			gatewayResult, gatewayErr := adapter.CreatePayment(c.Request.Context(), adapterIn)
+			if gatewayErr != nil {
+				methodID := ""
+				if selectedMethodID != nil {
+					methodID = strings.TrimSpace(*selectedMethodID)
+				}
+				log.Printf("[order start-payment] gateway create failed order_id=%s payment_id=%s provider_key=%s method_id=%s err=%v", ord.ID, payment.ID, providerKeyLower, methodID, gatewayErr)
+
+				// Jika adapter gagal, hapus payment placeholder agar tidak menumpuk riwayat invalid.
+				_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
+				c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("failed to create gateway payment: %s", gatewayErr.Error())})
+				return
+			}
+			log.Printf("[order start-payment] gateway payment created order_id=%s payment_id=%s gateway_transaction_id=%s external_reference=%s instruction_type=%s", ord.ID, payment.ID, gatewayResult.GatewayTransactionID, strVal(gatewayResult.ExternalReference), gatewayResult.PaymentInstruction.Type)
+
+			// Simpan gateway transaction ID dan referensi ke payment
+			updates := map[string]any{
+				"gateway_transaction_id": gatewayResult.GatewayTransactionID,
+				"updated_at":             time.Now(),
+			}
+			if gatewayResult.ProviderTransactionID != nil {
+				updates["provider_transaction_id"] = *gatewayResult.ProviderTransactionID
+			}
+			if gatewayResult.ExternalReference != nil {
+				updates["external_reference"] = *gatewayResult.ExternalReference
+			}
+			if gatewayResult.ExpiredAt != nil {
+				updates["expired_at"] = *gatewayResult.ExpiredAt
+			}
+			if gatewayResult.RawResponse != nil {
+				updates["response_payload"] = string(gatewayResult.RawResponse)
+			}
+			if instrJSON, err := json.Marshal(gatewayResult.PaymentInstruction); err == nil {
+				updates["payment_instruction"] = string(instrJSON)
+			}
+			_ = h.paymentSvc.DB.WithContext(c.Request.Context()).
+				Model(&ordermodels.Payment{}).
+				Where("id = ?", payment.ID).
+				Updates(updates).Error
+			// Reload payment untuk mendapat data terbaru
+			_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Where("id = ?", payment.ID).First(payment).Error
+
+			// Sertakan instruksi pembayaran di response
+			instrJSON, _ := json.Marshal(gatewayResult.PaymentInstruction)
+			c.JSON(http.StatusCreated, gin.H{
+				"data":                payment,
+				"payment_instruction": json.RawMessage(instrJSON),
+			})
+			return
+		}
+
+		log.Printf("[order start-payment] payment gateway adapter not found order_id=%s payment_id=%s provider_key=%s", ord.ID, payment.ID, providerKeyLower)
+		_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment gateway adapter not found for provider"})
+		return
+	}
+
+	if providerKeyLower != "bank_transfer" {
+		log.Printf("[order start-payment] payment gateway registry not configured order_id=%s payment_id=%s provider_key=%s", ord.ID, payment.ID, providerKeyLower)
+		_ = h.paymentSvc.DB.WithContext(c.Request.Context()).Delete(&ordermodels.Payment{}, "id = ?", payment.ID).Error
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "payment gateway registry not configured"})
+		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{"data": payment})

@@ -6,6 +6,7 @@ import { createPaymentProvider, updatePaymentProvider } from "./api";
 import type { UpsertProviderPayload } from "./api";
 import type { PaymentProvider } from "./types";
 import { notifyError, notifySuccess } from "../../../lib/notification";
+import { buildPaymentFinishUrl } from "../../../lib/paymentRedirect";
 
 export type ProviderOption = {
   value: string;
@@ -16,6 +17,9 @@ export const PROVIDER_OPTIONS: ProviderOption[] = [
   { value: "paypal", label: "PayPal" },
   { value: "xendit", label: "Xendit" },
   { value: "midtrans", label: "Midtrans" },
+  { value: "duitku", label: "Duitku" },
+  { value: "tripay", label: "Tripay" },
+  { value: "ipaymu", label: "iPaymu" },
   { value: "doku", label: "Doku" },
   { value: "bank_transfer", label: "Bank Transfer" },
   { value: "cash", label: "Cash" },
@@ -25,10 +29,13 @@ type ProviderFormState = {
   name: string;
   provider_key: string;
   is_active: boolean;
-  is_used: boolean;
-  credentials_encrypted: string;
   config: Record<string, unknown>;
 };
+
+type CredentialsNotice = {
+  tone: "warning" | "error";
+  message: string;
+} | null;
 
 type ModalProps = {
   open: boolean;
@@ -58,6 +65,33 @@ export function defaultProviderConfig(providerKey: string): Record<string, unkno
         client_key: "",
         merchant_id: "",
         snap_url: "",
+      };
+    case "duitku":
+      return {
+        merchant_code: "",
+        api_key: "",
+        callback_url: "",
+        return_url: "",
+        is_production: "false",
+      };
+    case "tripay":
+      return {
+        merchant_code: "",
+        api_key: "",
+        private_key: "",
+        callback_url: "",
+        return_url: "",
+        is_production: "false",
+      };
+    case "ipaymu":
+      return {
+        va: "",
+        api_key: "",
+        callback_url: "",
+        return_url: "",
+        success_url: "",
+        cancel_url: "",
+        is_production: "false",
       };
     case "doku":
       return {
@@ -99,6 +133,62 @@ function asString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+function getPaymentFinishUrl(): string {
+  if (typeof window === "undefined" || !window.location?.origin) {
+    return "";
+  }
+  return buildPaymentFinishUrl(window.location.origin);
+}
+
+function withProviderRedirectDefaults(providerKey: string, config: Record<string, unknown>): Record<string, unknown> {
+  const finishUrl = getPaymentFinishUrl();
+  if (!finishUrl) {
+    return config;
+  }
+
+  if (providerKey === "xendit") {
+    if (asString(config.callback_url).trim()) {
+      return config;
+    }
+    return {
+      ...config,
+      callback_url: finishUrl,
+    };
+  }
+
+  if (providerKey === "duitku") {
+    const nextConfig = { ...config };
+    if (!asString(nextConfig.return_url).trim()) {
+      nextConfig.return_url = finishUrl;
+    }
+    return nextConfig;
+  }
+
+  if (providerKey === "tripay") {
+    const nextConfig = { ...config };
+    if (!asString(nextConfig.return_url).trim()) {
+      nextConfig.return_url = finishUrl;
+    }
+    return nextConfig;
+  }
+
+  if (providerKey === "ipaymu") {
+    const nextConfig = { ...config };
+    if (!asString(nextConfig.return_url).trim()) {
+      nextConfig.return_url = finishUrl;
+    }
+    if (!asString(nextConfig.success_url).trim()) {
+      nextConfig.success_url = finishUrl;
+    }
+    if (!asString(nextConfig.cancel_url).trim()) {
+      nextConfig.cancel_url = finishUrl;
+    }
+    return nextConfig;
+  }
+
+  return config;
+}
+
 function ConfigInput({
   label,
   value,
@@ -121,6 +211,34 @@ function ConfigInput({
       ) : (
         <input className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} />
       )}
+    </label>
+  );
+}
+
+function ConfigSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  const baseClass =
+    "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100";
+
+  return (
+    <label className="text-sm">
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</span>
+      <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -167,6 +285,63 @@ function ProviderConfigSwitch({
           <ConfigInput label="Snap URL" value={asString(config.snap_url)} onChange={(v) => setConfigField("snap_url", v)} />
         </div>
       );
+    case "duitku":
+      return (
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+          <ConfigInput label="Merchant Code" value={asString(config.merchant_code)} onChange={(v) => setConfigField("merchant_code", v)} />
+          <ConfigInput label="API Key" value={asString(config.api_key)} onChange={(v) => setConfigField("api_key", v)} />
+          <ConfigInput label="Callback URL" value={asString(config.callback_url)} onChange={(v) => setConfigField("callback_url", v)} />
+          <ConfigInput label="Return URL" value={asString(config.return_url)} onChange={(v) => setConfigField("return_url", v)} />
+          <ConfigSelect
+            label="Is Production"
+            value={asString(config.is_production)}
+            onChange={(v) => setConfigField("is_production", v)}
+            options={[
+              { value: "false", label: "Sandbox" },
+              { value: "true", label: "Production" },
+            ]}
+          />
+        </div>
+      );
+    case "tripay":
+      return (
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+          <ConfigInput label="Merchant Code" value={asString(config.merchant_code)} onChange={(v) => setConfigField("merchant_code", v)} />
+          <ConfigInput label="API Key" value={asString(config.api_key)} onChange={(v) => setConfigField("api_key", v)} />
+          <ConfigInput label="Private Key" value={asString(config.private_key)} onChange={(v) => setConfigField("private_key", v)} />
+          <ConfigInput label="Callback URL" value={asString(config.callback_url)} onChange={(v) => setConfigField("callback_url", v)} />
+          <ConfigInput label="Return URL" value={asString(config.return_url)} onChange={(v) => setConfigField("return_url", v)} />
+          <ConfigSelect
+            label="Is Production"
+            value={asString(config.is_production)}
+            onChange={(v) => setConfigField("is_production", v)}
+            options={[
+              { value: "false", label: "Sandbox" },
+              { value: "true", label: "Production" },
+            ]}
+          />
+        </div>
+      );
+    case "ipaymu":
+      return (
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
+          <ConfigInput label="VA" value={asString(config.va)} onChange={(v) => setConfigField("va", v)} />
+          <ConfigInput label="API Key" value={asString(config.api_key)} onChange={(v) => setConfigField("api_key", v)} />
+          <ConfigInput label="Callback URL (notifyUrl)" value={asString(config.callback_url)} onChange={(v) => setConfigField("callback_url", v)} />
+          <ConfigInput label="Return URL" value={asString(config.return_url)} onChange={(v) => setConfigField("return_url", v)} />
+          <ConfigInput label="Success URL" value={asString(config.success_url)} onChange={(v) => setConfigField("success_url", v)} />
+          <ConfigInput label="Cancel URL" value={asString(config.cancel_url)} onChange={(v) => setConfigField("cancel_url", v)} />
+          <ConfigSelect
+            label="Is Production"
+            value={asString(config.is_production)}
+            onChange={(v) => setConfigField("is_production", v)}
+            options={[
+              { value: "false", label: "Sandbox" },
+              { value: "true", label: "Production" },
+            ]}
+          />
+        </div>
+      );
     case "doku":
       return (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
@@ -210,13 +385,12 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
     name: "",
     provider_key: "bank_transfer",
     is_active: false,
-    is_used: false,
-    credentials_encrypted: "",
     config: defaultProviderConfig("bank_transfer"),
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [loadingData, setLoadingData] = useState(false);
+  const [credentialsNotice, setCredentialsNotice] = useState<CredentialsNotice>(null);
 
   const inputClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100";
@@ -225,6 +399,7 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
   useEffect(() => {
     if (!open) return;
     setError("");
+    setCredentialsNotice(null);
     if (mode === "edit" && initialData?.id) {
       setLoadingData(true);
       void (async () => {
@@ -255,10 +430,17 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
             name: p.name,
             provider_key: p.provider_key || "bank_transfer",
             is_active: !!p.is_active,
-            is_used: !!p.is_used,
-            credentials_encrypted: p.credentials_encrypted || "",
-            config: normalizeProviderConfig(p.provider_key || "bank_transfer", cfg),
+            config: withProviderRedirectDefaults(p.provider_key || "bank_transfer", normalizeProviderConfig(p.provider_key || "bank_transfer", cfg)),
           });
+          const status = String(p.credentials_encrypted_status || "").toLowerCase();
+          const message = String(p.credentials_encrypted_message || "").trim();
+          if (status === "decrypt_failed" || status === "invalid_json") {
+            setCredentialsNotice({
+              tone: "error",
+              message:
+                message || "Gagal decrypt kredensial. Isi ulang secret di Provider Config lalu simpan ulang.",
+            });
+          }
         } catch {
           notifyError("Gagal memuat data provider");
           onClose();
@@ -271,8 +453,6 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
         name: "",
         provider_key: "bank_transfer",
         is_active: false,
-        is_used: false,
-        credentials_encrypted: "",
         config: defaultProviderConfig("bank_transfer"),
       });
     }
@@ -289,8 +469,9 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
       ...prev,
       provider_key: providerKey,
       name: prev.name.trim() ? prev.name : `${label} Primary`,
-      config: normalizeProviderConfig(providerKey, {}),
+      config: withProviderRedirectDefaults(providerKey, normalizeProviderConfig(providerKey, {})),
     }));
+    setCredentialsNotice(null);
   };
 
   const handleSubmit = async () => {
@@ -303,9 +484,7 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
         name: form.name.trim(),
         provider_key: form.provider_key,
         is_active: form.is_active,
-        is_used: form.is_used,
         config: form.config,
-        credentials_encrypted: form.credentials_encrypted.trim() || undefined,
       };
       if (mode === "edit" && initialData?.id) {
         await updatePaymentProvider(initialData.id, payload);
@@ -324,6 +503,7 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
   };
 
   return (
+    <>
     <AdminModal
       open={open}
       title={mode === "edit" ? "Edit Payment Provider" : "Create Payment Provider"}
@@ -356,8 +536,20 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
         <div className="space-y-5">
           <div className="rounded-2xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Payment Provider Profile</p>
-            <p className="text-sm text-slate-600">Pilih provider, isi kredensial sesuai tipe provider, lalu sistem simpan sebagai JSON config.</p>
+            <p className="text-sm text-slate-600">Pilih provider, isi config termasuk field secret yang dibutuhkan, lalu backend akan mengekstrak dan mengenkripsinya otomatis saat save.</p>
           </div>
+
+          {credentialsNotice ? (
+            <div
+              className={
+                credentialsNotice.tone === "error"
+                  ? "rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"
+                  : "rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+              }
+            >
+              {credentialsNotice.message}
+            </div>
+          ) : null}
 
           <section className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
             <h4 className="mb-3 text-sm font-semibold text-slate-900">Informasi Dasar</h4>
@@ -379,16 +571,6 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
                   ))}
                 </select>
               </label>
-              <label className="text-sm md:col-span-2">
-                <span className={labelClass}>Encrypted Credential (Optional)</span>
-                <textarea
-                  className={inputClass}
-                  rows={2}
-                  value={form.credentials_encrypted}
-                  onChange={(e) => setField({ credentials_encrypted: e.target.value })}
-                  placeholder="Isi blob terenkripsi dari external secrets manager"
-                />
-              </label>
             </div>
           </section>
 
@@ -399,6 +581,9 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
               config={form.config || {}}
               onConfigChange={(nextConfig) => setField({ config: nextConfig })}
             />
+            <p className="mt-3 text-xs text-slate-500">
+              Field seperti <span className="font-semibold">server_key</span>, <span className="font-semibold">api_key</span>, atau <span className="font-semibold">secret_key</span> cukup diisi di sini. Backend akan memindahkannya ke secret storage secara otomatis saat save.
+            </p>
             <div className="mt-3 rounded-xl border border-slate-200 bg-slate-900 p-3 text-xs text-slate-100">
               <p className="mb-1 text-[11px] uppercase tracking-wide text-emerald-300">Generated JSON Config</p>
               <pre className="overflow-x-auto whitespace-pre-wrap break-all">{JSON.stringify(form.config || {}, null, 2)}</pre>
@@ -420,18 +605,6 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
                   <p className="text-xs text-slate-500">Provider ini tersedia dan bisa dipilih saat membuat payment</p>
                 </div>
               </label>
-              <label className="inline-flex flex-1 items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm min-w-[200px]">
-                <input
-                  type="checkbox"
-                  checked={form.is_used}
-                  onChange={(e) => setField({ is_used: e.target.checked })}
-                  className="mt-0.5"
-                />
-                <div>
-                  <p className="font-semibold text-emerald-800">Is Used (Default Global)</p>
-                  <p className="text-xs text-emerald-600">Satu provider yang sedang digunakan. Jika dipilih, yang lain akan di-unset otomatis.</p>
-                </div>
-              </label>
             </div>
           </section>
 
@@ -439,5 +612,6 @@ export default function PaymentProviderModal({ open, mode, initialData, onClose,
         </div>
       )}
     </AdminModal>
+    </>
   );
 }

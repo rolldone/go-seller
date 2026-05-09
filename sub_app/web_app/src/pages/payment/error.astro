@@ -1,0 +1,7 @@
+---
+export const prerender = false;
+
+import { buildPaymentReturnRedirectPath } from "@/lib/paymentRedirect";
+
+return Astro.redirect(buildPaymentReturnRedirectPath("error", Astro.url.searchParams), 302);
+---

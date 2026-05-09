@@ -72,6 +72,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminPaymentProviders.GET("/:id", paymentHandler.GetProvider)
 	adminPaymentProviders.POST("", paymentHandler.CreateProvider)
 	adminPaymentProviders.PUT("/:id", paymentHandler.UpdateProvider)
+	adminPaymentProviders.POST("/:id/replace-secret", paymentHandler.ReplaceProviderSecret)
 	adminPaymentProviders.POST("/:id/activate", paymentHandler.ActivateProvider)
 
 	adminPaymentMethods := adminOrder.Group("/payment-methods")
