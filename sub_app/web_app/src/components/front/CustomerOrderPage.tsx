@@ -50,6 +50,7 @@ type ReviewAttachmentMeta = {
 
 const MAX_REVIEW_ATTACHMENTS = 5;
 const MAX_REVIEW_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+const EMPTY_PAYMENTS: Payment[] = [];
 
 function createEmptyReviewDraft(existing?: Partial<ReviewDraft>): ReviewDraft {
   return {
@@ -160,13 +161,34 @@ function parseMetadata(value: unknown): Record<string, any> | null {
   }
 }
 
-function pickLatestPaymentInstruction(payments?: Payment[] | null): PaymentInstruction | null {
+function getPaymentSortTime(payment: Payment): number {
+  const updatedAt = Date.parse(payment.updated_at || "");
+  if (!Number.isNaN(updatedAt)) return updatedAt;
+  const createdAt = Date.parse(payment.created_at || "");
+  if (!Number.isNaN(createdAt)) return createdAt;
+  return 0;
+}
+
+function pickLatestPayment(payments?: Payment[] | null): Payment | null {
   if (!payments || payments.length === 0) return null;
-  for (let index = payments.length - 1; index >= 0; index -= 1) {
-    const instruction = payments[index]?.payment_instruction;
-    if (instruction) return instruction;
+  return payments.reduce<Payment | null>((latest, payment) => {
+    if (!latest) return payment;
+    return getPaymentSortTime(payment) >= getPaymentSortTime(latest) ? payment : latest;
+  }, null);
+}
+
+function isActivePaymentState(value?: string | null): boolean {
+  const status = normalizePaymentState(value);
+  return status === "pending" || status === "pending_verification";
+}
+
+function pickLatestPaymentInstruction(payments?: Payment[] | null): PaymentInstruction | null {
+  const latestPayment = pickLatestPayment(payments);
+  if (!latestPayment) return null;
+  if (!isActivePaymentState(latestPayment.status)) {
+    return null;
   }
-  return null;
+  return latestPayment.payment_instruction ?? null;
 }
 
 function parseShippingQuote(orderMetadata: unknown): Record<string, any> | null {
@@ -228,6 +250,39 @@ function isAwaitingShippingQuote(
     return true;
   }
   return false;
+}
+
+const TERMINAL_PAYMENT_STATUSES = new Set([
+  "paid",
+  "succeeded",
+  "failed",
+  "cancelled",
+  "canceled",
+  "expired",
+  "rejected",
+  "completed",
+]);
+
+function normalizePaymentState(value?: string | null): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isTerminalPaymentState(value?: string | null): boolean {
+  return TERMINAL_PAYMENT_STATUSES.has(normalizePaymentState(value));
+}
+
+function shouldMonitorPaymentStatus(
+  orderStatus?: string | null,
+  paymentStatus?: string | null,
+  latestPaymentStatus?: string | null,
+  paymentInstruction?: PaymentInstruction | null,
+  paymentCount = 0,
+): boolean {
+  if (isTerminalPaymentState(orderStatus) || isTerminalPaymentState(paymentStatus) || isTerminalPaymentState(latestPaymentStatus)) {
+    return false;
+  }
+
+  return Boolean(paymentInstruction || paymentCount > 0);
 }
 
 
@@ -400,6 +455,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, ReviewDraft>>({});
   const [submittingReviewItemID, setSubmittingReviewItemID] = useState("");
   const [reviewError, setReviewError] = useState("");
+  const [paymentPollingEnabled, setPaymentPollingEnabled] = useState(false);
 
   const t = useTranslations();
 
@@ -434,6 +490,9 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       const response = await getMyOrderByID(resolvedOrderID);
       setDetail(response.data);
       setPaymentInstruction(pickLatestPaymentInstruction(response.data.payments ?? response.data.order?.payments ?? null));
+      if ((response.data.payments ?? response.data.order?.payments ?? []).length > 0) {
+        setPaymentPollingEnabled(true);
+      }
       const defaultProviderID = response.data.providers?.[0]?.id || "";
       setSelectedProviderID((current) => current || defaultProviderID);
       // Fetch payment methods
@@ -589,6 +648,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   useEffect(() => {
     if (typeof window === "undefined") return;
     setStatusMessage("");
+    setPaymentPollingEnabled(false);
     if (!getCustomerAuthToken()) {
       window.location.replace(buildCustomerAuthLoginUrl(window.location.pathname + window.location.search + window.location.hash));
       return;
@@ -604,7 +664,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
 
   const order = detail?.order ?? null;
   const business = (detail?.business as PublicBusiness | null | undefined) ?? null;
-  const payments = detail?.payments || [];
+  const payments = detail?.payments ?? EMPTY_PAYMENTS;
   const providers = detail?.providers || [];
   const appliedCoupons = order?.applied_coupons || [];
   const selectedMethod = paymentMethods.find((m) => m.id === selectedMethodID) || null;
@@ -612,7 +672,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     ? (providers.find((p) => p.id === selectedMethod.provider_id) ?? null)
     : (providers.find((item) => item.id === selectedProviderID) ?? null);
   const isBankTransfer = (selectedProvider?.provider_key || "").toLowerCase() === "bank_transfer";
-  const latestPayment = payments[0] || null;
+  const latestPayment = pickLatestPayment(payments);
   const latestBankTransferMeta = parseMetadata(latestPayment?.metadata)?.bank_transfer || null;
   const shippingQuote = parseShippingQuote(order?.metadata);
   const shippingAddress = parseShippingAddress(order?.metadata);
@@ -656,6 +716,54 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
         .filter((item) => item.amount > 0),
     [order?.extra_charges, t],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !resolvedOrderID || !order?.id || !paymentPollingEnabled) return;
+
+    const latestPaymentStatus = latestPayment?.status || null;
+    if (
+      isTerminalPaymentState(order.status) ||
+      isTerminalPaymentState(order.payment_status) ||
+      isTerminalPaymentState(latestPaymentStatus)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const pollPaymentStatus = async () => {
+      try {
+        const response = await getMyOrderByID(resolvedOrderID);
+        if (cancelled) return;
+
+        const nextOrder = response.data.order;
+        const nextPayments = response.data.payments || [];
+        const nextLatestPayment = pickLatestPayment(nextPayments);
+        const nextLatestPaymentStatus = nextLatestPayment?.status || null;
+
+        if (
+          isTerminalPaymentState(nextOrder.status) ||
+          isTerminalPaymentState(nextOrder.payment_status) ||
+          isTerminalPaymentState(nextLatestPaymentStatus)
+        ) {
+          cancelled = true;
+          window.location.reload();
+        }
+      } catch {
+        // Keep polling on transient network/API errors.
+      }
+    };
+
+    void pollPaymentStatus();
+    const timer = window.setInterval(() => {
+      void pollPaymentStatus();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [resolvedOrderID, order?.id, order?.status, order?.payment_status, payments.length, latestPayment?.status, paymentPollingEnabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -745,8 +853,17 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
           provider_id: selectedProvider.id,
           ...(selectedMethodID ? { payment_method_id: selectedMethodID } : {}),
         });
-        setPaymentInstruction(res.data.payment_instruction ?? res.payment_instruction ?? null);
+        const instruction = res.data.payment_instruction ?? res.payment_instruction ?? null;
+        setPaymentInstruction(instruction);
+        if (instruction?.redirect_url) {
+          setPaymentPollingEnabled(true);
+          notifySuccess(t("redirectingToPayment", "Mengalihkan ke halaman pembayaran..."));
+          window.location.assign(instruction.redirect_url);
+          return;
+        }
       }
+
+      setPaymentPollingEnabled(true);
 
       notifySuccess(t("paymentCreated", "Pembayaran berhasil dibuat."));
       if (isBankTransfer) {

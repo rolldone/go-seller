@@ -4,8 +4,35 @@ export const prerender = false;
 import "../../styles/front.css";
 import { normalizePaymentReturnStatus } from "@/lib/paymentRedirect";
 
+const apiBase = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";
 const paymentStatus = normalizePaymentReturnStatus(Astro.url.searchParams.get("payment_status"));
+const orderID = String(Astro.url.searchParams.get("order_id") || "").trim();
 const paymentID = String(Astro.url.searchParams.get("payment_id") || "").trim();
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 1500): Promise<Response> {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    return await fetch(input, { ...init, signal: controller?.signal ?? init.signal });
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function resolveOrderIDFromPayment(paymentID: string): Promise<string> {
+  if (!apiBase || !paymentID) return "";
+  try {
+    const res = await fetchWithTimeout(`${apiBase}/api/order/payments/${encodeURIComponent(paymentID)}`);
+    if (!res.ok) return "";
+    const payload = await res.json().catch(() => ({}));
+    return String(payload?.data?.order_id || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+const lookupOrderID = !orderID && paymentID ? await resolveOrderIDFromPayment(paymentID) : "";
+const resolvedOrderID = orderID || lookupOrderID;
 
 const toneClass =
 	paymentStatus === "error"
@@ -34,6 +61,8 @@ const description =
 		: paymentStatus === "unfinish"
 			? "Anda belum menyelesaikan pembayaran. Buka ulang halaman order untuk melanjutkan."
 			: "Terima kasih — pembayaran Anda sedang diproses dan akan diverifikasi oleh tim kami.";
+
+const orderDetailLink = resolvedOrderID ? `/order/${resolvedOrderID}` : null;
 ---
 
 <html lang="id">
@@ -44,11 +73,30 @@ const description =
   </head>
   <body class="bg-slate-100 text-slate-900 antialiased">
     <main class="mx-auto min-h-screen w-full max-w-4xl px-4 py-8">
-      <div class={`rounded-lg border p-6 ${toneClass}`}>
-        <h1 class="text-lg font-semibold text-slate-900">{heading}</h1>
-        <p class="mt-2 text-sm text-slate-800">{description}</p>
-        {paymentID ? <p class="mt-2 text-xs text-slate-600">Payment ID: {paymentID}</p> : null}
-        <p class="mt-3 text-xs text-slate-600">Jika Anda membutuhkan bantuan, silakan hubungi kami.</p>
+      <div class={`rounded-lg border p-6 shadow-md ${toneClass}`}>
+        <h1 class="text-2xl font-bold text-slate-900">{heading}</h1>
+        <p class="mt-4 text-base text-slate-800">{description}</p>
+        {paymentID && (
+          <p class="mt-4 text-sm text-slate-600 font-mono">Payment ID: {paymentID}</p>
+        )}
+        {orderDetailLink && (
+          <div class="mt-6">
+            <a
+              href={orderDetailLink}
+              class="inline-block rounded bg-blue-600 px-4 py-2 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              Lihat Detail Order Anda
+            </a>
+          </div>
+        )}
+        {!orderDetailLink && paymentID && (
+          <p class="mt-6 text-sm text-slate-500">
+            Detail order belum bisa ditemukan otomatis.
+          </p>
+        )}
+        <p class="mt-6 text-xs text-slate-600">
+          Jika Anda membutuhkan bantuan, silakan hubungi kami.
+        </p>
       </div>
     </main>
   </body>

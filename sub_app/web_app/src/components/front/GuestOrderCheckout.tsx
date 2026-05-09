@@ -550,10 +550,21 @@ export default function GuestOrderCheckout({ token }: { token?: string }) {
         });
       }
       setLastPayment(res.data);
+        try {
+          const paymentID = String(res.data.id || "").trim();
+          const orderID = String(order.id || "").trim();
+          if (paymentID && orderID) {
+            const storageKey = `payment_order_id:${paymentID}`;
+            window.sessionStorage.setItem(storageKey, orderID);
+            window.localStorage.setItem(storageKey, orderID);
+          }
+        } catch {
+          // Ignore storage failures; the confirmation URL still carries the order id.
+        }
       // redirect to thank-you page and include payment id
       try {
         const pid = String(res.data.id || "").trim();
-        window.location.href = buildPaymentConfirmationPath(pid);
+          window.location.href = buildPaymentConfirmationPath(pid, order.id);
         return;
       } catch (e) {
         // fallback: keep inline confirmation

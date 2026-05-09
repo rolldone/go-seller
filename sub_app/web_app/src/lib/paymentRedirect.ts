@@ -26,11 +26,19 @@ export function resolvePaymentReturnPaymentID(searchParams: URLSearchParams): st
 	return String(searchParams.get("payment_id") || searchParams.get("order_id") || "").trim();
 }
 
-export function buildPaymentConfirmationPath(paymentID?: string | null, status?: PaymentReturnStatus | null): string {
+export function buildPaymentConfirmationPath(
+	paymentID?: string | null,
+	orderID?: string | null,
+	status?: PaymentReturnStatus | null,
+): string {
 	const params = new URLSearchParams();
 	const normalizedPaymentID = String(paymentID || "").trim();
 	if (normalizedPaymentID) {
 		params.set("payment_id", normalizedPaymentID);
+	}
+	const normalizedOrderID = String(orderID || "").trim();
+	if (normalizedOrderID) {
+		params.set("order_id", normalizedOrderID);
 	}
 	const normalizedStatus = normalizePaymentReturnStatus(status);
 	if (normalizedStatus) {
@@ -41,5 +49,5 @@ export function buildPaymentConfirmationPath(paymentID?: string | null, status?:
 }
 
 export function buildPaymentReturnRedirectPath(status: PaymentReturnStatus, searchParams: URLSearchParams): string {
-	return buildPaymentConfirmationPath(resolvePaymentReturnPaymentID(searchParams), status);
+	return buildPaymentConfirmationPath(resolvePaymentReturnPaymentID(searchParams), null, status);
 }

@@ -10,6 +10,8 @@ import { notifyError, notifySuccess } from "../../../lib/notification";
 type MidtransMethodConfig = {
   bank: string;
   charge_type: string;
+  biller_code?: string;
+  company_code?: string;
 };
 
 type XenditMethodConfig = {
@@ -19,6 +21,7 @@ type XenditMethodConfig = {
 
 type DuitkuMethodConfig = {
   payment_method: string;
+  mode: string;
 };
 
 type TripayMethodConfig = {
@@ -28,9 +31,233 @@ type TripayMethodConfig = {
 type IPaymuMethodConfig = {
   payment_method: string;
   payment_channel: string;
+  mode: string;
 };
 
 type MethodConfig = MidtransMethodConfig | XenditMethodConfig | DuitkuMethodConfig | TripayMethodConfig | IPaymuMethodConfig | Record<string, string>;
+
+const MIDTRANS_BANK_TRANSFER_BANKS = ["bca", "bni", "bri", "mandiri", "permata", "cimb"];
+const MIDTRANS_CSTORE_STORES = ["alfamart", "indomaret"];
+const XENDIT_VA_CHANNELS = ["BCA", "BNI", "BRI", "MANDIRI", "PERMATA", "BSI"];
+const XENDIT_EWALLET_CHANNELS = ["OVO", "DANA", "LINKAJA", "SHOPEEPAY", "JENIUSPAY"];
+const IPAYMU_DEFAULT_CHANNEL_BY_METHOD: Record<string, string> = {
+  va: "bca",
+  cstore: "indomaret",
+  qris: "qris",
+  cc: "cc",
+  paylater: "paylater",
+  cod: "cod",
+};
+const IPAYMU_KNOWN_CHANNELS = new Set([
+  ...MIDTRANS_BANK_TRANSFER_BANKS,
+  ...MIDTRANS_CSTORE_STORES,
+  ...XENDIT_VA_CHANNELS.map((value) => value.toLowerCase()),
+  ...XENDIT_EWALLET_CHANNELS.map((value) => value.toLowerCase()),
+  ...Object.values(IPAYMU_DEFAULT_CHANNEL_BY_METHOD),
+]);
+
+function toLower(value: string | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function toUpper(value: string | undefined): string {
+  return (value ?? "").trim().toUpperCase();
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toStringRecord(value: Record<string, unknown>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, rawValue] of Object.entries(value)) {
+    if (typeof rawValue === "string") {
+      result[key] = rawValue;
+    } else if (typeof rawValue === "number" || typeof rawValue === "boolean") {
+      result[key] = String(rawValue);
+    }
+  }
+  return result;
+}
+
+function parseConfigInput(value: unknown): Record<string, string> {
+  if (!value) {
+    return {};
+  }
+
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) {
+      return {};
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+      if (isPlainObject(parsed)) {
+        return toStringRecord(parsed);
+      }
+    } catch {
+      // not JSON, try base64 below
+    }
+
+    try {
+      const decoder = typeof globalThis.atob === "function" ? globalThis.atob : null;
+      if (decoder) {
+        const decoded = decoder(text);
+        const parsed = JSON.parse(decoded);
+        if (isPlainObject(parsed)) {
+          return toStringRecord(parsed);
+        }
+      }
+    } catch {
+      return {};
+    }
+
+    return {};
+  }
+
+  if (isPlainObject(value)) {
+    return toStringRecord(value);
+  }
+
+  return {};
+}
+
+function normalizeMethodConfig(providerKey: string, config: unknown): Record<string, string> {
+  const parsed = parseConfigInput(config);
+  switch (providerKey) {
+    case "midtrans":
+      return normalizeMidtransMethodConfig(parsed);
+    case "xendit":
+      return normalizeXenditMethodConfig(parsed);
+    case "duitku":
+      return normalizeDuitkuMethodConfig(parsed);
+    case "ipaymu":
+      return normalizeIPaymuMethodConfig(parsed);
+    default:
+      return parsed;
+  }
+}
+
+function normalizeDuitkuMethodConfig(config: Record<string, string>): Record<string, string> {
+  const mode = toLower(config.mode) || (toLower(config.payment_method) ? "direct" : "native");
+  if (mode === "native") {
+    return {
+      mode: "native",
+      payment_method: "",
+    };
+  }
+
+  return {
+    mode: "direct",
+    payment_method: toUpper(config.payment_method) || "BC",
+  };
+}
+
+function normalizeMidtransMethodConfig(config: Record<string, string>): Record<string, string> {
+  const chargeType = toLower(config.charge_type) || "bank_transfer";
+
+  if (chargeType === "bank_transfer") {
+    const bank = toLower(config.bank);
+    const normalized: Record<string, string> = {
+      charge_type: "bank_transfer",
+      bank: MIDTRANS_BANK_TRANSFER_BANKS.includes(bank) ? bank : "bca",
+    };
+    if (normalized.bank === "mandiri") {
+      const billerCode = toLower(config.biller_code);
+      const companyCode = toLower(config.company_code);
+      if (billerCode) normalized.biller_code = billerCode;
+      if (companyCode) normalized.company_code = companyCode;
+    }
+    return normalized;
+  }
+
+  if (chargeType === "cstore") {
+    const store = toLower(config.bank);
+    return {
+      charge_type: "cstore",
+      bank: MIDTRANS_CSTORE_STORES.includes(store) ? store : "alfamart",
+    };
+  }
+
+  if (chargeType === "gopay" || chargeType === "shopeepay" || chargeType === "qris") {
+    return { charge_type: chargeType };
+  }
+
+  if (chargeType === "native" || chargeType === "snap" || chargeType === "snap_redirect") {
+    return { charge_type: "native", mode: "native" };
+  }
+
+  return normalizeMidtransMethodConfig({ charge_type: "bank_transfer", mode: "direct" });
+}
+
+function normalizeXenditMethodConfig(config: Record<string, string>): Record<string, string> {
+  const rawType = toLower(config.type) || "virtual_account";
+  const type = rawType === "qris" ? "qr_code" : rawType;
+
+  if (type === "virtual_account") {
+    const channel = toUpper(config.channel_code) || "BCA";
+    return {
+      type: "virtual_account",
+      channel_code: XENDIT_VA_CHANNELS.includes(channel) ? channel : "BCA",
+    };
+  }
+
+  if (type === "ewallet") {
+    const channel = toUpper(config.channel_code) || "OVO";
+    return {
+      type: "ewallet",
+      channel_code: XENDIT_EWALLET_CHANNELS.includes(channel) ? channel : "OVO",
+    };
+  }
+
+  if (type === "qr_code") {
+    return { type: "qr_code" };
+  }
+
+  return normalizeXenditMethodConfig({ type: "virtual_account" });
+}
+
+function normalizeIPaymuMethodConfig(config: Record<string, string>): Record<string, string> {
+  const mode = toLower(config.mode) || "direct";
+  const method = toLower(config.payment_method) || "va";
+  const currentChannel = toLower(config.payment_channel);
+  const defaultChannel = IPAYMU_DEFAULT_CHANNEL_BY_METHOD[method] ?? method;
+
+  if (method === "qris") {
+    return { mode, payment_method: "qris", payment_channel: "qris" };
+  }
+
+  if (!currentChannel) {
+    return { mode, payment_method: method, payment_channel: defaultChannel };
+  }
+
+  if (method === "va") {
+    return {
+      mode,
+      payment_method: method,
+      payment_channel: MIDTRANS_BANK_TRANSFER_BANKS.includes(currentChannel) ? currentChannel : defaultChannel,
+    };
+  }
+
+  if (method === "cstore") {
+    return {
+      mode,
+      payment_method: method,
+      payment_channel: MIDTRANS_CSTORE_STORES.includes(currentChannel) ? currentChannel : defaultChannel,
+    };
+  }
+
+  return {
+    mode,
+    payment_method: method,
+    payment_channel: IPAYMU_KNOWN_CHANNELS.has(currentChannel) && currentChannel !== defaultChannel ? defaultChannel : currentChannel,
+  };
+}
+
+function normalizeProviderConfig(providerKey: string, config: unknown): Record<string, string> {
+  return normalizeMethodConfig(providerKey, config);
+}
 
 function defaultMethodConfig(providerKey: string): MethodConfig {
   switch (providerKey) {
@@ -39,11 +266,11 @@ function defaultMethodConfig(providerKey: string): MethodConfig {
     case "xendit":
       return { channel_code: "BCA", type: "virtual_account" };
     case "duitku":
-      return { payment_method: "BC" };
+      return { payment_method: "BC", mode: "direct" };
     case "tripay":
       return { method: "BRIVA" };
     case "ipaymu":
-      return { payment_method: "va", payment_channel: "bca" };
+      return { payment_method: "va", payment_channel: "bca", mode: "direct" };
     default:
       return {};
   }
@@ -68,7 +295,7 @@ function MethodConfigSwitch({
           <label className="block text-xs font-medium text-slate-700 mb-1">Tipe Charge</label>
           <select
             value={config.charge_type ?? "bank_transfer"}
-            onChange={(e) => set("charge_type", e.target.value)}
+            onChange={(e) => onChange(normalizeMidtransMethodConfig({ ...config, charge_type: e.target.value }))}
             className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="bank_transfer">Bank Transfer / VA</option>
@@ -76,6 +303,7 @@ function MethodConfigSwitch({
             <option value="shopeepay">ShopeePay</option>
             <option value="qris">QRIS</option>
             <option value="cstore">Convenience Store</option>
+            <option value="native">Lainnya (Native Gateway)</option>
           </select>
         </div>
         {(config.charge_type === "bank_transfer" || !config.charge_type) && (
@@ -120,7 +348,7 @@ function MethodConfigSwitch({
           <label className="block text-xs font-medium text-slate-700 mb-1">Tipe Pembayaran</label>
           <select
             value={config.type ?? "virtual_account"}
-            onChange={(e) => set("type", e.target.value)}
+            onChange={(e) => onChange(normalizeXenditMethodConfig({ ...config, type: e.target.value }))}
             className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="virtual_account">Virtual Account</option>
@@ -170,10 +398,21 @@ function MethodConfigSwitch({
       <div className="space-y-3 border border-slate-200 rounded p-3 bg-slate-50">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Konfigurasi Duitku</p>
         <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">Mode</label>
+          <select
+            value={config.mode ?? (config.payment_method ? "direct" : "native")}
+            onChange={(e) => onChange(normalizeDuitkuMethodConfig({ ...config, mode: e.target.value }))}
+            className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="direct">Direct / pilih metode sekarang</option>
+            <option value="native">Native / Hosted Page Duitku</option>
+          </select>
+        </div>
+        <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">Payment Method</label>
           <select
-            value={config.payment_method ?? "BC"}
-            onChange={(e) => set("payment_method", e.target.value)}
+            value={config.payment_method ?? ""}
+            onChange={(e) => onChange(normalizeDuitkuMethodConfig({ ...config, payment_method: e.target.value }))}
             className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="">Hosted Page Duitku (pilih metode di halaman Duitku)</option>
@@ -195,6 +434,9 @@ function MethodConfigSwitch({
             <option value="JP">Jenius Pay</option>
           </select>
         </div>
+        {config.mode === "native" ? (
+          <p className="text-xs text-slate-500">Mode native akan membuka halaman Duitku dan membiarkan user memilih metode di sana.</p>
+        ) : null}
       </div>
     );
   }
@@ -233,10 +475,21 @@ function MethodConfigSwitch({
       <div className="space-y-3 border border-slate-200 rounded p-3 bg-slate-50">
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Konfigurasi iPaymu</p>
         <div>
+          <label className="block text-xs font-medium text-slate-700 mb-1">Mode</label>
+          <select
+            value={config.mode ?? "direct"}
+            onChange={(e) => onChange(normalizeIPaymuMethodConfig({ ...config, mode: e.target.value }))}
+            className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          >
+            <option value="direct">Direct Payment</option>
+            <option value="native">Native Checkout</option>
+          </select>
+        </div>
+        <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">Payment Method</label>
           <select
             value={config.payment_method ?? "va"}
-            onChange={(e) => set("payment_method", e.target.value)}
+            onChange={(e) => onChange(normalizeIPaymuMethodConfig({ ...config, payment_method: e.target.value }))}
             className="w-full rounded border border-slate-300 px-3 py-2 text-sm"
           >
             <option value="va">Virtual Account</option>
@@ -284,12 +537,13 @@ type ModalProps = {
 
 const defaultForm = (providers: PaymentProvider[]): MethodFormState => {
   const firstProvider = providers[0];
+  const defaultConfig = defaultMethodConfig(firstProvider?.provider_key ?? "") as Record<string, string>;
   return {
     provider_id: firstProvider?.id ?? "",
     name: "",
     is_active: true,
     sort_order: 0,
-    config: defaultMethodConfig(firstProvider?.provider_key ?? "") as Record<string, string>,
+    config: normalizeProviderConfig(firstProvider?.provider_key ?? "", defaultConfig),
   };
 };
 
@@ -302,12 +556,16 @@ export default function PaymentMethodModal({ open, mode, initialData, providers,
   useEffect(() => {
     if (open) {
       if (mode === "edit" && initialData) {
+        const providerKey = initialData.provider?.provider_key ?? "";
         setForm({
           provider_id: initialData.provider_id,
           name: initialData.name,
           is_active: initialData.is_active,
           sort_order: initialData.sort_order ?? 0,
-          config: (initialData.config as Record<string, string>) ?? defaultMethodConfig(initialData.provider?.provider_key ?? "") as Record<string, string>,
+          config: normalizeProviderConfig(
+            providerKey,
+            (initialData.config as Record<string, string>) ?? (defaultMethodConfig(providerKey) as Record<string, string>),
+          ),
         });
       } else {
         setForm(defaultForm(providers));
@@ -324,7 +582,10 @@ export default function PaymentMethodModal({ open, mode, initialData, providers,
       setForm((prev) => ({
         ...prev,
         provider_id: value,
-        config: defaultMethodConfig(newProvider?.provider_key ?? "") as Record<string, string>,
+        config: normalizeProviderConfig(
+          newProvider?.provider_key ?? "",
+          defaultMethodConfig(newProvider?.provider_key ?? "") as Record<string, string>,
+        ),
       }));
       return;
     }
@@ -338,12 +599,13 @@ export default function PaymentMethodModal({ open, mode, initialData, providers,
     e.preventDefault();
     setSaving(true);
     try {
+      const providerKey = selectedProvider?.provider_key ?? "";
       const payload: UpsertMethodPayload = {
         provider_id: form.provider_id,
         name: form.name.trim(),
         is_active: form.is_active,
         sort_order: form.sort_order,
-        config: Object.keys(form.config).length > 0 ? form.config : undefined,
+        config: normalizeProviderConfig(providerKey, form.config),
       };
       if (mode === "edit" && initialData) {
         await updatePaymentMethod(initialData.id, payload);
