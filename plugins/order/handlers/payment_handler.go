@@ -492,7 +492,7 @@ func (h *PaymentHandler) ListProofs(c *gin.Context) {
 
 func (h *PaymentHandler) LookupByID(c *gin.Context) {
 	paymentID := strings.TrimSpace(c.Param("payment_id"))
-	payment, err := h.svc.GetPaymentByID(c.Request.Context(), paymentID)
+	lookup, err := h.svc.GetPaymentLookupContextByID(c.Request.Context(), paymentID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
@@ -501,7 +501,7 @@ func (h *PaymentHandler) LookupByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{"id": payment.ID, "order_id": payment.OrderID}})
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"id": lookup.PaymentID, "order_id": lookup.OrderID, "customer_locale": lookup.CustomerLocale}})
 }
 
 func (h *PaymentHandler) DeleteProof(c *gin.Context) {

@@ -2,7 +2,9 @@
 export const prerender = false;
 
 import "../../styles/front.css";
+import { useTranslations } from "@/i18n";
 import { normalizePaymentReturnStatus } from "@/lib/paymentRedirect";
+import { normalizeLocale } from "@/lib/siteLocale";
 
 const apiBase = import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";
 const paymentStatus = normalizePaymentReturnStatus(Astro.url.searchParams.get("payment_status"));
@@ -19,20 +21,33 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
-async function resolveOrderIDFromPayment(paymentID: string): Promise<string> {
-  if (!apiBase || !paymentID) return "";
+type PaymentLookupResponse = {
+  data?: {
+    id?: string;
+    order_id?: string;
+    customer_locale?: string;
+  };
+};
+
+async function resolvePaymentContext(paymentID: string): Promise<{ orderID: string; customerLocale: string }> {
+  if (!apiBase || !paymentID) return { orderID: "", customerLocale: "" };
   try {
     const res = await fetchWithTimeout(`${apiBase}/api/order/payments/${encodeURIComponent(paymentID)}`);
-    if (!res.ok) return "";
-    const payload = await res.json().catch(() => ({}));
-    return String(payload?.data?.order_id || "").trim();
+    if (!res.ok) return { orderID: "", customerLocale: "" };
+    const payload = (await res.json().catch(() => ({}))) as PaymentLookupResponse;
+    return {
+      orderID: String(payload?.data?.order_id || "").trim(),
+      customerLocale: String(payload?.data?.customer_locale || "").trim(),
+    };
   } catch {
-    return "";
+    return { orderID: "", customerLocale: "" };
   }
 }
 
-const lookupOrderID = !orderID && paymentID ? await resolveOrderIDFromPayment(paymentID) : "";
-const resolvedOrderID = orderID || lookupOrderID;
+const paymentContext = paymentID ? await resolvePaymentContext(paymentID) : { orderID: "", customerLocale: "" };
+const resolvedOrderID = orderID || paymentContext.orderID;
+const locale = normalizeLocale(paymentContext.customerLocale);
+const t = useTranslations("common", locale);
 
 const toneClass =
 	paymentStatus === "error"
@@ -41,43 +56,41 @@ const toneClass =
 			? "border-amber-200 bg-amber-50"
 			: "border-emerald-200 bg-emerald-50";
 
-const title =
+const statusCopy =
 	paymentStatus === "error"
-		? "Pembayaran gagal | GoSeller"
+		? {
+			title: t("paymentConfirmationTitle", "Konfirmasi Pembayaran"),
+			heading: t("paymentConfirmationErrorHeading", "Pembayaran gagal"),
+			description: t("paymentConfirmationErrorDescription", "Transaksi belum berhasil diproses. Silakan coba lagi dari halaman order."),
+		}
 		: paymentStatus === "unfinish"
-			? "Pembayaran belum selesai | GoSeller"
-			: "Konfirmasi Pembayaran | GoSeller";
-
-const heading =
-	paymentStatus === "error"
-		? "Pembayaran gagal"
-		: paymentStatus === "unfinish"
-			? "Pembayaran belum selesai"
-			: "Konfirmasi diterima";
-
-const description =
-	paymentStatus === "error"
-		? "Transaksi belum berhasil diproses. Silakan coba lagi dari halaman order."
-		: paymentStatus === "unfinish"
-			? "Anda belum menyelesaikan pembayaran. Buka ulang halaman order untuk melanjutkan."
-			: "Terima kasih — pembayaran Anda sedang diproses dan akan diverifikasi oleh tim kami.";
+			? {
+				title: t("paymentConfirmationTitle", "Konfirmasi Pembayaran"),
+				heading: t("paymentConfirmationUnfinishHeading", "Pembayaran belum selesai"),
+				description: t("paymentConfirmationUnfinishDescription", "Anda belum menyelesaikan pembayaran. Buka ulang halaman order untuk melanjutkan."),
+			}
+			: {
+				title: t("paymentConfirmationTitle", "Konfirmasi Pembayaran"),
+				heading: t("paymentConfirmationSuccessHeading", "Konfirmasi diterima"),
+				description: t("paymentConfirmationSuccessDescription", "Terima kasih — pembayaran Anda sedang diproses dan akan diverifikasi oleh tim kami."),
+			};
 
 const orderDetailLink = resolvedOrderID ? `/order/${resolvedOrderID}` : null;
 ---
 
-<html lang="id">
+<html lang={locale}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
-    <title>{title}</title>
+    <title>{statusCopy.title} | GoSeller</title>
   </head>
   <body class="bg-slate-100 text-slate-900 antialiased">
     <main class="mx-auto min-h-screen w-full max-w-4xl px-4 py-8">
       <div class={`rounded-lg border p-6 shadow-md ${toneClass}`}>
-        <h1 class="text-2xl font-bold text-slate-900">{heading}</h1>
-        <p class="mt-4 text-base text-slate-800">{description}</p>
+        <h1 class="text-2xl font-bold text-slate-900">{statusCopy.heading}</h1>
+        <p class="mt-4 text-base text-slate-800">{statusCopy.description}</p>
         {paymentID && (
-          <p class="mt-4 text-sm text-slate-600 font-mono">Payment ID: {paymentID}</p>
+          <p class="mt-4 text-sm text-slate-600 font-mono">{t("paymentConfirmationPaymentIdLabel", "Payment ID:")} {paymentID}</p>
         )}
         {orderDetailLink && (
           <div class="mt-6">
@@ -85,17 +98,17 @@ const orderDetailLink = resolvedOrderID ? `/order/${resolvedOrderID}` : null;
               href={orderDetailLink}
               class="inline-block rounded bg-blue-600 px-4 py-2 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
             >
-              Lihat Detail Order Anda
+              {t("paymentConfirmationOrderLink", "Lihat Detail Order Anda")}
             </a>
           </div>
         )}
         {!orderDetailLink && paymentID && (
           <p class="mt-6 text-sm text-slate-500">
-            Detail order belum bisa ditemukan otomatis.
+            {t("paymentConfirmationOrderMissing", "Detail order belum bisa ditemukan otomatis.")}
           </p>
         )}
         <p class="mt-6 text-xs text-slate-600">
-          Jika Anda membutuhkan bantuan, silakan hubungi kami.
+          {t("paymentConfirmationHelpText", "Jika Anda membutuhkan bantuan, silakan hubungi kami.")}
         </p>
       </div>
     </main>

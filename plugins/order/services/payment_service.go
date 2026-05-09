@@ -1343,6 +1343,12 @@ func (s *PaymentService) GetPaymentByGatewayTransactionID(ctx context.Context, g
 	return &p, nil
 }
 
+type PaymentLookupContext struct {
+	PaymentID      string
+	OrderID        string
+	CustomerLocale string
+}
+
 // GetPaymentByID loads a payment by its primary key so callers can resolve the related order.
 func (s *PaymentService) GetPaymentByID(ctx context.Context, paymentID string) (*models.Payment, error) {
 	if strings.TrimSpace(paymentID) == "" {
@@ -1353,4 +1359,37 @@ func (s *PaymentService) GetPaymentByID(ctx context.Context, paymentID string) (
 		return nil, err
 	}
 	return &p, nil
+}
+
+// GetPaymentLookupContextByID loads payment and order context for public redirects.
+func (s *PaymentService) GetPaymentLookupContextByID(ctx context.Context, paymentID string) (*PaymentLookupContext, error) {
+	if strings.TrimSpace(paymentID) == "" {
+		return nil, errors.New("payment_id is required")
+	}
+
+	var payment models.Payment
+	if err := s.DB.WithContext(ctx).Where("id = ?", paymentID).First(&payment).Error; err != nil {
+		return nil, err
+	}
+
+	result := &PaymentLookupContext{
+		PaymentID:      payment.ID,
+		OrderID:        payment.OrderID,
+		CustomerLocale: "id",
+	}
+
+	if strings.TrimSpace(payment.OrderID) == "" {
+		return result, nil
+	}
+
+	var order models.Order
+	if err := s.DB.WithContext(ctx).Preload("Customer").Where("id = ?", payment.OrderID).First(&order).Error; err != nil {
+		return result, nil
+	}
+
+	if order.Customer != nil && strings.EqualFold(strings.TrimSpace(order.Customer.Locale), "en") {
+		result.CustomerLocale = "en"
+	}
+
+	return result, nil
 }
