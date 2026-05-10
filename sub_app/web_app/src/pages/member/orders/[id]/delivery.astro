@@ -1,0 +1,9 @@
+---
+import MemberLayout from "../../../../layouts/MemberLayout.astro";
+import OrderDeliveryPage from "@/components/member/orders/OrderDeliveryPage";
+export const prerender = false;
+---
+
+<MemberLayout title="Kelola Pengiriman" subtitle="Kelola shipment dan delivery order milik toko.">
+	<OrderDeliveryPage client:load />
+</MemberLayout>

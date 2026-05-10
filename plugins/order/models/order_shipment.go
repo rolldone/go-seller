@@ -15,8 +15,8 @@ type OrderShipment struct {
 	EstimatedDelivery string  `gorm:"size:100;not null;default:''" json:"estimated_delivery"`
 	Description       string  `gorm:"type:text;not null;default:''" json:"description"`
 	Notes             string  `gorm:"type:text;not null;default:''" json:"notes"`
-	Status            string  `gorm:"size:24;not null;default:'pending'" json:"status"`
-	// status: pending | processing | shipped | delivered | cancelled
+	Status            string  `gorm:"size:32;not null;default:'pending'" json:"status"`
+	// status: pending | ready_to_ship | shipped | in_transit | delivered | exception | returned | cancelled
 	ShippedAt   *time.Time          `json:"shipped_at,omitempty"`
 	DeliveredAt *time.Time          `json:"delivered_at,omitempty"`
 	CreatedAt   time.Time           `gorm:"autoCreateTime" json:"created_at"`

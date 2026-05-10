@@ -303,6 +303,66 @@ func (h *MemberOrderHandler) Finalize(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(ord)})
 }
 
+func (h *MemberOrderHandler) RequestCustomerConfirmation(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	orderID := strings.TrimSpace(c.Param("id"))
+	if _, ok := memberOrderAccess(c, h.svc, h.catalogSvc, businessID, orderID); !ok {
+		return
+	}
+
+	var req requestCustomerConfirmationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	updated, err := h.svc.RequestCustomerConfirmation(c.Request.Context(), orderID, &req.Message)
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrCustomerConfirmationDisabled) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ordersvc.ErrCustomerConfirmationUnavailable) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
+func (h *MemberOrderHandler) UpsertDisputeNote(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	orderID := strings.TrimSpace(c.Param("id"))
+	if _, ok := memberOrderAccess(c, h.svc, h.catalogSvc, businessID, orderID); !ok {
+		return
+	}
+
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+
+	var req disputeNoteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.UpsertSellerDisputeNote(c.Request.Context(), orderID, memberID, req.Note)
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrOrderDisputeNotOpen) || errors.Is(err, ordersvc.ErrOrderDisputeAlreadyResolved) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
 func (h *MemberOrderHandler) ApplyCoupon(c *gin.Context) {
 	businessID := strings.TrimSpace(c.Param("business_id"))
 	orderID := strings.TrimSpace(c.Param("id"))
@@ -457,7 +517,6 @@ func (h *MemberOrderHandler) UpdateShippingQuote(c *gin.Context) {
 		ShippingAmount:    req.ShippingAmount,
 		CarrierName:       req.CarrierName,
 		ServiceName:       req.ServiceName,
-		TrackingNumber:    req.TrackingNumber,
 		EstimatedDelivery: req.EstimatedDelivery,
 		Description:       req.Description,
 		Notes:             req.Notes,

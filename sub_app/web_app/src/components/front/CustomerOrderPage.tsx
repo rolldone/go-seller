@@ -11,12 +11,14 @@ import { notifyError, notifySuccess } from "../../lib/notification";
 import { buildLocalizedPath } from "../../lib/siteLocale";
 import { formatAmount } from "../../lib/amountFormat";
 import {
+  approveMyOrderCustomerConfirmation,
   downloadMyOrderInvoice,
   getMyOrderByID,
   getMyOrderPaymentProofBlob,
   listMyOrderReviewableItems,
   listMyOrderPaymentProofs,
   upsertMyOrderItemReview,
+  rejectMyOrderCustomerConfirmation,
   updateMyOrderShippingAddress,
   startMyOrderPayment,
   listOrderPaymentMethods,
@@ -205,11 +207,31 @@ function parseShippingAddress(orderMetadata: unknown): Record<string, any> | nul
   return raw && typeof raw === "object" ? (raw as Record<string, any>) : null;
 }
 
+function parseCustomerConfirmation(orderMetadata: unknown): Record<string, any> | null {
+  const metadata = parseMetadata(orderMetadata);
+  if (!metadata) return null;
+  const raw = metadata.customer_confirmation;
+  return raw && typeof raw === "object" ? (raw as Record<string, any>) : null;
+}
+
+function parseDisputeMetadata(orderMetadata: unknown): Record<string, any> | null {
+  const metadata = parseMetadata(orderMetadata);
+  if (!metadata) return null;
+  const raw = metadata.dispute;
+  return raw && typeof raw === "object" ? (raw as Record<string, any>) : null;
+}
+
 function mapStatusLabel(value?: string | null): string {
   const key = String(value || "").trim().toLowerCase();
   if (key === "awaiting_quote" || key === "pending_shipping" || key === "awaiting_shipping") return "orderStatus.awaitingQuote";
+  if (key === "shipped") return "orderStatus.shipped";
+  if (key === "waiting_customer_confirmation") return "orderStatus.waitingCustomerConfirmation";
+  if (key === "in_dispute") return "orderStatus.inDispute";
+  if (key === "refunded") return "orderStatus.refunded";
   if (key === "quote_ready") return "orderStatus.quoteReady";
-  if (key === "paid" || key === "completed" || key === "confirmed") return "orderStatus.completed";
+  if (key === "paid") return "orderStatus.paid";
+  if (key === "completed") return "orderStatus.completed";
+  if (key === "processing" || key === "confirmed") return "orderStatus.processing";
   if (key === "pending_verification" || key === "payment_verification") return "orderStatus.verification";
   if (key === "expired") return "orderStatus.expired";
   if (key === "cancelled" || key === "canceled" || key === "failed") return "orderStatus.cancelled";
@@ -220,8 +242,14 @@ function mapStatusLabel(value?: string | null): string {
 function mapStatusClass(value?: string | null): string {
   const key = String(value || "").trim().toLowerCase();
   if (key === "awaiting_quote" || key === "pending_shipping" || key === "awaiting_shipping") return "bg-violet-50 text-violet-700 border-violet-200";
+  if (key === "shipped") return "bg-indigo-50 text-indigo-700 border-indigo-200";
+  if (key === "waiting_customer_confirmation") return "bg-sky-50 text-sky-700 border-sky-200";
+  if (key === "in_dispute") return "bg-rose-50 text-rose-700 border-rose-200";
+  if (key === "refunded") return "bg-slate-100 text-slate-700 border-slate-200";
   if (key === "quote_ready") return "bg-indigo-50 text-indigo-700 border-indigo-200";
-  if (key === "paid" || key === "completed" || key === "confirmed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (key === "completed") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (key === "paid") return "bg-teal-50 text-teal-700 border-teal-200";
+  if (key === "processing" || key === "confirmed") return "bg-amber-50 text-amber-700 border-amber-200";
   if (key === "pending_verification" || key === "payment_verification") return "bg-sky-50 text-sky-700 border-sky-200";
   if (key === "expired") return "bg-slate-100 text-slate-700 border-slate-200";
   if (key === "cancelled" || key === "canceled" || key === "failed") return "bg-rose-50 text-rose-700 border-rose-200";
@@ -261,6 +289,7 @@ const TERMINAL_PAYMENT_STATUSES = new Set([
   "expired",
   "rejected",
   "completed",
+  "refunded",
 ]);
 
 function normalizePaymentState(value?: string | null): string {
@@ -446,6 +475,8 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const [openingProofKey, setOpeningProofKey] = useState("");
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [customerConfirmationSubmitting, setCustomerConfirmationSubmitting] = useState<"approve" | "reject" | "">("");
+  const [customerConfirmationRejectReason, setCustomerConfirmationRejectReason] = useState("");
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressID, setSelectedAddressID] = useState("");
   const [paymentInstruction, setPaymentInstruction] = useState<PaymentInstruction | null>(null);
@@ -463,7 +494,12 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     const statusKey = mapStatusLabel(value);
     const fallbackMap: Record<string, string> = {
       "orderStatus.awaitingQuote": "Menunggu Ongkir",
+      "orderStatus.shipped": "Dikirim",
+      "orderStatus.waitingCustomerConfirmation": "Menunggu Konfirmasi Anda",
+      "orderStatus.inDispute": "Dalam Sengketa",
+      "orderStatus.refunded": "Refunded",
       "orderStatus.quoteReady": "Ongkir Siap",
+      "orderStatus.paid": "Lunas",
       "orderStatus.completed": "Selesai",
       "orderStatus.verification": "Verifikasi",
       "orderStatus.expired": "Kedaluwarsa",
@@ -645,6 +681,49 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
     }
   };
 
+  const handleApproveCustomerConfirmation = async () => {
+    if (!order?.id) return;
+    setCustomerConfirmationSubmitting("approve");
+    setError("");
+    try {
+      await approveMyOrderCustomerConfirmation(order.id);
+      setStatusMessage(t("customerConfirmationApprovedNotice", "Terima kasih. Order dikonfirmasi selesai dan dana seller akan diproses sesuai alur payout."));
+      setCustomerConfirmationRejectReason("");
+      notifySuccess(t("customerConfirmationApprovedToast", "Konfirmasi penerimaan berhasil disimpan."));
+      await loadDetail();
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : t("customerConfirmationApproveFailed", "Gagal menyimpan konfirmasi penerimaan");
+      setError(message);
+      notifyError(message);
+    } finally {
+      setCustomerConfirmationSubmitting("");
+    }
+  };
+
+  const handleRejectCustomerConfirmation = async () => {
+    if (!order?.id) return;
+    if (!customerConfirmationRejectReason.trim()) {
+      const message = t("customerConfirmationRejectReasonRequired", "Tulis alasan penolakan terlebih dahulu.");
+      setError(message);
+      notifyError(message);
+      return;
+    }
+    setCustomerConfirmationSubmitting("reject");
+    setError("");
+    try {
+      await rejectMyOrderCustomerConfirmation(order.id, customerConfirmationRejectReason.trim());
+      setStatusMessage(t("customerConfirmationRejectedNotice", "Penolakan Anda sudah dicatat. Order masuk ke proses penyelesaian masalah dan dana tetap ditahan."));
+      notifySuccess(t("customerConfirmationRejectedToast", "Penolakan konfirmasi penerimaan berhasil dikirim."));
+      await loadDetail();
+    } catch (submitError) {
+      const message = submitError instanceof Error ? submitError.message : t("customerConfirmationRejectFailed", "Gagal mengirim penolakan penerimaan");
+      setError(message);
+      notifyError(message);
+    } finally {
+      setCustomerConfirmationSubmitting("");
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     setStatusMessage("");
@@ -676,10 +755,16 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const latestBankTransferMeta = parseMetadata(latestPayment?.metadata)?.bank_transfer || null;
   const shippingQuote = parseShippingQuote(order?.metadata);
   const shippingAddress = parseShippingAddress(order?.metadata);
+  const customerConfirmation = parseCustomerConfirmation(order?.metadata);
+  const dispute = parseDisputeMetadata(order?.metadata);
   const shippingAddressID = String(shippingAddress?.address_id || "").trim();
   const shippingQuoteReady = Boolean(shippingQuote?.ready);
   const shippingAddressLocked = shippingQuoteReady;
   const awaitingShippingQuote = isAwaitingShippingQuote(order?.status, order?.payment_status, shippingQuoteReady, Boolean(shippingAddressID));
+  const isWaitingCustomerConfirmation = String(order?.status || "").trim().toLowerCase() === "waiting_customer_confirmation";
+  const isOrderInDispute = String(order?.status || "").trim().toLowerCase() === "in_dispute";
+  const isOrderRefunded = String(order?.status || "").trim().toLowerCase() === "refunded";
+  const disputeDecision = String(dispute?.admin_decision || "").trim().toLowerCase();
 
   useEffect(() => {
     if (shippingAddressID) {
@@ -1449,6 +1534,95 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                       {shippingAddressError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{shippingAddressError}</div> : null}
                     </div>
                   </div>
+
+                  {customerConfirmation || dispute || isWaitingCustomerConfirmation || isOrderInDispute || isOrderRefunded ? (
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                      <h2 className="text-lg font-bold text-slate-900">{t("customerConfirmationTitle", "Konfirmasi Penerimaan")}</h2>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {t("customerConfirmationDescription", "Seller meminta Anda memastikan barang benar-benar sudah sampai dan sesuai sebelum order ditutup.")}
+                      </p>
+
+                      {customerConfirmation?.seller_message ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("sellerMessageLabel", "Pesan Seller")}</div>
+                          <div className="mt-2 whitespace-pre-wrap text-sm text-slate-800">{String(customerConfirmation.seller_message)}</div>
+                        </div>
+                      ) : null}
+
+                      {customerConfirmation?.reject_reason ? (
+                        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">{t("customerRejectReasonLabel", "Alasan Penolakan")}</div>
+                          <div className="mt-2 whitespace-pre-wrap">{String(customerConfirmation.reject_reason)}</div>
+                        </div>
+                      ) : null}
+
+                      {dispute?.admin_note ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{t("adminDecisionNoteLabel", "Catatan Admin")}</div>
+                          <div className="mt-2 whitespace-pre-wrap">{String(dispute.admin_note)}</div>
+                        </div>
+                      ) : null}
+
+                      {dispute?.refund_note ? (
+                        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">{t("refundNoteLabel", "Catatan Refund")}</div>
+                          <div className="mt-2 whitespace-pre-wrap">{String(dispute.refund_note)}</div>
+                        </div>
+                      ) : null}
+
+                      {isWaitingCustomerConfirmation ? (
+                        <div className="mt-4 space-y-3">
+                          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                            {t("customerConfirmationPendingNotice", "Jika barang sudah sampai dan sesuai, tekan Terima. Jika ada masalah, tekan Tolak dan jelaskan alasannya.")}
+                          </div>
+                          <textarea
+                            value={customerConfirmationRejectReason}
+                            onChange={(event) => setCustomerConfirmationRejectReason(event.target.value)}
+                            className="min-h-24 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                            placeholder={t("customerConfirmationRejectPlaceholder", "Tulis alasan jika Anda menolak konfirmasi penerimaan")}
+                          />
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              onClick={() => void handleApproveCustomerConfirmation()}
+                              disabled={customerConfirmationSubmitting !== ""}
+                              className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {customerConfirmationSubmitting === "approve" ? t("processing", "Memproses...") : t("customerConfirmationApproveAction", "Terima Barang")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleRejectCustomerConfirmation()}
+                              disabled={customerConfirmationSubmitting !== ""}
+                              className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {customerConfirmationSubmitting === "reject" ? t("processing", "Memproses...") : t("customerConfirmationRejectAction", "Tolak dan Komplain")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : isOrderRefunded || disputeDecision === "refunded" ? (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-800">
+                          {t("customerRefundCompletedNotice", "Dispute selesai dan refund manual sudah diproses. Jika dana belum masuk, hubungi admin dengan menyertakan nomor order ini.")}
+                        </div>
+                      ) : disputeDecision === "customer_won_pending_refund" ? (
+                        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                          {t("customerRefundPendingNotice", "Admin memutuskan dispute untuk Anda. Refund masih diproses manual dan dana seller tetap ditahan sampai refund selesai.")}
+                        </div>
+                      ) : isOrderInDispute ? (
+                        <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                          {t("customerConfirmationDisputeNotice", "Order sedang dalam proses penyelesaian masalah. Dana tetap ditahan sampai ada penyelesaian.")}
+                        </div>
+                      ) : disputeDecision === "seller_won" ? (
+                        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                          {t("customerConfirmationResolvedSellerNotice", "Admin menyelesaikan dispute dan order dinyatakan selesai. Jika Anda masih punya bukti tambahan, hubungi admin dengan nomor order ini.")}
+                        </div>
+                      ) : String(customerConfirmation?.status || "").toLowerCase() === "approved" || String(order?.status || "").toLowerCase() === "completed" ? (
+                        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                          {t("customerConfirmationCompletedNotice", "Anda sudah mengonfirmasi penerimaan. Order selesai dan dana seller diproses sesuai alur payout.")}
+                        </div>
+                      ) : null}
+                    </section>
+                  ) : null}
                   
                 </div>
                 <div className="mt-4 border-t border-slate-200 pt-4">

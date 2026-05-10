@@ -65,6 +65,19 @@
     "description": "Template notifikasi customer saat order selesai (Indonesia)"
   },
   {
+    "key": "notifications.delivery_status_changed_customer.id",
+    "scope": "global",
+    "value": {
+      "name": "Delivery Status Changed",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "[Delivery] {{.order_number}} berubah ke {{.delivery_status}}",
+      "body": "Halo {{.customer_name}}, status delivery order {{.order_number}} berubah dari {{.previous_delivery_status}} ke {{.delivery_status}}.{{if .carrier_name}}\n\nKurir: {{.carrier_name}}{{end}}{{if .service_name}}\nLayanan: {{.service_name}}{{end}}{{if .tracking_number}}\nResi: {{.tracking_number}}{{end}}{{if .estimated_delivery}}\nEstimasi: {{.estimated_delivery}}{{end}}"
+    },
+    "description": "Template notifikasi customer saat status delivery berubah (Indonesia)"
+  },
+  {
     "key": "notifications.customer_forgot_password.id",
     "scope": "global",
     "value": {
@@ -232,6 +245,19 @@
       "body": "Hi {{.customer_name}}, your order {{.order_number}} is completed. Thank you for shopping with us."
     },
     "description": "Customer notification template when order is completed (English)"
+  },
+  {
+    "key": "notifications.delivery_status_changed_customer.en",
+    "scope": "global",
+    "value": {
+      "name": "Delivery Status Changed",
+      "audience": "customer",
+      "enabled": true,
+      "recipients": "{{.customer_email}}",
+      "subject": "[Delivery] {{.order_number}} changed to {{.delivery_status}}",
+      "body": "Hi {{.customer_name}}, the delivery status for order {{.order_number}} changed from {{.previous_delivery_status}} to {{.delivery_status}}.{{if .carrier_name}}\n\nCarrier: {{.carrier_name}}{{end}}{{if .service_name}}\nService: {{.service_name}}{{end}}{{if .tracking_number}}\nTracking Number: {{.tracking_number}}{{end}}{{if .estimated_delivery}}\nEstimated Delivery: {{.estimated_delivery}}{{end}}"
+    },
+    "description": "Customer notification template when delivery status changes (English)"
   },
   {
     "key": "notifications.customer_forgot_password.en",

@@ -424,9 +424,6 @@ func (s *PaymentService) CreatePayment(ctx context.Context, p *models.Payment) e
 func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, status string, paidAt *time.Time) error {
 	var revokeOrderID string
 	var failedOrderID string
-	var creditSeller bool
-	var sellerID *string
-	var totalAmount int64
 	normalizedStatus := normalizePaymentStatus(status)
 
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -453,7 +450,10 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 			if isOrderExpiredOrCancelled(order) {
 				return errors.New("order expired")
 			}
-			orderUpdates := map[string]interface{}{"payment_status": "paid"}
+			orderUpdates := map[string]interface{}{"payment_status": PaymentStatusPaid}
+			if nextStatus := nextPaidOrderStatus(order.Status); nextStatus != "" && nextStatus != normalizeOrderStatus(order.Status) {
+				orderUpdates["status"] = nextStatus
+			}
 			if paidAt != nil {
 				orderUpdates["paid_at"] = paidAt
 			}
@@ -461,10 +461,6 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 				return err
 			}
 			revokeOrderID = p.OrderID
-			creditSeller = true
-			sellerID = order.BusinessID
-			// Convert to cents (int64)
-			totalAmount = int64(order.GrandTotal * 100)
 		case string(StatusFailed), string(StatusCancelled), string(StatusRejected):
 			failedOrderID = p.OrderID
 		}
@@ -472,23 +468,6 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 	})
 	if err != nil {
 		return err
-	}
-
-	// After transaction succeeds, credit seller balance if payment was successful
-	if creditSeller && sellerID != nil && s.SellerBalanceService != nil && totalAmount > 0 {
-		description := fmt.Sprintf("Payment for order %s", revokeOrderID)
-		refType := models.ReferenceTypeOrder
-		// Credit the seller with the total order amount
-		// Note: In production, you may want to deduct commission/fees here
-		_, _ = s.SellerBalanceService.CreditBalance(
-			context.Background(), // Use background context to avoid cancellation
-			*sellerID,
-			totalAmount, // Credit full amount (commission deduction can be done separately)
-			models.SourceOrder,
-			&revokeOrderID,
-			&refType,
-			&description,
-		)
 	}
 
 	if strings.TrimSpace(revokeOrderID) != "" {
@@ -674,7 +653,7 @@ func (s *PaymentService) CancelPendingPaymentsByOrder(ctx context.Context, order
 		}
 
 		return tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]any{
-			"payment_status": "unpaid",
+			"payment_status": PaymentStatusPending,
 			"updated_at":     now,
 		}).Error
 	})
@@ -811,11 +790,15 @@ func (s *PaymentService) ReviewPaymentProof(ctx context.Context, paymentID, proo
 			}).Error; err != nil {
 				return err
 			}
-			if err := tx.Model(&models.Order{}).Where("id = ?", payment.OrderID).Updates(map[string]any{
-				"payment_status": "paid",
+			orderUpdates := map[string]any{
+				"payment_status": PaymentStatusPaid,
 				"paid_at":        now,
 				"updated_at":     now,
-			}).Error; err != nil {
+			}
+			if nextStatus := nextPaidOrderStatus(order.Status); nextStatus != "" && nextStatus != normalizeOrderStatus(order.Status) {
+				orderUpdates["status"] = nextStatus
+			}
+			if err := tx.Model(&models.Order{}).Where("id = ?", payment.OrderID).Updates(orderUpdates).Error; err != nil {
 				return err
 			}
 			revokeOrderID = payment.OrderID
@@ -836,7 +819,7 @@ func (s *PaymentService) ReviewPaymentProof(ctx context.Context, paymentID, proo
 			return err
 		}
 		if err := tx.Model(&models.Order{}).Where("id = ?", payment.OrderID).Updates(map[string]any{
-			"payment_status": "unpaid",
+			"payment_status": PaymentStatusPending,
 			"updated_at":     now,
 		}).Error; err != nil {
 			return err
@@ -925,13 +908,16 @@ func (s *PaymentService) RecheckGatewayPayment(ctx context.Context, paymentID st
 			if isOrderExpiredOrCancelled(order) {
 				return errors.New("order expired")
 			}
-			orderUpdates["payment_status"] = "paid"
+			orderUpdates["payment_status"] = PaymentStatusPaid
 			orderUpdates["paid_at"] = now
+			if nextStatus := nextPaidOrderStatus(order.Status); nextStatus != "" && nextStatus != normalizeOrderStatus(order.Status) {
+				orderUpdates["status"] = nextStatus
+			}
 			revokeOrderID = payment.OrderID
 		case "pending":
-			orderUpdates["payment_status"] = "unpaid"
+			orderUpdates["payment_status"] = PaymentStatusPending
 		default:
-			orderUpdates["payment_status"] = "unpaid"
+			orderUpdates["payment_status"] = PaymentStatusPending
 		}
 		if err := tx.Model(&models.Order{}).Where("id = ?", payment.OrderID).Updates(orderUpdates).Error; err != nil {
 			return err
@@ -1011,7 +997,7 @@ func (s *PaymentService) CancelPayment(ctx context.Context, paymentID string, ad
 			return err
 		}
 
-		if err := tx.Model(&models.Order{}).Where("id = ?", payment.OrderID).Updates(map[string]any{"status": "draft", "payment_status": "unpaid", "updated_at": now}).Error; err != nil {
+		if err := tx.Model(&models.Order{}).Where("id = ?", payment.OrderID).Updates(map[string]any{"status": "draft", "payment_status": PaymentStatusPending, "updated_at": now}).Error; err != nil {
 			return err
 		}
 

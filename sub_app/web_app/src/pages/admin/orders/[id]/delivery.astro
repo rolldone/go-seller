@@ -1,0 +1,9 @@
+---
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import OrderDeliveryPage from "@/components/admin/orders/OrderDeliveryPage";
+export const prerender = false;
+---
+
+<AdminLayout title="Kelola Pengiriman">
+  <OrderDeliveryPage client:load />
+</AdminLayout>

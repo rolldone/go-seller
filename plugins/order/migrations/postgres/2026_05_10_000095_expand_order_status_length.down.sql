@@ -1,0 +1,2 @@
+ALTER TABLE orders
+    ALTER COLUMN status TYPE VARCHAR(24);

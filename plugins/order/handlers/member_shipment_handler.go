@@ -28,10 +28,10 @@ func (h *MemberShipmentHandler) loadAccessibleOrder(c *gin.Context, orderID stri
 }
 
 func (h *MemberShipmentHandler) ListShipments(c *gin.Context) {
-	if _, ok := h.loadAccessibleOrder(c, c.Param("order_id")); !ok {
+	if _, ok := h.loadAccessibleOrder(c, c.Param("id")); !ok {
 		return
 	}
-	shipments, err := h.svc.ListShipments(c.Request.Context(), c.Param("order_id"))
+	shipments, err := h.svc.ListShipments(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -40,10 +40,10 @@ func (h *MemberShipmentHandler) ListShipments(c *gin.Context) {
 }
 
 func (h *MemberShipmentHandler) ShippableItems(c *gin.Context) {
-	if _, ok := h.loadAccessibleOrder(c, c.Param("order_id")); !ok {
+	if _, ok := h.loadAccessibleOrder(c, c.Param("id")); !ok {
 		return
 	}
-	items, err := h.svc.ShippableItems(c.Request.Context(), c.Param("order_id"))
+	items, err := h.svc.ShippableItems(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -52,7 +52,7 @@ func (h *MemberShipmentHandler) ShippableItems(c *gin.Context) {
 }
 
 func (h *MemberShipmentHandler) CreateShipment(c *gin.Context) {
-	if _, ok := h.loadAccessibleOrder(c, c.Param("order_id")); !ok {
+	if _, ok := h.loadAccessibleOrder(c, c.Param("id")); !ok {
 		return
 	}
 	var req createShipmentReq
@@ -61,7 +61,7 @@ func (h *MemberShipmentHandler) CreateShipment(c *gin.Context) {
 		return
 	}
 	s, err := h.svc.CreateShipment(c.Request.Context(), ordersvc.CreateShipmentInput{
-		OrderID:           c.Param("order_id"),
+		OrderID:           c.Param("id"),
 		CarrierName:       req.CarrierName,
 		ServiceName:       req.ServiceName,
 		TrackingNumber:    req.TrackingNumber,
@@ -88,7 +88,7 @@ func (h *MemberShipmentHandler) GetShipment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(shipment.OrderID) != strings.TrimSpace(c.Param("order_id")) {
+	if strings.TrimSpace(shipment.OrderID) != strings.TrimSpace(c.Param("id")) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "shipment not found"})
 		return
 	}
@@ -108,7 +108,7 @@ func (h *MemberShipmentHandler) UpdateShipment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(shipment.OrderID) != strings.TrimSpace(c.Param("order_id")) {
+	if strings.TrimSpace(shipment.OrderID) != strings.TrimSpace(c.Param("id")) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "shipment not found"})
 		return
 	}
@@ -151,7 +151,7 @@ func (h *MemberShipmentHandler) DeleteShipment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(shipment.OrderID) != strings.TrimSpace(c.Param("order_id")) {
+	if strings.TrimSpace(shipment.OrderID) != strings.TrimSpace(c.Param("id")) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "shipment not found"})
 		return
 	}

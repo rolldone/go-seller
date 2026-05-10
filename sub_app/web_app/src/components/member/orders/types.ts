@@ -82,7 +82,7 @@ export type MemberUpdateShipmentPayload = {
 	estimated_delivery?: string;
 	description?: string;
 	notes?: string;
-	status?: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+	status?: "pending" | "processing" | "ready_to_ship" | "shipped" | "in_transit" | "delivered" | "exception" | "returned" | "cancelled";
 };
 
 export type { Order, OrderItem, OrderShipment, Payment, PaymentProof, OrderExtraCharge };

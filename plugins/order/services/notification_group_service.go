@@ -29,6 +29,10 @@ var ValidNotificationEvents = []string{
 	"order_created",
 	"payment_succeeded",
 	"payment_failed",
+	"order_dispute_opened",
+	"order_dispute_seller_won",
+	"order_dispute_customer_won",
+	"order_dispute_refunded",
 }
 
 type CreateNotificationGroupInput struct {

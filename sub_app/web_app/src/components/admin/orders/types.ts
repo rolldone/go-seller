@@ -77,6 +77,7 @@ export type Order = {
   created_by_admin_id?: string | null;
   status: string;
   payment_status: string;
+  delivery_status: string;
   currency: string;
   subtotal: number;
   discount_amount: number;
@@ -135,6 +136,7 @@ export type ListOrdersParams = {
   user_id?: string;
   status?: string;
   payment_status?: string;
+  dispute_decision?: string;
   channel?: string;
   from?: string;
   to?: string;

@@ -240,6 +240,14 @@ export const SETTING_GROUPS: SettingGroup[] = [
         description: "Order otomatis dikonfirmasi tanpa review manual.",
       },
       {
+        key: "order.require_customer_confirmation",
+        scope: "global",
+        label: "Konfirmasi Penerimaan Customer",
+        type: "boolean",
+        defaultValue: false,
+        description: "Jika aktif, seller bisa meminta customer menyetujui atau menolak penyelesaian order setelah shipment terkirim.",
+      },
+      {
         key: "order.allow_notes",
         scope: "global",
         label: "Izinkan Catatan Order",

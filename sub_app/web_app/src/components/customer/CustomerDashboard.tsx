@@ -40,7 +40,13 @@ function formatOrderDate(value?: string): string {
 
 function mapOrderStatusLabel(value?: string): string {
   const key = String(value || "").toLowerCase();
-  if (key === "paid" || key === "completed" || key === "confirmed") return "orderStatus.completed";
+  if (key === "waiting_customer_confirmation") return "orderStatus.waitingCustomerConfirmation";
+  if (key === "in_dispute") return "orderStatus.inDispute";
+  if (key === "refunded") return "orderStatus.refunded";
+  if (key === "shipped") return "orderStatus.shipped";
+  if (key === "paid") return "orderStatus.paid";
+  if (key === "completed") return "orderStatus.completed";
+  if (key === "processing" || key === "confirmed") return "orderStatus.processing";
   if (key === "expired") return "orderStatus.expired";
   if (key === "cancelled" || key === "canceled") return "orderStatus.cancelled";
   return "orderStatus.processing";
@@ -48,7 +54,13 @@ function mapOrderStatusLabel(value?: string): string {
 
 function mapOrderStatusClass(value?: string): string {
   const key = String(value || "").toLowerCase();
-  if (key === "paid" || key === "completed" || key === "confirmed") return "bg-emerald-50 text-emerald-700";
+  if (key === "waiting_customer_confirmation") return "bg-sky-50 text-sky-700";
+  if (key === "in_dispute") return "bg-rose-50 text-rose-700";
+  if (key === "refunded") return "bg-slate-100 text-slate-700";
+  if (key === "shipped") return "bg-indigo-50 text-indigo-700";
+  if (key === "paid") return "bg-teal-50 text-teal-700";
+  if (key === "completed") return "bg-emerald-50 text-emerald-700";
+  if (key === "processing" || key === "confirmed") return "bg-amber-50 text-amber-700";
   if (key === "expired") return "bg-slate-100 text-slate-700";
   if (key === "cancelled" || key === "canceled") return "bg-red-50 text-red-700";
   return "bg-amber-50 text-amber-700";

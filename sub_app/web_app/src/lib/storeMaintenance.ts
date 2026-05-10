@@ -2,6 +2,7 @@ export type StoreMaintenanceInfo = {
   index: boolean;
   business_page: boolean;
   product_detail: boolean;
+  order_customer_confirmation: boolean;
 };
 
 type MaintenanceResponse = {
@@ -53,6 +54,7 @@ async function fetchMaintenanceFromServer(options: {
       index: normalizeBool(data.index),
       business_page: normalizeBool(data.business_page),
       product_detail: normalizeBool(data.product_detail),
+      order_customer_confirmation: normalizeBool(data.order_customer_confirmation),
     };
   } catch {
     return null;
@@ -91,6 +93,7 @@ export async function fetchStoreMaintenanceInfo(options: {
         index: true,
         business_page: true,
         product_detail: true,
+        order_customer_confirmation: false,
       };
     } finally {
       pendingMaintenancePromise = null;

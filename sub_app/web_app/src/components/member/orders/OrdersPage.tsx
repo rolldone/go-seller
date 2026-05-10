@@ -217,8 +217,11 @@ export default function MemberOrdersPage() {
 					<select className="w-full rounded-lg border border-slate-300 px-3 py-2" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}>
 						<option value="">All order status</option>
 						<option value="pending">pending</option>
-						<option value="confirmed">confirmed</option>
 						<option value="processing">processing</option>
+						<option value="shipped">shipped</option>
+						<option value="waiting_customer_confirmation">waiting_customer_confirmation</option>
+						<option value="in_dispute">in_dispute</option>
+						<option value="refunded">refunded</option>
 						<option value="completed">completed</option>
 						<option value="cancelled">cancelled</option>
 					</select>
@@ -230,6 +233,7 @@ export default function MemberOrdersPage() {
 						<option value="unpaid">unpaid</option>
 						<option value="pending">pending</option>
 						<option value="paid">paid</option>
+						<option value="refunded">refunded</option>
 						<option value="failed">failed</option>
 					</select>
 				</label>

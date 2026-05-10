@@ -41,6 +41,32 @@ export type OrderItem = {
   updated_at: string;
 };
 
+export type OrderShipmentItem = {
+  id: string;
+  shipment_id: string;
+  order_item_id: string;
+  qty: number;
+  created_at: string;
+};
+
+export type OrderShipment = {
+  id: string;
+  order_id: string;
+  carrier_name: string;
+  service_name: string;
+  tracking_number: string;
+  shipping_amount: number;
+  estimated_delivery: string;
+  description: string;
+  notes: string;
+  status: string;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  items?: OrderShipmentItem[];
+};
+
 export type Payment = {
   id: string;
   order_id: string;
@@ -71,6 +97,7 @@ export type Order = {
   channel: string;
   status: string;
   payment_status: string;
+  delivery_status: string;
   currency: string;
   subtotal: number;
   discount_amount: number;
@@ -89,6 +116,7 @@ export type Order = {
   updated_at: string;
   order_items?: OrderItem[];
   payments?: Payment[];
+  shipments?: OrderShipment[];
   customer?: {
     id: string;
     name?: string;
@@ -275,6 +303,19 @@ export async function updateMyOrderShippingAddress(orderID: string, addressID: s
   return customerApiRequest<{ data: Order }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/shipping-address`, {
     method: "POST",
     body: JSON.stringify({ address_id: addressID }),
+  });
+}
+
+export async function approveMyOrderCustomerConfirmation(orderID: string): Promise<{ data: Order }> {
+  return customerApiRequest<{ data: Order }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/customer-confirmation/approve`, {
+    method: "POST",
+  });
+}
+
+export async function rejectMyOrderCustomerConfirmation(orderID: string, reason: string): Promise<{ data: Order }> {
+  return customerApiRequest<{ data: Order }>(`/api/order/orders/me/${encodeURIComponent(orderID)}/customer-confirmation/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
   });
 }
 

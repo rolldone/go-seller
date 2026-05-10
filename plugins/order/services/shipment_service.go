@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"go_framework/internal/uuid"
 	ordermodels "go_framework/plugins/order/models"
+	pluginregistry "go_framework/plugins/plugin_registry"
 
 	"gorm.io/gorm"
 )
@@ -113,8 +115,10 @@ func (s *ShipmentService) CreateShipment(ctx context.Context, input CreateShipme
 		Notes:             input.Notes,
 		Status:            "pending",
 	}
+	var order ordermodels.Order
+	var syncResult *orderShipmentSyncResult
 
-	return shipment, s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(shipment).Error; err != nil {
 			return err
 		}
@@ -133,9 +137,21 @@ func (s *ShipmentService) CreateShipment(ctx context.Context, input CreateShipme
 				return err
 			}
 		}
+		if err := tx.Preload("Customer").Where("id = ?", shipment.OrderID).First(&order).Error; err != nil {
+			return err
+		}
+		result, err := syncOrderStatusFromShipmentsTx(tx, &order, time.Now())
+		if err != nil {
+			return err
+		}
+		syncResult = result
 		// reload items into struct
 		return tx.Preload("Items").Where("id = ?", shipment.ID).First(shipment).Error
-	})
+	}); err != nil {
+		return nil, err
+	}
+	s.notifyDeliveryStatusChanged(ctx, shipment, &order, syncResult)
+	return shipment, nil
 }
 
 // UpdateShipment updates shipment metadata (carrier, tracking, status, etc).
@@ -170,31 +186,60 @@ func (s *ShipmentService) UpdateShipment(ctx context.Context, id string, input U
 		shipment.Notes = *input.Notes
 	}
 	if input.Status != nil {
-		newStatus := *input.Status
+		newStatus := strings.ToLower(strings.TrimSpace(*input.Status))
+		if newStatus == "processing" {
+			newStatus = ShipmentStatusReadyToShip
+		}
 		switch newStatus {
-		case "pending", "processing", "shipped", "delivered", "cancelled":
+		case ShipmentStatusPending, ShipmentStatusReadyToShip, ShipmentStatusShipped, ShipmentStatusInTransit, ShipmentStatusDelivered, ShipmentStatusException, ShipmentStatusReturned, ShipmentStatusCancelled:
 		default:
-			return nil, errors.New("invalid status: must be pending|processing|shipped|delivered|cancelled")
+			return nil, errors.New("invalid status: must be pending|ready_to_ship|shipped|in_transit|delivered|exception|returned|cancelled")
 		}
 		shipment.Status = newStatus
 		now := time.Now()
-		if newStatus == "shipped" && shipment.ShippedAt == nil {
+		if newStatus == ShipmentStatusShipped && shipment.ShippedAt == nil {
 			shipment.ShippedAt = &now
 		}
-		if newStatus == "delivered" && shipment.DeliveredAt == nil {
+		if newStatus == ShipmentStatusDelivered && shipment.DeliveredAt == nil {
 			shipment.DeliveredAt = &now
 		}
 	}
+	var order ordermodels.Order
+	var syncResult *orderShipmentSyncResult
 
-	if err := s.DB.WithContext(ctx).Save(shipment).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		if err := tx.Save(shipment).Error; err != nil {
+			return err
+		}
+		if err := tx.Preload("Customer").Where("id = ?", shipment.OrderID).First(&order).Error; err != nil {
+			return err
+		}
+		result, err := syncOrderStatusFromShipmentsTx(tx, &order, now)
+		if err != nil {
+			return err
+		}
+		syncResult = result
+		return nil
+	}); err != nil {
 		return nil, err
 	}
+	s.notifyDeliveryStatusChanged(ctx, shipment, &order, syncResult)
 	return shipment, nil
 }
 
 // DeleteShipment removes a shipment and its item links.
 func (s *ShipmentService) DeleteShipment(ctx context.Context, id string) error {
-	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	var order ordermodels.Order
+	var deletedShipment ordermodels.OrderShipment
+	var syncResult *orderShipmentSyncResult
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", id).First(&deletedShipment).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("shipment not found")
+			}
+			return err
+		}
 		if err := tx.Where("shipment_id = ?", id).Delete(&ordermodels.OrderShipmentItem{}).Error; err != nil {
 			return err
 		}
@@ -205,8 +250,61 @@ func (s *ShipmentService) DeleteShipment(ctx context.Context, id string) error {
 		if res.RowsAffected == 0 {
 			return errors.New("shipment not found")
 		}
+		if err := tx.Preload("Customer").Where("id = ?", deletedShipment.OrderID).First(&order).Error; err != nil {
+			return err
+		}
+		result, err := syncOrderStatusFromShipmentsTx(tx, &order, time.Now())
+		if err != nil {
+			return err
+		}
+		syncResult = result
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	s.notifyDeliveryStatusChanged(ctx, &deletedShipment, &order, syncResult)
+	return nil
+}
+
+func (s *ShipmentService) notifyDeliveryStatusChanged(ctx context.Context, shipment *ordermodels.OrderShipment, order *ordermodels.Order, result *orderShipmentSyncResult) {
+	if s == nil || s.DB == nil || shipment == nil || order == nil || result == nil || !result.DeliveryStatusChanged {
+		return
+	}
+	currentDelivery := strings.TrimSpace(result.CurrentDeliveryStatus)
+	if currentDelivery == "" || strings.EqualFold(currentDelivery, DeliveryStatusNotApplicable) {
+		return
+	}
+	if order.Customer == nil {
+		return
+	}
+	customerEmail := strings.TrimSpace(order.Customer.Email)
+	if customerEmail == "" {
+		return
+	}
+	customerName := strings.TrimSpace(order.Customer.Name)
+	orderSvc := &OrderService{DB: s.DB}
+	businessName := "Go Seller"
+	if order.BusinessID != nil {
+		businessName = orderSvc.lookupBusinessName(ctx, strings.TrimSpace(*order.BusinessID))
+	}
+	payload := map[string]any{
+		"order_id":                 order.ID,
+		"order_number":             order.OrderNumber,
+		"order_status":             strings.TrimSpace(order.Status),
+		"previous_order_status":    strings.TrimSpace(result.PreviousOrderStatus),
+		"delivery_status":          currentDelivery,
+		"previous_delivery_status": strings.TrimSpace(result.PreviousDeliveryStatus),
+		"customer_email":           customerEmail,
+		"customer_name":            customerName,
+		"business_name":            businessName,
+		"carrier_name":             strings.TrimSpace(shipment.CarrierName),
+		"service_name":             strings.TrimSpace(shipment.ServiceName),
+		"tracking_number":          strings.TrimSpace(shipment.TrackingNumber),
+		"estimated_delivery":       strings.TrimSpace(shipment.EstimatedDelivery),
+		"shipment_status":          strings.TrimSpace(shipment.Status),
+		"order_link":               "/customer/orders",
+	}
+	pluginregistry.SendTemplateEventAsync(ctx, s.DB, "delivery_status_changed_customer", payload)
 }
 
 // ShippableItems returns order items that are not digital (can be added to a shipment).

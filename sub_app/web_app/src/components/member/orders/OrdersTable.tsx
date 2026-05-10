@@ -20,14 +20,27 @@ const money = (currency: string, amount: number) => {
 	return `${safeCurrency} ${formatAmount(amount || 0, { fractionDigits: 0 })}`;
 };
 
+const normalizeOrderStatus = (status?: string | null) => {
+	const normalized = String(status || "").trim().toLowerCase();
+	return normalized === "confirmed" ? "processing" : normalized;
+};
+
 const badgeClass = (status: string) => {
-	const value = status.toLowerCase();
-	if (["paid", "completed", "confirmed", "processing", "packed", "shipped", "delivered"].includes(value)) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+	const value = normalizeOrderStatus(status);
+	if (["completed"].includes(value)) return "bg-emerald-50 text-emerald-700 border-emerald-200";
+	if (["paid"].includes(value)) return "bg-teal-50 text-teal-700 border-teal-200";
+	if (["processing", "packed"].includes(value)) return "bg-amber-50 text-amber-700 border-amber-200";
+	if (["shipped", "delivered"].includes(value)) return "bg-indigo-50 text-indigo-700 border-indigo-200";
+	if (["waiting_customer_confirmation"].includes(value)) return "bg-sky-50 text-sky-700 border-sky-200";
+	if (["in_dispute"].includes(value)) return "bg-rose-50 text-rose-700 border-rose-200";
+	if (["refunded"].includes(value)) return "bg-slate-100 text-slate-700 border-slate-200";
 	if (["pending", "unpaid", "awaiting_payment", "awaiting_quote"].includes(value)) return "bg-amber-50 text-amber-700 border-amber-200";
 	if (["expired"].includes(value)) return "bg-slate-100 text-slate-700 border-slate-200";
 	if (["failed", "cancelled", "canceled", "rejected"].includes(value)) return "bg-rose-50 text-rose-700 border-rose-200";
 	return "bg-slate-50 text-slate-700 border-slate-200";
 };
+
+const badgeLabel = (status?: string | null) => normalizeOrderStatus(status) || "-";
 
 export default function OrdersTable({ items, loading, error, onView }: Props) {
 	if (loading) {
@@ -69,14 +82,14 @@ export default function OrdersTable({ items, loading, error, onView }: Props) {
 										{item.customer.email ? <div className="text-xs text-slate-500">{item.customer.email}</div> : null}
 									</div>
 								) : (
-									(item.customer_id || item.user_id) || "-"
+									item.customer_id || "-"
 								)}
 							</td>
 							<td className="px-4 py-3 text-sm">
-								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeClass(item.status)}`}>{item.status}</span>
+								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeClass(item.status)}`}>{badgeLabel(item.status)}</span>
 							</td>
 							<td className="px-4 py-3 text-sm">
-								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeClass(item.payment_status)}`}>{item.payment_status}</span>
+								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeClass(item.payment_status)}`}>{badgeLabel(item.payment_status)}</span>
 							</td>
 							<td className="px-4 py-3 text-sm text-slate-700">{item.channel || "-"}</td>
 							<td className="px-4 py-3 text-right text-sm font-medium text-slate-900">{money(item.currency, item.grand_total)}</td>

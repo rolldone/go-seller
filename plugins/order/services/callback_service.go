@@ -10,16 +10,18 @@ import (
 
 // Valid order statuses accepted by the callback endpoint.
 var validOrderStatuses = map[string]bool{
-	"pending":              true,
-	"paid":                 true,
-	"payment_verification": true,
-	"confirmed":            true,
-	"processing":           true,
-	"shipped":              true,
-	"completed":            true,
-	"cancelled":            true,
-	"refunded":             true,
-	"failed":               true,
+	"pending":                       true,
+	"paid":                          true,
+	"payment_verification":          true,
+	"confirmed":                     true,
+	"processing":                    true,
+	"shipped":                       true,
+	"waiting_customer_confirmation": true,
+	"in_dispute":                    true,
+	"completed":                     true,
+	"cancelled":                     true,
+	"refunded":                      true,
+	"failed":                        true,
 }
 
 type CallbackPayload struct {

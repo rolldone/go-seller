@@ -18,6 +18,7 @@ export default function OrdersPage() {
   const [userID, setUserID] = useState("");
   const [status, setStatus] = useState("");
   const [paymentStatus, setPaymentStatus] = useState("");
+  const [disputeDecision, setDisputeDecision] = useState("");
   const [channel, setChannel] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -28,6 +29,13 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
+
+  const activeDisputeQueue = useMemo(() => {
+    if (status === "in_dispute" && disputeDecision === "open") return "open";
+    if (status === "in_dispute" && disputeDecision === "customer_won_pending_refund") return "pending_refund";
+    if (status === "refunded" && paymentStatus === "refunded" && disputeDecision === "refunded") return "refunded";
+    return "all";
+  }, [disputeDecision, paymentStatus, status]);
 
   const setOrderDetailQuery = (orderID: string | null) => {
     if (typeof window === "undefined") return;
@@ -84,6 +92,7 @@ export default function OrdersPage() {
         user_id: userID,
         status,
         payment_status: paymentStatus,
+        dispute_decision: disputeDecision || undefined,
         channel,
         from: from || undefined,
         to: to || undefined,
@@ -102,7 +111,7 @@ export default function OrdersPage() {
 
   useEffect(() => {
     loadData();
-  }, [page, limit, q, businessID, userID, status, paymentStatus, channel, from, to]);
+  }, [page, limit, q, businessID, userID, status, paymentStatus, disputeDecision, channel, from, to]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -129,6 +138,31 @@ export default function OrdersPage() {
     }
   };
 
+  const applyDisputeQueue = (queue: "all" | "open" | "pending_refund" | "refunded") => {
+    setPage(1);
+    if (queue === "all") {
+      setStatus("");
+      setPaymentStatus("");
+      setDisputeDecision("");
+      return;
+    }
+    if (queue === "open") {
+      setStatus("in_dispute");
+      setPaymentStatus("");
+      setDisputeDecision("open");
+      return;
+    }
+    if (queue === "pending_refund") {
+      setStatus("in_dispute");
+      setPaymentStatus("");
+      setDisputeDecision("customer_won_pending_refund");
+      return;
+    }
+    setStatus("refunded");
+    setPaymentStatus("refunded");
+    setDisputeDecision("refunded");
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -150,7 +184,38 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <div className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-9">
+        <div className="flex flex-wrap gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <button
+          type="button"
+          onClick={() => applyDisputeQueue("all")}
+          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${activeDisputeQueue === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
+        >
+          Semua order
+        </button>
+        <button
+          type="button"
+          onClick={() => applyDisputeQueue("open")}
+          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${activeDisputeQueue === "open" ? "bg-amber-600 text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
+        >
+          Queue dispute terbuka
+        </button>
+        <button
+          type="button"
+          onClick={() => applyDisputeQueue("pending_refund")}
+          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${activeDisputeQueue === "pending_refund" ? "bg-amber-600 text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
+        >
+          Pending refund manual
+        </button>
+        <button
+          type="button"
+          onClick={() => applyDisputeQueue("refunded")}
+          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${activeDisputeQueue === "refunded" ? "bg-amber-600 text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
+        >
+          Dispute refunded
+        </button>
+        </div>
+
+        <div className="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-2 lg:grid-cols-10">
         <input
           className="rounded border border-slate-300 px-2 py-1.5 text-sm"
           placeholder="Search order number"
@@ -188,7 +253,11 @@ export default function OrdersPage() {
         >
           <option value="">All order status</option>
           <option value="pending">pending</option>
-          <option value="confirmed">confirmed</option>
+          <option value="processing">processing</option>
+          <option value="shipped">shipped</option>
+          <option value="waiting_customer_confirmation">waiting_customer_confirmation</option>
+          <option value="in_dispute">in_dispute</option>
+          <option value="refunded">refunded</option>
           <option value="completed">completed</option>
           <option value="cancelled">cancelled</option>
         </select>
@@ -204,7 +273,22 @@ export default function OrdersPage() {
           <option value="unpaid">unpaid</option>
           <option value="pending">pending</option>
           <option value="paid">paid</option>
+          <option value="refunded">refunded</option>
           <option value="failed">failed</option>
+        </select>
+        <select
+          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+          value={disputeDecision}
+          onChange={(e) => {
+            setPage(1);
+            setDisputeDecision(e.target.value);
+          }}
+        >
+          <option value="">All dispute decisions</option>
+          <option value="open">open</option>
+          <option value="seller_won">seller_won</option>
+          <option value="customer_won_pending_refund">customer_won_pending_refund</option>
+          <option value="refunded">refunded</option>
         </select>
         <select
           className="rounded border border-slate-300 px-2 py-1.5 text-sm"

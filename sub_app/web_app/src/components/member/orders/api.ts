@@ -1,5 +1,5 @@
 import { getMemberAuthToken } from "../../../lib/memberSession";
-import { memberDelete, memberGet, memberPost, memberPut } from "../businesses/api";
+import { memberDelete, memberGet, memberPost, memberPatch, memberPut } from "../businesses/api";
 import type {
 	MemberCreateShipmentPayload,
 	MemberOrderDetailResponse,
@@ -108,7 +108,7 @@ export async function updateMemberOrderShipment(
 	shipmentID: string,
 	payload: MemberUpdateShipmentPayload,
 ): Promise<OrderShipment> {
-	return memberPut<OrderShipment>(
+	return memberPatch<OrderShipment>(
 		`/api/member/businesses/${encodeURIComponent(businessID)}/orders/${encodeURIComponent(orderID)}/shipments/${encodeURIComponent(shipmentID)}`,
 		payload,
 	);
@@ -116,4 +116,26 @@ export async function updateMemberOrderShipment(
 
 export async function deleteMemberOrderShipment(businessID: string, orderID: string, shipmentID: string): Promise<void> {
 	await memberDelete(`/api/member/businesses/${encodeURIComponent(businessID)}/orders/${encodeURIComponent(orderID)}/shipments/${encodeURIComponent(shipmentID)}`);
+}
+
+export async function requestMemberOrderCustomerConfirmation(
+	businessID: string,
+	orderID: string,
+	payload: { message?: string },
+): Promise<{ data: Order }> {
+	return memberPost<{ data: Order }>(
+		`/api/member/businesses/${encodeURIComponent(businessID)}/orders/${encodeURIComponent(orderID)}/customer-confirmation`,
+		payload,
+	);
+}
+
+export async function upsertMemberOrderDisputeNote(
+	businessID: string,
+	orderID: string,
+	payload: { note: string },
+): Promise<{ data: Order }> {
+	return memberPost<{ data: Order }>(
+		`/api/member/businesses/${encodeURIComponent(businessID)}/orders/${encodeURIComponent(orderID)}/dispute/note`,
+		payload,
+	);
 }

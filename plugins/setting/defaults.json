@@ -21,6 +21,7 @@
 
   { "key": "order.min_amount", "scope": "global", "value": "0", "description": "Minimal nilai order" },
   { "key": "order.auto_confirm", "scope": "global", "value": "false", "description": "Auto konfirmasi order" },
+  { "key": "order.require_customer_confirmation", "scope": "global", "value": "false", "description": "Aktifkan alur seller meminta konfirmasi penerimaan dari customer" },
   { "key": "order.allow_notes", "scope": "global", "value": "true", "description": "Izinkan catatan order" },
   { "key": "order.expiry_hours", "scope": "global", "value": "24", "description": "Batas waktu order unpaid sebelum expired (jam)" }
 ]

@@ -12,6 +12,9 @@ import {
   listOrderShipments,
   listPaymentProofs,
   listShippableItems,
+  markOrderDisputeRefundCompleted,
+  resolveOrderDisputeForCustomer,
+  resolveOrderDisputeForSeller,
   updateOrderShipment,
   updateOrderShippingAddress,
   updateShippingQuote,
@@ -60,7 +63,6 @@ type ShippingQuoteFormState = {
   shipping_amount: string;
   carrier_name: string;
   service_name: string;
-  tracking_number: string;
   estimated_delivery: string;
   description: string;
   notes: string;
@@ -70,7 +72,6 @@ const defaultShippingQuoteForm: ShippingQuoteFormState = {
   shipping_amount: "",
   carrier_name: "",
   service_name: "",
-  tracking_number: "",
   estimated_delivery: "",
   description: "",
   notes: "",
@@ -98,7 +99,7 @@ const defaultShipmentForm: ShipmentFormState = {
 
 type EditShipmentFormState = {
   shipment_id: string;
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+  status: "pending" | "ready_to_ship" | "shipped" | "in_transit" | "delivered" | "exception" | "returned" | "cancelled";
   carrier_name: string;
   service_name: string;
   tracking_number: string;
@@ -142,6 +143,18 @@ const parseOrderMetadata = (raw: unknown): Record<string, unknown> | null => {
     return null;
   }
   return null;
+};
+
+const parseCustomerConfirmation = (raw: unknown): Record<string, any> | null => {
+  const metadata = parseOrderMetadata(raw);
+  const value = metadata?.customer_confirmation;
+  return value && typeof value === "object" ? (value as Record<string, any>) : null;
+};
+
+const parseDisputeMetadata = (raw: unknown): Record<string, any> | null => {
+  const metadata = parseOrderMetadata(raw);
+  const value = metadata?.dispute;
+  return value && typeof value === "object" ? (value as Record<string, any>) : null;
 };
 
 const statusClasses = (status?: string) => {
@@ -189,6 +202,8 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   const [editShipmentModalOpen, setEditShipmentModalOpen] = useState(false);
   const [editShipmentForm, setEditShipmentForm] = useState<EditShipmentFormState>(defaultEditShipmentForm);
   const [savingShipmentMeta, setSavingShipmentMeta] = useState(false);
+  const [disputeNote, setDisputeNote] = useState("");
+  const [disputeAction, setDisputeAction] = useState<"" | "seller" | "customer" | "refund">("");
 
   useEffect(() => {
     if (!open) {
@@ -206,6 +221,8 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
       setShipmentModalOpen(false);
       setEditShipmentModalOpen(false);
       setEditShipmentForm(defaultEditShipmentForm);
+      setDisputeNote("");
+      setDisputeAction("");
     }
   }, [open, order?.id]);
 
@@ -224,7 +241,6 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
       shipping_amount: shippingQuote.shipping_amount != null ? String(shippingQuote.shipping_amount) : "",
       carrier_name: String(shippingQuote.carrier_name || ""),
       service_name: String(shippingQuote.service_name || ""),
-      tracking_number: String(shippingQuote.tracking_number || ""),
       estimated_delivery: String(shippingQuote.estimated_delivery || ""),
       description: String(shippingQuote.description || ""),
       notes: String(shippingQuote.notes || ""),
@@ -250,6 +266,12 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   const displayOrder = localOrder ?? order;
   const displayCustomer = displayOrder?.customer ?? null;
   const orderCustomerID: string = typeof displayOrder?.customer_id === "string" ? displayOrder.customer_id.trim() : "";
+  const customerConfirmation = useMemo(() => parseCustomerConfirmation(displayOrder?.metadata), [displayOrder?.metadata]);
+  const dispute = useMemo(() => parseDisputeMetadata(displayOrder?.metadata), [displayOrder?.metadata]);
+  const displayOrderStatus = String(displayOrder?.status || "").toLowerCase();
+  const disputeDecision = String(dispute?.admin_decision || "").toLowerCase();
+  const canResolveOpenDispute = displayOrderStatus === "in_dispute" && (!disputeDecision || disputeDecision === "open");
+  const canMarkRefundCompleted = displayOrderStatus === "in_dispute" && disputeDecision === "customer_won_pending_refund";
 
   const sortedPayments = useMemo(() => {
     const payments = displayOrder?.payments || [];
@@ -400,7 +422,15 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
       const res = await listShippableItems(displayOrder.id);
       setShippableItems(res.data || []);
       setSelectedShipmentItemIDs({});
-      setShipmentForm(defaultShipmentForm);
+      setShipmentForm({
+        carrier_name: String(shippingQuoteMetadata?.carrier_name || ""),
+        service_name: String(shippingQuoteMetadata?.service_name || ""),
+        tracking_number: "",
+        shipping_amount: shippingQuoteMetadata?.shipping_amount != null ? String(shippingQuoteMetadata.shipping_amount) : "0",
+        estimated_delivery: String(shippingQuoteMetadata?.estimated_delivery || ""),
+        description: String(shippingQuoteMetadata?.description || ""),
+        notes: String(shippingQuoteMetadata?.notes || ""),
+      });
       setShipmentModalOpen(true);
     } catch (err) {
       notifyError(err instanceof Error ? err.message : "Gagal memuat item kirim");
@@ -449,7 +479,7 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   const openEditShipmentModal = (shipment: OrderShipment) => {
     setEditShipmentForm({
       shipment_id: shipment.id,
-      status: (shipment.status || "pending") as "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+      status: (shipment.status || "pending") as EditShipmentFormState["status"],
       carrier_name: shipment.carrier_name || "",
       service_name: shipment.service_name || "",
       tracking_number: shipment.tracking_number || "",
@@ -571,6 +601,11 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
     })[0] || null;
   }, [shipments]);
 
+  const latestShipmentTrackingNumber = String(latestShipment?.tracking_number || "").trim();
+  const shippingQuoteTrackingNumber = String(shippingQuoteMetadata?.tracking_number || "").trim();
+  const displayedTrackingNumber = latestShipmentTrackingNumber || shippingQuoteTrackingNumber;
+  const displayedShipmentEta = String(latestShipment?.estimated_delivery || shippingQuoteMetadata?.estimated_delivery || "").trim();
+
   const latestShipmentStatusMeta = useMemo(() => {
     const status = String(latestShipment?.status || "").toLowerCase();
     switch (status) {
@@ -630,7 +665,6 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
         shipping_amount: amount,
         carrier_name: shippingQuoteForm.carrier_name.trim(),
         service_name: shippingQuoteForm.service_name.trim(),
-        tracking_number: shippingQuoteForm.tracking_number.trim(),
         estimated_delivery: shippingQuoteForm.estimated_delivery.trim(),
         description: shippingQuoteForm.description.trim(),
         notes: shippingQuoteForm.notes.trim(),
@@ -814,6 +848,34 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
     }
   };
 
+  const handleResolveDispute = async (decision: "seller" | "customer" | "refund") => {
+    if (!displayOrder?.id) return;
+    if (!disputeNote.trim()) {
+      notifyError(decision === "refund" ? "Catatan refund wajib diisi" : "Catatan admin wajib diisi");
+      return;
+    }
+
+    setDisputeAction(decision);
+    try {
+      if (decision === "seller") {
+        await resolveOrderDisputeForSeller(displayOrder.id, disputeNote.trim());
+        notifySuccess("Dispute diputuskan untuk seller.");
+      } else if (decision === "customer") {
+        await resolveOrderDisputeForCustomer(displayOrder.id, disputeNote.trim());
+        notifySuccess("Dispute diputuskan untuk customer. Menunggu refund manual.");
+      } else {
+        await markOrderDisputeRefundCompleted(displayOrder.id, disputeNote.trim());
+        notifySuccess("Refund dispute ditandai selesai.");
+      }
+      setDisputeNote("");
+      await refreshOrder();
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal memperbarui status dispute");
+    } finally {
+      setDisputeAction("");
+    }
+  };
+
   return (
     <AdminModal open={open} onClose={onClose} title={displayOrder ? `Order ${displayOrder.order_number}` : "Order Detail"} maxWidth="2xl">
       
@@ -829,12 +891,28 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
               <p className="mt-1 text-sm font-medium text-slate-900">{displayOrder.order_number}</p>
             </div>
             <div>
-              <p className="text-xs uppercase text-slate-500">Status</p>
+              <p className="text-xs uppercase text-slate-500">Order Status</p>
               <p className="mt-1 text-sm font-medium text-slate-900">{displayOrder.status}</p>
             </div>
             <div>
               <p className="text-xs uppercase text-slate-500">Payment Status</p>
               <p className="mt-1 text-sm font-medium text-slate-900">{displayOrder.payment_status}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-slate-500">Delivery Status</p>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-sm font-medium text-slate-900">{displayOrder.delivery_status || "pending"}</p>
+                {displayOrder.fulfillment_type?.toLowerCase() === "delivery" && displayOrder.id && (
+                  <a
+                    href={`/admin/orders/${displayOrder.id}/delivery`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-sky-600 hover:underline"
+                  >
+                    ↗
+                  </a>
+                )}
+              </div>
             </div>
             <div>
               <p className="text-xs uppercase text-slate-500">Channel</p>
@@ -870,6 +948,100 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
               <p className="mt-1 text-sm text-slate-900">{formatDateTime(displayOrder.updated_at)}</p>
             </div>
           </section>
+
+          {customerConfirmation || dispute || ["in_dispute", "refunded", "completed"].includes(displayOrderStatus) ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-slate-900">Dispute Review</h4>
+                  <p className="mt-1 text-xs text-slate-500">Admin memutuskan sengketa order dan menentukan apakah payout jalan atau refund selesai manual.</p>
+                </div>
+                {disputeDecision ? (
+                  <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-700">{disputeDecision}</span>
+                ) : null}
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.9fr]">
+                <div className="space-y-3 text-sm text-slate-700">
+                  {customerConfirmation?.seller_message ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pesan Seller Saat Request</div>
+                      <div className="mt-1 whitespace-pre-wrap">{String(customerConfirmation.seller_message)}</div>
+                    </div>
+                  ) : null}
+                  {dispute?.customer_reason || customerConfirmation?.reject_reason ? (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-800">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">Alasan Customer</div>
+                      <div className="mt-1 whitespace-pre-wrap">{String(dispute?.customer_reason || customerConfirmation?.reject_reason || "-")}</div>
+                      {dispute?.opened_at ? <div className="mt-1 text-[11px] text-rose-700">Dibuka: {formatDateTime(String(dispute.opened_at))}</div> : null}
+                    </div>
+                  ) : null}
+                  {dispute?.seller_note ? (
+                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Catatan Seller</div>
+                      <div className="mt-1 whitespace-pre-wrap">{String(dispute.seller_note)}</div>
+                      {dispute?.seller_note_at ? <div className="mt-1 text-[11px] text-slate-500">Diperbarui: {formatDateTime(String(dispute.seller_note_at))}</div> : null}
+                    </div>
+                  ) : null}
+                  {dispute?.admin_note ? (
+                    <div className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Catatan Admin</div>
+                      <div className="mt-1 whitespace-pre-wrap">{String(dispute.admin_note)}</div>
+                      {dispute?.resolved_at ? <div className="mt-1 text-[11px] text-slate-500">Diputuskan: {formatDateTime(String(dispute.resolved_at))}</div> : null}
+                    </div>
+                  ) : null}
+                  {dispute?.refund_note ? (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-emerald-800">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Catatan Refund</div>
+                      <div className="mt-1 whitespace-pre-wrap">{String(dispute.refund_note)}</div>
+                      {dispute?.refund_completed_at ? <div className="mt-1 text-[11px] text-emerald-700">Selesai: {formatDateTime(String(dispute.refund_completed_at))}</div> : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Admin Action</div>
+                  <textarea
+                    value={disputeNote}
+                    onChange={(event) => setDisputeNote(event.target.value)}
+                    className="mt-3 min-h-28 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    placeholder={canMarkRefundCompleted ? "Tulis bukti bahwa refund manual sudah selesai." : "Tulis alasan keputusan admin untuk dispute ini."}
+                  />
+                  <div className="mt-3 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleResolveDispute("seller")}
+                      disabled={!canResolveOpenDispute || disputeAction !== ""}
+                      className="inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {disputeAction === "seller" ? "Processing..." : "Resolve to Seller"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleResolveDispute("customer")}
+                      disabled={!canResolveOpenDispute || disputeAction !== ""}
+                      className="inline-flex w-full items-center justify-center rounded-lg border border-rose-200 bg-white px-3.5 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {disputeAction === "customer" ? "Processing..." : "Resolve to Customer"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleResolveDispute("refund")}
+                      disabled={!canMarkRefundCompleted || disputeAction !== ""}
+                      className="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {disputeAction === "refund" ? "Processing..." : "Mark Refund Completed"}
+                    </button>
+                  </div>
+                  {!canResolveOpenDispute && !canMarkRefundCompleted ? (
+                    <div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600">
+                      Tidak ada aksi dispute terbuka. Cek keputusan admin atau status refund yang sudah tersimpan.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <h4 className="text-sm font-semibold text-slate-900">Order Items</h4>
@@ -921,148 +1093,163 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
 
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <h4 className="text-sm font-semibold text-slate-900">Payment History</h4>
-                {sortedPayments && sortedPayments.length > 0 ? (
+            {sortedPayments && sortedPayments.length > 0 ? (
               <div className="mt-3 space-y-3">
-                
+                {sortedPayments.map((payment) => {
+                  const providerKey = String(payment.provider_key || "").toLowerCase();
+                  const metadata = parsePaymentMetadata(payment.metadata);
+                  const bankTransfer = (metadata?.bank_transfer || {}) as Record<string, any>;
+                  const senderBank = (bankTransfer.sender_bank || {}) as Record<string, any>;
+                  const destinationBank = (bankTransfer.destination_bank || {}) as Record<string, any>;
+                  const transfer = (bankTransfer.transfer || {}) as Record<string, any>;
+                  const proofs = proofsByPaymentID[payment.id] || [];
+                  const status = String(payment.status || "").toLowerCase();
+                  const isBankTransfer = providerKey === "bank_transfer";
+                  const isCollapsible = isBankTransfer && (status === "rejected" || status === "cancelled" || status === "canceled");
+                  const expanded = !!expandedPayments[payment.id];
+                  const classes = statusClasses(payment.status);
 
-                {sortedPayments
-                  .filter((payment) => String(payment.provider_key || "").toLowerCase() === "bank_transfer")
-                  .map((payment) => {
-                    const metadata = parsePaymentMetadata(payment.metadata);
-                    const bankTransfer = (metadata?.bank_transfer || {}) as Record<string, any>;
-                    const senderBank = (bankTransfer.sender_bank || {}) as Record<string, any>;
-                    const destinationBank = (bankTransfer.destination_bank || {}) as Record<string, any>;
-                    const transfer = (bankTransfer.transfer || {}) as Record<string, any>;
-                    const proofs = proofsByPaymentID[payment.id] || [];
-                    const status = String(payment.status || "").toLowerCase();
-                    const isCollapsible = status === "rejected" || status === "cancelled" || status === "canceled";
-                    const expanded = !!expandedPayments[payment.id];
-
-                    const classes = statusClasses(payment.status);
-
-                    return (
-                      <div key={`bank-transfer-${payment.id}`} className={`rounded-lg border ${classes.wrapper}`}>
-                        <div className="p-3 flex items-center justify-between">
-                          <div>
-                            <h5 className={`text-sm font-semibold ${classes.text}`}>Bank Transfer Detail - {payment.id}</h5>
-                            <div className={`text-xs ${classes.text}`}>Status: <span className={`ml-2 inline-block px-2 py-0.5 text-xs rounded ${classes.badge}`}>{payment.status}</span></div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => refreshPayment(payment.id)}
-                              disabled={!payment.id}
-                              aria-label="Refresh payment proofs"
-                              title="Refresh payment proofs"
-                              className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                            >
-                              {paymentRefreshing[payment.id] ? "..." : "⟳"}
-                            </button>
-                            {isCollapsible ? (
-                              <div>
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedPayments((s) => ({ ...s, [payment.id]: !expanded }))}
-                                  className={`rounded border ${classes.wrapper.includes("amber") ? "border-amber-300" : classes.wrapper.includes("red") ? "border-red-300" : "border-slate-300"} bg-white px-3 py-1 text-xs ${classes.text} hover:opacity-90`}
-                                >
-                                  {expanded ? "Sembunyikan" : "Tampilkan"}
-                                </button>
-                              </div>
-                            ) : null}
+                  return (
+                    <div key={payment.id} className={`rounded-lg border ${classes.wrapper}`}>
+                      <div className="p-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h5 className={`text-sm font-semibold ${classes.text}`}>
+                            {isBankTransfer ? `Bank Transfer Detail - ${payment.id}` : `Payment Detail - ${payment.id}`}
+                          </h5>
+                          <div className={`text-xs ${classes.text}`}>
+                            <span className="mr-2">Provider: {payment.provider_key || "-"}</span>
+                            <span className="mr-2">Status: <span className={`ml-2 inline-block px-2 py-0.5 text-xs rounded ${classes.badge}`}>{payment.status}</span></span>
+                            <span>Amount: {money(payment.currency || (displayOrder?.currency || ""), Number(payment.amount || 0))}</span>
                           </div>
                         </div>
-
-                        {(!isCollapsible || expanded) && (
-                          <div className={`p-3 pt-0 grid gap-3 text-sm ${classes.text} sm:grid-cols-2`}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => refreshPayment(payment.id)}
+                            disabled={!payment.id}
+                            aria-label="Refresh payment proofs"
+                            title="Refresh payment proofs"
+                            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                          >
+                            {paymentRefreshing[payment.id] ? "..." : "⟳"}
+                          </button>
+                          {isCollapsible ? (
                             <div>
-                              <p className="font-medium">Bank Pengirim Customer</p>
-                              <p>Bank: {senderBank.bank_name || "-"}</p>
-                              <p>No Rekening: {senderBank.account_number || "-"}</p>
-                              <p>Atas Nama: {senderBank.account_holder || "-"}</p>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedPayments((s) => ({ ...s, [payment.id]: !expanded }))}
+                                className={`rounded border ${classes.wrapper.includes("amber") ? "border-amber-300" : classes.wrapper.includes("red") ? "border-red-300" : "border-slate-300"} bg-white px-3 py-1 text-xs ${classes.text} hover:opacity-90`}
+                              >
+                                {expanded ? "Sembunyikan" : "Tampilkan"}
+                              </button>
                             </div>
-                            <div>
-                              <p className="font-medium">Bank Tujuan</p>
-                              <p>Bank: {destinationBank.bank_name || "-"}</p>
-                              <p>No Rekening: {destinationBank.account_number || "-"}</p>
-                              <p>Atas Nama: {destinationBank.account_name || "-"}</p>
-                            </div>
-                            <div>
-                              <p className="font-medium">Transfer</p>
-                              <p>Amount: {money(payment.currency || (displayOrder?.currency || ""), Number(transfer.amount || payment.amount || 0))}</p>
-                              <p>Waktu Transfer: {formatDateTime(String(transfer.transferred_at || ""))}</p>
-                              <p>Reference: {transfer.reference || "-"}</p>
-                            </div>
-                            <div>
-                              <p className="font-medium">Bukti Transfer ({proofs.length})</p>
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => openManageProofs(payment.id)}
-                                  className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                                >
-                                  Manage Proofs
-                                </button>
-                                {((proofsByPaymentID[payment.id] || proofs) || []).length > 0 ? (
-                                  <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{(proofsByPaymentID[payment.id] || proofs).length} bukti</span>
-                                ) : (
-                                  <span className="text-xs text-amber-800">Belum ada bukti transfer.</span>
-                                )}
-                                <div className="ml-auto flex items-center gap-2">
-                                  {((String(payment.status || "").toLowerCase() === "pending") || (String(payment.status || "").toLowerCase() === "pending_verification")) ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        onClick={() => approvePayment(payment.id)}
-                                        className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
-                                      >
-                                        Approve
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => rejectPayment(payment.id)}
-                                        className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-                                      >
-                                        Reject
-                                      </button>
-                                    </>
-                                  ) : null}
-                                </div>
-                              </div>
-                              {(proofsByPaymentID[payment.id] || proofs).length > 0 ? (
-                                <div className="mt-2 space-y-1">
-                                  {(proofsByPaymentID[payment.id] || proofs).map((proof) => {
-                                    const opKey = `${payment.id}:${proof.id}`;
-                                    return (
-                                      <div key={proof.id} className="flex items-center justify-between gap-2 rounded border border-amber-300 bg-white px-2 py-1 text-xs">
-                                        <span className="truncate text-slate-700">{proof.id} ({proof.status})</span>
-                                        <div className="flex items-center gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => openProof(payment.id, proof.id)}
-                                            disabled={openingProofKey === opKey}
-                                            className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                                          >
-                                            {openingProofKey === opKey ? "Membuka..." : "Lihat"}
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => deleteProofForPayment(payment.id, proof.id)}
-                                            className="text-xs text-rose-600 hover:underline"
-                                          >
-                                            Hapus
-                                          </button>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                        )}
+                          ) : null}
+                        </div>
                       </div>
-                    );
-                  })}
+
+                      {isBankTransfer ? (
+                        <>
+                          {(!isCollapsible || expanded) && (
+                            <div className={`p-3 pt-0 grid gap-3 text-sm ${classes.text} sm:grid-cols-2`}>
+                              <div>
+                                <p className="font-medium">Bank Pengirim Customer</p>
+                                <p>Bank: {senderBank.bank_name || "-"}</p>
+                                <p>No Rekening: {senderBank.account_number || "-"}</p>
+                                <p>Atas Nama: {senderBank.account_holder || "-"}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium">Bank Tujuan</p>
+                                <p>Bank: {destinationBank.bank_name || "-"}</p>
+                                <p>No Rekening: {destinationBank.account_number || "-"}</p>
+                                <p>Atas Nama: {destinationBank.account_name || "-"}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium">Transfer</p>
+                                <p>Amount: {money(payment.currency || (displayOrder?.currency || ""), Number(transfer.amount || payment.amount || 0))}</p>
+                                <p>Waktu Transfer: {formatDateTime(String(transfer.transferred_at || ""))}</p>
+                                <p>Reference: {transfer.reference || "-"}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium">Bukti Transfer ({proofs.length})</p>
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openManageProofs(payment.id)}
+                                    className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                                  >
+                                    Manage Proofs
+                                  </button>
+                                  {((proofsByPaymentID[payment.id] || proofs) || []).length > 0 ? (
+                                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">{(proofsByPaymentID[payment.id] || proofs).length} bukti</span>
+                                  ) : (
+                                    <span className="text-xs text-amber-800">Belum ada bukti transfer.</span>
+                                  )}
+                                  <div className="ml-auto flex items-center gap-2">
+                                    {((String(payment.status || "").toLowerCase() === "pending") || (String(payment.status || "").toLowerCase() === "pending_verification")) ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => approvePayment(payment.id)}
+                                          className="rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
+                                        >
+                                          Approve
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => rejectPayment(payment.id)}
+                                          className="rounded border border-rose-300 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+                                        >
+                                          Reject
+                                        </button>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                {(proofsByPaymentID[payment.id] || proofs).length > 0 ? (
+                                  <div className="mt-2 space-y-1">
+                                    {(proofsByPaymentID[payment.id] || proofs).map((proof) => {
+                                      const opKey = `${payment.id}:${proof.id}`;
+                                      return (
+                                        <div key={proof.id} className="flex items-center justify-between gap-2 rounded border border-amber-300 bg-white px-2 py-1 text-xs">
+                                          <span className="truncate text-slate-700">{proof.id} ({proof.status})</span>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => openProof(payment.id, proof.id)}
+                                              disabled={openingProofKey === opKey}
+                                              className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                                            >
+                                              {openingProofKey === opKey ? "Membuka..." : "Lihat"}
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => deleteProofForPayment(payment.id, proof.id)}
+                                              className="text-xs text-rose-600 hover:underline"
+                                            >
+                                              Hapus
+                                            </button>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className={`border-t border-slate-100 p-3 pt-0 text-sm ${classes.text}`}>
+                          <p className="mt-2">Provider key: {payment.provider_key || "-"}</p>
+                          <p className="mt-1">Paid at: {formatDateTime(payment.paid_at)}</p>
+                          <p className="mt-1">Failed at: {formatDateTime(payment.failed_at)}</p>
+                          {payment.provider_transaction_id ? <p className="mt-1 break-all">Provider transaction ID: {payment.provider_transaction_id}</p> : null}
+                          {payment.external_reference ? <p className="mt-1 break-all">External reference: {payment.external_reference}</p> : null}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <p className="mt-3 text-sm text-slate-600">Belum ada riwayat payment.</p>
@@ -1194,18 +1381,39 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                     </p>
                     <p className="mt-1 text-[11px] text-slate-500">Update terakhir: {formatDateTime(latestShipment.updated_at)}</p>
                   </>
+                ) : displayedTrackingNumber ? (
+                  <>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <p className="text-base font-semibold text-slate-900">Resi tersimpan di ongkir</p>
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                        Quote
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {String(shippingQuoteMetadata?.carrier_name || "Carrier")}{shippingQuoteMetadata?.service_name ? ` - ${String(shippingQuoteMetadata.service_name)}` : ""}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-500">Tracking: {displayedTrackingNumber}</p>
+                  </>
                 ) : (
                   <p className="mt-1 font-semibold text-slate-900">Belum ada resi</p>
                 )}
               </div>
               <div className="rounded-lg bg-slate-50 p-3">
                 <p className="text-xs uppercase text-slate-500">Resi Terakhir</p>
-                <p className="mt-1 truncate font-semibold text-slate-900">{latestShipment?.tracking_number || "-"}</p>
-                <p className="mt-1 text-xs text-slate-500">ETA: {latestShipment?.estimated_delivery || "-"}</p>
+                <p className="mt-1 truncate font-semibold text-slate-900">{displayedTrackingNumber || "-"}</p>
+                <p className="mt-1 text-xs text-slate-500">ETA: {displayedShipmentEta || "-"}</p>
               </div>
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <a
+                href={displayOrder?.id ? `/admin/orders/${displayOrder.id}/delivery` : "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 hover:bg-sky-100"
+              >
+                Halaman Pengiriman ↗
+              </a>
               <button
                 type="button"
                 onClick={openDeliveryModal}
@@ -1352,15 +1560,6 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                     />
                   </label>
                   <label className="text-sm">
-                    <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Resi / Tracking</span>
-                    <input
-                      value={shippingQuoteForm.tracking_number}
-                      onChange={(e) => setShippingQuoteForm((prev) => ({ ...prev, tracking_number: e.target.value }))}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="Nomor resi / airway bill"
-                    />
-                  </label>
-                  <label className="text-sm">
                     <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">ETA</span>
                     <input
                       value={shippingQuoteForm.estimated_delivery}
@@ -1395,7 +1594,7 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                     <div className="mt-2 grid gap-1 sm:grid-cols-2">
                       <div>Kurir: {String(shippingQuoteMetadata.carrier_name || "-")}</div>
                       <div>Service: {String(shippingQuoteMetadata.service_name || "-")}</div>
-                      <div>Resi: {String(shippingQuoteMetadata.tracking_number || "-")}</div>
+                      <div>Resi: {displayedTrackingNumber || "-"}</div>
                       <div>ETA: {String(shippingQuoteMetadata.estimated_delivery || "-")}</div>
                       <div className="sm:col-span-2">Deskripsi: {String(shippingQuoteMetadata.description || "-")}</div>
                       <div className="sm:col-span-2">Catatan: {String(shippingQuoteMetadata.notes || "-")}</div>
@@ -1731,15 +1930,18 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                   onChange={(e) =>
                     setEditShipmentForm((prev) => ({
                       ...prev,
-                      status: e.target.value as "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+                      status: e.target.value as EditShipmentFormState["status"],
                     }))
                   }
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 >
                   <option value="pending">pending</option>
-                  <option value="processing">processing</option>
+                  <option value="ready_to_ship">ready_to_ship</option>
                   <option value="shipped">shipped</option>
+                  <option value="in_transit">in_transit</option>
                   <option value="delivered">delivered</option>
+                  <option value="exception">exception</option>
+                  <option value="returned">returned</option>
                   <option value="cancelled">cancelled</option>
                 </select>
               </label>
@@ -1856,14 +2058,14 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
             </div>
           </section>
           <div className="mt-4 flex justify-end gap-2">
-            {displayOrder && String(displayOrder.payment_status || "").toLowerCase() === "paid" && String(displayOrder.status || "").toLowerCase() !== "confirmed" ? (
+            {displayOrder && String(displayOrder.payment_status || "").toLowerCase() === "paid" && !["processing", "shipped", "waiting_customer_confirmation", "in_dispute", "refunded", "completed", "cancelled", "canceled"].includes(String(displayOrder.status || "").toLowerCase()) ? (
               <button
                 type="button"
                 onClick={async () => {
                   if (!displayOrder) return;
-                  if (!window.confirm('Mark order as \"confirmed\"?')) return;
+                  if (!window.confirm('Mark order as \"processing\"?')) return;
                   try {
-                    await adminPost(`/admin/order/orders/${displayOrder.id}/status`, { status: 'confirmed' });
+                    await adminPost(`/admin/order/orders/${displayOrder.id}/status`, { status: 'processing' });
                     notifySuccess('Order status updated');
                     await refreshOrder();
                   } catch (err) {
@@ -1872,7 +2074,7 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                 }}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
               >
-                Mark Confirmed
+                Mark Processing
               </button>
             ) : displayOrder && displayOrder.payment_status && displayOrder.payment_status.toLowerCase() !== "paid" && String(displayOrder.status || "").toLowerCase() !== "expired" && String(displayOrder.payment_status || "").toLowerCase() !== "expired" ? (
               <a

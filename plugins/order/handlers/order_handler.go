@@ -77,6 +77,10 @@ func orderToPublic(ord *ordermodels.Order) gin.H {
 			metadata = md
 		}
 	}
+	shipments := ord.Shipments
+	if shipments == nil {
+		shipments = []ordermodels.OrderShipment{}
+	}
 	return gin.H{
 		"id":               ord.ID,
 		"order_number":     ord.OrderNumber,
@@ -86,6 +90,7 @@ func orderToPublic(ord *ordermodels.Order) gin.H {
 		"channel":          ord.Channel,
 		"status":           ord.Status,
 		"payment_status":   ord.PaymentStatus,
+		"delivery_status":  ord.DeliveryStatus,
 		"currency":         ord.Currency,
 		"subtotal":         ord.Subtotal,
 		"discount_amount":  ord.DiscountAmount,
@@ -103,6 +108,7 @@ func orderToPublic(ord *ordermodels.Order) gin.H {
 		"created_at":       ord.CreatedAt,
 		"updated_at":       ord.UpdatedAt,
 		"order_items":      ord.OrderItems,
+		"shipments":        shipments,
 	}
 }
 
@@ -173,6 +179,18 @@ type applyOrderItemDiscountReq struct {
 
 type updateShippingAddressReq struct {
 	AddressID string `json:"address_id" binding:"required"`
+}
+
+type requestCustomerConfirmationReq struct {
+	Message string `json:"message"`
+}
+
+type rejectCustomerConfirmationReq struct {
+	Reason string `json:"reason" binding:"required"`
+}
+
+type disputeNoteReq struct {
+	Note string `json:"note" binding:"required"`
 }
 
 func (h *OrderHandler) AdminUpdateShippingAddress(c *gin.Context) {
@@ -408,7 +426,6 @@ type updateShippingQuoteReq struct {
 	ShippingAmount    float64 `json:"shipping_amount" binding:"required"`
 	CarrierName       string  `json:"carrier_name"`
 	ServiceName       string  `json:"service_name"`
-	TrackingNumber    string  `json:"tracking_number"`
 	EstimatedDelivery string  `json:"estimated_delivery"`
 	Description       string  `json:"description"`
 	Notes             string  `json:"notes"`
@@ -461,7 +478,7 @@ func (h *OrderHandler) ReplaceExtraCharges(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
 }
 
-// UpdateShippingQuote stores/updates ongkir details; tracking number can be updated later using the same endpoint.
+// UpdateShippingQuote stores/updates ongkir details.
 func (h *OrderHandler) UpdateShippingQuote(c *gin.Context) {
 	orderID := c.Param("id")
 	var req updateShippingQuoteReq
@@ -473,7 +490,6 @@ func (h *OrderHandler) UpdateShippingQuote(c *gin.Context) {
 		ShippingAmount:    req.ShippingAmount,
 		CarrierName:       req.CarrierName,
 		ServiceName:       req.ServiceName,
-		TrackingNumber:    req.TrackingNumber,
 		EstimatedDelivery: req.EstimatedDelivery,
 		Description:       req.Description,
 		Notes:             req.Notes,
@@ -553,6 +569,153 @@ func (h *OrderHandler) MeGetByID(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{"order": orderToPublic(ord), "payments": ord.Payments, "providers": providerResp, "business": business}})
+}
+
+func (h *OrderHandler) MeApproveCustomerConfirmation(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+	if _, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), c.Param("id"), customerID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	updated, err := h.svc.ApproveCustomerConfirmation(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrCustomerConfirmationNotPending) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
+func (h *OrderHandler) MeRejectCustomerConfirmation(c *gin.Context) {
+	customerID := customerIDFromContext(c)
+	if customerID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "customer authentication required"})
+		return
+	}
+	var req rejectCustomerConfirmationReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if _, err := h.svc.GetOrderByIDForCustomer(c.Request.Context(), c.Param("id"), customerID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	updated, err := h.svc.RejectCustomerConfirmation(c.Request.Context(), c.Param("id"), req.Reason)
+	if err != nil {
+		if errors.Is(err, ordersvc.ErrCustomerConfirmationNotPending) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
+func (h *OrderHandler) AdminResolveDisputeForSeller(c *gin.Context) {
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	if adminID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin authentication required"})
+		return
+	}
+
+	var req disputeNoteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.ResolveDisputeForSeller(c.Request.Context(), c.Param("id"), adminID, req.Note)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		if errors.Is(err, ordersvc.ErrOrderDisputeNotOpen) || errors.Is(err, ordersvc.ErrOrderDisputeAlreadyResolved) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
+func (h *OrderHandler) AdminResolveDisputeForCustomer(c *gin.Context) {
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	if adminID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin authentication required"})
+		return
+	}
+
+	var req disputeNoteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.ResolveDisputeForCustomer(c.Request.Context(), c.Param("id"), adminID, req.Note)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		if errors.Is(err, ordersvc.ErrOrderDisputeNotOpen) || errors.Is(err, ordersvc.ErrOrderDisputeAlreadyResolved) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
+}
+
+func (h *OrderHandler) AdminMarkDisputeRefundCompleted(c *gin.Context) {
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	if adminID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "admin authentication required"})
+		return
+	}
+
+	var req disputeNoteReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updated, err := h.svc.MarkDisputeRefundCompleted(c.Request.Context(), c.Param("id"), adminID, req.Note)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+			return
+		}
+		if errors.Is(err, ordersvc.ErrOrderDisputeRefundNotPending) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": orderToPublic(updated)})
 }
 
 func (h *OrderHandler) MeList(c *gin.Context) {
@@ -1222,17 +1385,18 @@ func (h *OrderHandler) AdminList(c *gin.Context) {
 		}
 	}
 	filter := ordersvc.OrderListFilter{
-		Query:         c.Query("q"),
-		BusinessID:    c.Query("business_id"),
-		UserID:        c.Query("user_id"),
-		Status:        c.Query("status"),
-		PaymentStatus: c.Query("payment_status"),
-		Channel:       c.Query("channel"),
-		From:          fromPtr,
-		To:            toPtr,
-		Page:          page,
-		Limit:         limit,
-		Sort:          c.Query("sort"),
+		Query:           c.Query("q"),
+		BusinessID:      c.Query("business_id"),
+		UserID:          c.Query("user_id"),
+		Status:          c.Query("status"),
+		PaymentStatus:   c.Query("payment_status"),
+		DisputeDecision: c.Query("dispute_decision"),
+		Channel:         c.Query("channel"),
+		From:            fromPtr,
+		To:              toPtr,
+		Page:            page,
+		Limit:           limit,
+		Sort:            c.Query("sort"),
 	}
 	orders, total, err := h.svc.ListOrders(c.Request.Context(), filter)
 	if err != nil {

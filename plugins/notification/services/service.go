@@ -143,6 +143,78 @@ var defaultTemplates = map[string]TemplateConfig{
 		Subject:    "Pembayaran order {{.order_number}} berhasil",
 		Body:       "Halo {{.customer_name}}, pembayaran untuk order {{.order_number}} berhasil diterima. Status saat ini: {{.payment_status}}.",
 	},
+	"customer_confirmation_requested": {
+		Name:       "Customer Confirmation Requested",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Konfirmasi penerimaan order {{.order_number}}",
+		Body:       "Halo {{.customer_name}}, seller meminta konfirmasi bahwa order {{.order_number}} sudah sampai. Silakan cek detail order dan pilih terima atau tolak.{{if .confirmation_message}}\n\nPesan seller: {{.confirmation_message}}{{end}}",
+	},
+	"order_dispute_opened_admin": {
+		Name:       "Order Dispute Opened Admin",
+		Audience:   "admin",
+		Enabled:    true,
+		Recipients: "admin@goseller.local",
+		Subject:    "[Dispute Order] {{.order_number}} butuh review admin",
+		Body:       "Order {{.order_number}} masuk dispute dan menunggu review admin.\n\nCustomer: {{.customer_name}}\nAlasan customer: {{.dispute_customer_reason}}{{if .dispute_confirmation_reject_reason}}\nAlasan tolak konfirmasi: {{.dispute_confirmation_reject_reason}}{{end}}{{if .dispute_seller_note}}\nCatatan seller: {{.dispute_seller_note}}{{end}}",
+	},
+	"order_dispute_opened_member": {
+		Name:       "Order Dispute Opened Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Dispute Order] {{.order_number}} dibuka customer",
+		Body:       "Halo, order {{.order_number}} masuk dispute.\n\nCustomer: {{.customer_name}}\nAlasan customer: {{.dispute_customer_reason}}{{if .dispute_confirmation_reject_reason}}\nAlasan tolak konfirmasi: {{.dispute_confirmation_reject_reason}}{{end}}{{if .dispute_seller_note}}\nCatatan seller saat ini: {{.dispute_seller_note}}{{end}}\n\nSilakan cek detail order dan lengkapi catatan dispute bila perlu.",
+	},
+	"order_dispute_seller_won_customer": {
+		Name:       "Order Dispute Seller Won Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Hasil dispute order {{.order_number}}",
+		Body:       "Halo {{.customer_name}}, dispute untuk order {{.order_number}} telah diputuskan untuk seller. Order dinyatakan selesai.{{if .dispute_admin_note}}\n\nCatatan admin: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_seller_won_member": {
+		Name:       "Order Dispute Seller Won Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Dispute Order] {{.order_number}} dimenangkan seller",
+		Body:       "Halo, admin telah memutuskan dispute order {{.order_number}} untuk seller. Order dinyatakan selesai.{{if .dispute_admin_note}}\n\nCatatan admin: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_customer_won_customer": {
+		Name:       "Order Dispute Customer Won Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Refund diproses untuk dispute order {{.order_number}}",
+		Body:       "Halo {{.customer_name}}, dispute untuk order {{.order_number}} diputuskan untuk customer. Refund sedang diproses manual oleh admin.{{if .dispute_admin_note}}\n\nCatatan admin: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_customer_won_member": {
+		Name:       "Order Dispute Customer Won Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Dispute Order] {{.order_number}} diputuskan untuk customer",
+		Body:       "Halo, admin telah memutuskan dispute order {{.order_number}} untuk customer. Refund akan diproses manual.{{if .dispute_admin_note}}\n\nCatatan admin: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_refunded_customer": {
+		Name:       "Order Dispute Refunded Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Refund dispute order {{.order_number}} selesai",
+		Body:       "Halo {{.customer_name}}, refund untuk dispute order {{.order_number}} telah diselesaikan admin.{{if .dispute_refund_note}}\n\nCatatan refund: {{.dispute_refund_note}}{{end}}",
+	},
+	"order_dispute_refunded_member": {
+		Name:       "Order Dispute Refunded Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Dispute Order] Refund {{.order_number}} selesai",
+		Body:       "Halo, refund untuk dispute order {{.order_number}} telah ditandai selesai oleh admin.{{if .dispute_refund_note}}\n\nCatatan refund: {{.dispute_refund_note}}{{end}}",
+	},
 	"completed_order_customer": {
 		Name:       "Completed Order",
 		Audience:   "customer",
@@ -150,6 +222,14 @@ var defaultTemplates = map[string]TemplateConfig{
 		Recipients: "{{.customer_email}}",
 		Subject:    "Order selesai - {{.order_number}}",
 		Body:       "Hi {{.customer_name}}, order {{.order_number}} sudah selesai. Terima kasih sudah belanja.",
+	},
+	"delivery_status_changed_customer": {
+		Name:       "Delivery Status Changed",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "[Delivery] {{.order_number}} berubah ke {{.delivery_status}}",
+		Body:       "Halo {{.customer_name}}, status delivery order {{.order_number}} berubah dari {{.previous_delivery_status}} ke {{.delivery_status}}.{{if .carrier_name}}\n\nKurir: {{.carrier_name}}{{end}}{{if .service_name}}\nLayanan: {{.service_name}}{{end}}{{if .tracking_number}}\nResi: {{.tracking_number}}{{end}}{{if .estimated_delivery}}\nEstimasi: {{.estimated_delivery}}{{end}}",
 	},
 	"customer_forgot_password": {
 		Name:       "Customer Forgot Password",
@@ -338,6 +418,78 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Subject:    "Payment successful - {{.order_number}}",
 		Body:       "Hi {{.customer_name}}, payment for order {{.order_number}} was successful. Current status: {{.payment_status}}.",
 	},
+	"customer_confirmation_requested": {
+		Name:       "Customer Confirmation Requested",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Confirm delivery for order {{.order_number}}",
+		Body:       "Hi {{.customer_name}}, the seller asked you to confirm that order {{.order_number}} has arrived. Please open the order detail and choose accept or reject.{{if .confirmation_message}}\n\nSeller message: {{.confirmation_message}}{{end}}",
+	},
+	"order_dispute_opened_admin": {
+		Name:       "Order Dispute Opened Admin",
+		Audience:   "admin",
+		Enabled:    true,
+		Recipients: "admin@goseller.local",
+		Subject:    "[Order Dispute] {{.order_number}} needs admin review",
+		Body:       "Order {{.order_number}} is now in dispute and needs admin review.\n\nCustomer: {{.customer_name}}\nCustomer reason: {{.dispute_customer_reason}}{{if .dispute_confirmation_reject_reason}}\nConfirmation rejection reason: {{.dispute_confirmation_reject_reason}}{{end}}{{if .dispute_seller_note}}\nSeller note: {{.dispute_seller_note}}{{end}}",
+	},
+	"order_dispute_opened_member": {
+		Name:       "Order Dispute Opened Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Order Dispute] {{.order_number}} opened by customer",
+		Body:       "Hello, order {{.order_number}} is now in dispute.\n\nCustomer: {{.customer_name}}\nCustomer reason: {{.dispute_customer_reason}}{{if .dispute_confirmation_reject_reason}}\nConfirmation rejection reason: {{.dispute_confirmation_reject_reason}}{{end}}{{if .dispute_seller_note}}\nCurrent seller note: {{.dispute_seller_note}}{{end}}\n\nPlease review the order detail and add a dispute note if needed.",
+	},
+	"order_dispute_seller_won_customer": {
+		Name:       "Order Dispute Seller Won Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Dispute result for order {{.order_number}}",
+		Body:       "Hi {{.customer_name}}, the dispute for order {{.order_number}} has been resolved in favor of the seller. The order is now completed.{{if .dispute_admin_note}}\n\nAdmin note: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_seller_won_member": {
+		Name:       "Order Dispute Seller Won Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Order Dispute] {{.order_number}} resolved for seller",
+		Body:       "Hello, admin resolved the dispute for order {{.order_number}} in favor of the seller. The order is now completed.{{if .dispute_admin_note}}\n\nAdmin note: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_customer_won_customer": {
+		Name:       "Order Dispute Customer Won Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Refund is being prepared for order {{.order_number}}",
+		Body:       "Hi {{.customer_name}}, the dispute for order {{.order_number}} has been resolved in favor of the customer. The refund is being processed manually by admin.{{if .dispute_admin_note}}\n\nAdmin note: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_customer_won_member": {
+		Name:       "Order Dispute Customer Won Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Order Dispute] {{.order_number}} resolved for customer",
+		Body:       "Hello, admin resolved the dispute for order {{.order_number}} in favor of the customer. The refund will be handled manually.{{if .dispute_admin_note}}\n\nAdmin note: {{.dispute_admin_note}}{{end}}",
+	},
+	"order_dispute_refunded_customer": {
+		Name:       "Order Dispute Refunded Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "Refund completed for order {{.order_number}}",
+		Body:       "Hi {{.customer_name}}, the refund for disputed order {{.order_number}} has been completed by admin.{{if .dispute_refund_note}}\n\nRefund note: {{.dispute_refund_note}}{{end}}",
+	},
+	"order_dispute_refunded_member": {
+		Name:       "Order Dispute Refunded Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Order Dispute] Refund completed for {{.order_number}}",
+		Body:       "Hello, the refund for disputed order {{.order_number}} has been marked completed by admin.{{if .dispute_refund_note}}\n\nRefund note: {{.dispute_refund_note}}{{end}}",
+	},
 	"completed_order_customer": {
 		Name:       "Completed Order",
 		Audience:   "customer",
@@ -345,6 +497,14 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Recipients: "{{.customer_email}}",
 		Subject:    "Order completed - {{.order_number}}",
 		Body:       "Hi {{.customer_name}}, your order {{.order_number}} is completed. Thank you for shopping with us.",
+	},
+	"delivery_status_changed_customer": {
+		Name:       "Delivery Status Changed",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.customer_email}}",
+		Subject:    "[Delivery] {{.order_number}} changed to {{.delivery_status}}",
+		Body:       "Hi {{.customer_name}}, the delivery status for order {{.order_number}} changed from {{.previous_delivery_status}} to {{.delivery_status}}.{{if .carrier_name}}\n\nCarrier: {{.carrier_name}}{{end}}{{if .service_name}}\nService: {{.service_name}}{{end}}{{if .tracking_number}}\nTracking Number: {{.tracking_number}}{{end}}{{if .estimated_delivery}}\nEstimated Delivery: {{.estimated_delivery}}{{end}}",
 	},
 	"customer_forgot_password": {
 		Name:       "Customer Forgot Password",
@@ -495,6 +655,7 @@ func (s *Service) SendOrderEvent(ctx context.Context, db *gorm.DB, eventKey stri
 	if err := db.WithContext(ctx).
 		Preload("Customer").
 		Preload("Payments").
+		Preload("Shipments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at DESC") }).
 		Where("id = ?", orderID).
 		First(&order).Error; err != nil {
 		return err
@@ -561,27 +722,42 @@ func (s *Service) BuildTestPayload(overrides map[string]string) map[string]inter
 		overrides = map[string]string{}
 	}
 	payload := map[string]interface{}{
-		"order_id":         "test-order",
-		"order_number":     "TEST-1001",
-		"order_status":     "pending",
-		"payment_status":   "paid",
-		"grand_total":      "123.45",
-		"currency":         "IDR",
-		"customer_name":    "Test Customer",
-		"customer_email":   "test@example.com",
-		"customer_locale":  "id",
-		"business_name":    "Go Seller",
-		"member_name":      "Test Member",
-		"role":             "Editor",
-		"invited_by_label": "Owner",
-		"invited_by_name":  "Owner Name",
-		"invited_by_email": "owner@example.com",
-		"invite_url":       "https://example.com/member/auth/team-invite?token=TEST-INVITE-TOKEN",
-		"reason":           "access suspended for review",
-		"order_link":       "/admin/orders",
-		"reset_token":      "TEST-RESET-TOKEN",
-		"reset_url":        "https://example.com/customer/auth/reset-password?token=TEST-RESET-TOKEN",
-		"app_name":         "Go Seller",
+		"order_id":                           "test-order",
+		"order_number":                       "TEST-1001",
+		"order_status":                       "pending",
+		"payment_status":                     "paid",
+		"grand_total":                        "123.45",
+		"currency":                           "IDR",
+		"customer_name":                      "Test Customer",
+		"customer_email":                     "test@example.com",
+		"customer_locale":                    "id",
+		"seller_email":                       "seller@example.com",
+		"business_name":                      "Go Seller",
+		"delivery_status":                    "ready_to_ship",
+		"previous_delivery_status":           "pending",
+		"shipment_status":                    "ready_to_ship",
+		"carrier_name":                       "JNE",
+		"service_name":                       "REG",
+		"tracking_number":                    "TEST-TRACKING-001",
+		"estimated_delivery":                 "2-3 hari kerja",
+		"shipment_count":                     1,
+		"dispute_customer_reason":            "barang rusak saat diterima",
+		"dispute_seller_note":                "seller sudah lampirkan bukti kirim",
+		"dispute_admin_decision":             "open",
+		"dispute_admin_note":                 "menunggu verifikasi tambahan",
+		"dispute_refund_note":                "refund diproses manual",
+		"dispute_confirmation_reject_reason": "paket belum sesuai",
+		"member_name":                        "Test Member",
+		"role":                               "Editor",
+		"invited_by_label":                   "Owner",
+		"invited_by_name":                    "Owner Name",
+		"invited_by_email":                   "owner@example.com",
+		"invite_url":                         "https://example.com/member/auth/team-invite?token=TEST-INVITE-TOKEN",
+		"reason":                             "access suspended for review",
+		"order_link":                         "/admin/orders",
+		"reset_token":                        "TEST-RESET-TOKEN",
+		"reset_url":                          "https://example.com/customer/auth/reset-password?token=TEST-RESET-TOKEN",
+		"app_name":                           "Go Seller",
 	}
 	for key, value := range overrides {
 		if strings.TrimSpace(key) == "" {
@@ -773,6 +949,24 @@ func (s *Service) buildPayload(ctx context.Context, db *gorm.DB, order *ordermod
 	var customerName string
 	var customerEmail string
 	customerLocale := "id"
+	deliveryStatus := strings.TrimSpace(order.DeliveryStatus)
+	if deliveryStatus == "" {
+		deliveryStatus = "pending"
+	}
+	shipmentStatus := ""
+	carrierName := ""
+	serviceName := ""
+	trackingNumber := ""
+	estimatedDelivery := ""
+	shipmentCount := 0
+	confirmationStatus := ""
+	confirmationMessage := ""
+	confirmationRejectReason := ""
+	disputeCustomerReason := ""
+	disputeSellerNote := ""
+	disputeAdminDecision := ""
+	disputeAdminNote := ""
+	disputeRefundNote := ""
 	if order.Customer != nil {
 		customerName = strings.TrimSpace(order.Customer.Name)
 		customerEmail = strings.TrimSpace(order.Customer.Email)
@@ -797,18 +991,76 @@ func (s *Service) buildPayload(ctx context.Context, db *gorm.DB, order *ordermod
 	if len(order.Payments) > 0 {
 		paymentStatus = order.Payments[0].Status
 	}
+	if len(order.Shipments) > 0 {
+		shipmentCount = len(order.Shipments)
+		latestShipment := order.Shipments[0]
+		shipmentStatus = strings.TrimSpace(latestShipment.Status)
+		carrierName = strings.TrimSpace(latestShipment.CarrierName)
+		serviceName = strings.TrimSpace(latestShipment.ServiceName)
+		trackingNumber = strings.TrimSpace(latestShipment.TrackingNumber)
+		estimatedDelivery = strings.TrimSpace(latestShipment.EstimatedDelivery)
+	}
+	if len(order.Metadata) > 0 && !strings.EqualFold(strings.TrimSpace(string(order.Metadata)), "null") {
+		var metadata map[string]any
+		if err := json.Unmarshal(order.Metadata, &metadata); err == nil {
+			if rawConfirmation, ok := metadata["customer_confirmation"].(map[string]any); ok {
+				if status, ok := rawConfirmation["status"].(string); ok {
+					confirmationStatus = strings.TrimSpace(status)
+				}
+				if message, ok := rawConfirmation["seller_message"].(string); ok {
+					confirmationMessage = strings.TrimSpace(message)
+				}
+				if reason, ok := rawConfirmation["reject_reason"].(string); ok {
+					confirmationRejectReason = strings.TrimSpace(reason)
+				}
+			}
+			if rawDispute, ok := metadata["dispute"].(map[string]any); ok {
+				if reason, ok := rawDispute["customer_reason"].(string); ok {
+					disputeCustomerReason = strings.TrimSpace(reason)
+				}
+				if note, ok := rawDispute["seller_note"].(string); ok {
+					disputeSellerNote = strings.TrimSpace(note)
+				}
+				if decision, ok := rawDispute["admin_decision"].(string); ok {
+					disputeAdminDecision = strings.TrimSpace(decision)
+				}
+				if note, ok := rawDispute["admin_note"].(string); ok {
+					disputeAdminNote = strings.TrimSpace(note)
+				}
+				if note, ok := rawDispute["refund_note"].(string); ok {
+					disputeRefundNote = strings.TrimSpace(note)
+				}
+			}
+		}
+	}
 	return map[string]interface{}{
-		"order_id":        order.ID,
-		"order_number":    order.OrderNumber,
-		"order_status":    order.Status,
-		"payment_status":  paymentStatus,
-		"grand_total":     s.formatAmount(order.GrandTotal),
-		"currency":        order.Currency,
-		"customer_name":   s.fallbackString(customerName, "Customer"),
-		"customer_email":  customerEmail,
-		"customer_locale": customerLocale,
-		"business_name":   storeName,
-		"order_link":      "/admin/orders",
+		"order_id":                           order.ID,
+		"order_number":                       order.OrderNumber,
+		"order_status":                       order.Status,
+		"payment_status":                     paymentStatus,
+		"grand_total":                        s.formatAmount(order.GrandTotal),
+		"currency":                           order.Currency,
+		"delivery_status":                    deliveryStatus,
+		"shipment_status":                    shipmentStatus,
+		"shipment_count":                     shipmentCount,
+		"carrier_name":                       carrierName,
+		"service_name":                       serviceName,
+		"tracking_number":                    trackingNumber,
+		"estimated_delivery":                 estimatedDelivery,
+		"customer_name":                      s.fallbackString(customerName, "Customer"),
+		"customer_email":                     customerEmail,
+		"customer_locale":                    customerLocale,
+		"business_name":                      storeName,
+		"confirmation_status":                confirmationStatus,
+		"confirmation_message":               confirmationMessage,
+		"confirmation_reject_reason":         confirmationRejectReason,
+		"dispute_customer_reason":            disputeCustomerReason,
+		"dispute_seller_note":                disputeSellerNote,
+		"dispute_admin_decision":             disputeAdminDecision,
+		"dispute_admin_note":                 disputeAdminNote,
+		"dispute_refund_note":                disputeRefundNote,
+		"dispute_confirmation_reject_reason": confirmationRejectReason,
+		"order_link":                         "/admin/orders",
 	}
 }
 

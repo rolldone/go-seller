@@ -33,7 +33,6 @@ type ShippingQuoteDetails struct {
 	ShippingAmount    float64
 	CarrierName       string
 	ServiceName       string
-	TrackingNumber    string
 	EstimatedDelivery string
 	Description       string
 	Notes             string
@@ -66,6 +65,8 @@ type ExtraChargeInput struct {
 
 const orderExpiryHoursSettingKey = "order.expiry_hours"
 const defaultOrderExpiryHours = 24
+const orderRequireCustomerConfirmationSettingKey = "order.require_customer_confirmation"
+const defaultOrderRequireCustomerConfirmation = false
 
 func NewOrderService(db *gorm.DB) *OrderService {
 	return &OrderService{DB: db}
@@ -235,6 +236,29 @@ func parseOrderExpiryHours(raw []byte) int {
 	return defaultOrderExpiryHours
 }
 
+func parseBoolSettingValue(raw []byte, defaultValue bool) bool {
+	if len(raw) == 0 || strings.EqualFold(strings.TrimSpace(string(raw)), "null") {
+		return defaultValue
+	}
+
+	var booleanValue bool
+	if err := json.Unmarshal(raw, &booleanValue); err == nil {
+		return booleanValue
+	}
+
+	var textValue string
+	if err := json.Unmarshal(raw, &textValue); err == nil {
+		switch strings.ToLower(strings.TrimSpace(textValue)) {
+		case "true", "1", "yes", "on":
+			return true
+		case "false", "0", "no", "off":
+			return false
+		}
+	}
+
+	return defaultValue
+}
+
 func (s *OrderService) getOrderExpiryHours(ctx context.Context) (int, error) {
 	var setting settingmodels.Setting
 	err := s.DB.WithContext(ctx).Where("scope = ? AND key = ?", "global", orderExpiryHoursSettingKey).First(&setting).Error
@@ -251,6 +275,18 @@ func (s *OrderService) getOrderExpiryHours(ctx context.Context) (int, error) {
 	return hours, nil
 }
 
+func (s *OrderService) isCustomerConfirmationFeatureEnabled(ctx context.Context) (bool, error) {
+	var setting settingmodels.Setting
+	err := s.DB.WithContext(ctx).Where("scope = ? AND key = ?", "global", orderRequireCustomerConfirmationSettingKey).First(&setting).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return defaultOrderRequireCustomerConfirmation, nil
+		}
+		return false, err
+	}
+	return parseBoolSettingValue(setting.Value, defaultOrderRequireCustomerConfirmation), nil
+}
+
 func (s *OrderService) expireStalePendingOrders(ctx context.Context) error {
 	hours, err := s.getOrderExpiryHours(ctx)
 	if err != nil {
@@ -262,10 +298,11 @@ func (s *OrderService) expireStalePendingOrders(ctx context.Context) error {
 	now := time.Now()
 	cutoff := now.Add(-time.Duration(hours) * time.Hour)
 	return s.DB.WithContext(ctx).Model(&models.Order{}).
-		Where("channel = ? AND status = ? AND payment_status = ? AND COALESCE(placed_at, created_at) <= ?", "web", "pending", "unpaid", cutoff).
+		Where("channel = ? AND status = ? AND payment_status IN ? AND COALESCE(placed_at, created_at) <= ?",
+			"web", "pending", []string{PaymentStatusPending, PaymentStatusUnpaid}, cutoff).
 		Updates(map[string]interface{}{
-			"status":         "expired",
-			"payment_status": "expired",
+			"status":         OrderStatusCancelled,
+			"payment_status": PaymentStatusExpired,
 			"updated_at":     now,
 		}).Error
 }
@@ -336,7 +373,7 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			BusinessID:      cart.BusinessID,
 			Channel:         "web",
 			Status:          "pending",
-			PaymentStatus:   "unpaid",
+			PaymentStatus:   PaymentStatusPending,
 			Currency:        currency,
 			Subtotal:        preview.Subtotal,
 			DiscountAmount:  preview.DiscountAmount,
@@ -472,7 +509,7 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 			BusinessID:      businessID,
 			Channel:         "pos",
 			Status:          "pending",
-			PaymentStatus:   "unpaid",
+			PaymentStatus:   PaymentStatusPending,
 			Currency:        currency,
 			Subtotal:        subtotal,
 			DiscountAmount:  0,
@@ -529,7 +566,7 @@ func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID stri
 		BusinessID:      businessID,
 		Channel:         "pos",
 		Status:          "draft",
-		PaymentStatus:   "unpaid",
+		PaymentStatus:   PaymentStatusPending,
 		Currency:        currency,
 		Subtotal:        0,
 		DiscountAmount:  0,
@@ -793,6 +830,7 @@ func (s *OrderService) FinalizeOrder(ctx context.Context, orderID string) (*mode
 
 // UpdateOrderStatus sets the order's status to the provided value.
 func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID string, status string) (*models.Order, error) {
+	normalizedStatus := normalizeOrderStatus(status)
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 		var order models.Order
@@ -801,10 +839,16 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID string, st
 		}
 		// allow updating status regardless of payment state; caller should validate transitions
 		if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{
-			"status":     status,
+			"status":     normalizedStatus,
 			"updated_at": now,
 		}).Error; err != nil {
 			return err
+		}
+		order.Status = normalizedStatus
+		if normalizedStatus == "completed" {
+			if err := s.creditCompletedOrderTx(tx, &order, now); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -815,7 +859,7 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID string, st
 	if err != nil {
 		return nil, err
 	}
-	switch strings.ToLower(strings.TrimSpace(status)) {
+	switch normalizedStatus {
 	case "completed":
 		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "completed_order_customer", orderID)
 	case "cancelled", "canceled":
@@ -859,7 +903,6 @@ func (s *OrderService) UpdateShippingQuote(ctx context.Context, orderID string, 
 			"shipping_amount":    details.ShippingAmount,
 			"carrier_name":       strings.TrimSpace(details.CarrierName),
 			"service_name":       strings.TrimSpace(details.ServiceName),
-			"tracking_number":    strings.TrimSpace(details.TrackingNumber),
 			"estimated_delivery": strings.TrimSpace(details.EstimatedDelivery),
 			"description":        strings.TrimSpace(details.Description),
 			"notes":              strings.TrimSpace(details.Notes),
@@ -885,8 +928,8 @@ func (s *OrderService) UpdateShippingQuote(ctx context.Context, orderID string, 
 			}
 			updates["shipping_amount"] = details.ShippingAmount
 			updates["grand_total"] = grand
-			updates["status"] = "quote_ready"
-			updates["payment_status"] = "unpaid"
+			updates["status"] = OrderStatusQuoteReady
+			updates["payment_status"] = PaymentStatusPending
 		}
 		if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(updates).Error; err != nil {
 			return err
@@ -963,8 +1006,8 @@ func (s *OrderService) UpdateShippingAddress(ctx context.Context, orderID string
 			"metadata":        metadataJSON,
 			"shipping_amount": 0,
 			"grand_total":     grand,
-			"status":          "awaiting_quote",
-			"payment_status":  "awaiting_quote",
+			"status":          OrderStatusAwaitingQuote,
+			"payment_status":  PaymentStatusPending,
 			"updated_at":      now,
 		}
 		return tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(updates).Error
@@ -1125,6 +1168,10 @@ func (s *OrderService) recalculateOrderTotalsTx(tx *gorm.DB, orderID string, now
 }
 
 func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Order, error) {
+	trimmedID := strings.TrimSpace(id)
+	if trimmedID == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
 	if err := s.expireStalePendingOrders(ctx); err != nil {
 		return nil, err
 	}
@@ -1134,14 +1181,16 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Ord
 		Preload("Payments").
 		Preload("OrderCoupons").
 		Preload("ExtraCharges", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
+		Preload("Shipments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
+		Preload("Shipments.Items").
 		Preload("Customer").
-		Where("id = ?", id).
+		Where("id = ?", trimmedID).
 		First(&o).Error; err != nil {
 		return nil, err
 	}
 	// populate discount names for order items from order_discounts
 	var ods []models.OrderDiscount
-	if err := s.DB.WithContext(ctx).Where("order_id = ?", id).Find(&ods).Error; err == nil {
+	if err := s.DB.WithContext(ctx).Where("order_id = ?", trimmedID).Find(&ods).Error; err == nil {
 		odMap := make(map[string]string)
 		for _, od := range ods {
 			if od.OrderItemID != "" {
@@ -1459,18 +1508,19 @@ func (s *OrderService) RemoveCouponFromOrder(ctx context.Context, orderID, coupo
 
 // OrderListFilter defines filters for listing orders.
 type OrderListFilter struct {
-	Query         string
-	BusinessID    string
-	UserID        string
-	CustomerID    string
-	Status        string
-	PaymentStatus string
-	Channel       string
-	From          *time.Time
-	To            *time.Time
-	Page          int
-	Limit         int
-	Sort          string
+	Query           string
+	BusinessID      string
+	UserID          string
+	CustomerID      string
+	Status          string
+	PaymentStatus   string
+	DisputeDecision string
+	Channel         string
+	From            *time.Time
+	To              *time.Time
+	Page            int
+	Limit           int
+	Sort            string
 }
 
 // BusinessCustomerHistoryItem summarizes a customer that has prior orders for a business.
@@ -1610,10 +1660,18 @@ func (s *OrderService) ListOrders(ctx context.Context, f OrderListFilter) ([]mod
 		q = q.Where("customer_id = ?", f.CustomerID)
 	}
 	if f.Status != "" {
-		q = q.Where("status = ?", f.Status)
+		normalizedStatus := normalizeOrderStatus(f.Status)
+		if normalizedStatus == OrderStatusProcessing {
+			q = q.Where("status IN ?", []string{OrderStatusProcessing, "confirmed"})
+		} else {
+			q = q.Where("status = ?", normalizedStatus)
+		}
 	}
 	if f.PaymentStatus != "" {
 		q = q.Where("payment_status = ?", f.PaymentStatus)
+	}
+	if f.DisputeDecision != "" {
+		q = q.Where("metadata -> 'dispute' ->> 'admin_decision' = ?", f.DisputeDecision)
 	}
 	if f.Channel != "" {
 		q = q.Where("channel = ?", f.Channel)

@@ -20,8 +20,9 @@ type Order struct {
 	BusinessID       *string            `gorm:"type:uuid;index" json:"business_id"`
 	Channel          string             `gorm:"size:24;index" json:"channel"`
 	CreatedByAdminID *string            `gorm:"type:uuid;index" json:"created_by_admin_id"`
-	Status           string             `gorm:"size:24;index" json:"status"`
+	Status           string             `gorm:"size:64;index" json:"status"`
 	PaymentStatus    string             `gorm:"size:24;index" json:"payment_status"`
+	DeliveryStatus   string             `gorm:"size:32;not null;default:'pending'" json:"delivery_status"`
 	Currency         string             `gorm:"size:8" json:"currency"`
 	Subtotal         float64            `gorm:"type:numeric(15,2)" json:"subtotal"`
 	DiscountAmount   float64            `gorm:"type:numeric(15,2)" json:"discount_amount"`

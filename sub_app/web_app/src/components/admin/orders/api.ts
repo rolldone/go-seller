@@ -18,6 +18,7 @@ const toQuery = (params: ListOrdersParams): string => {
   if (params.user_id) q.set("user_id", params.user_id);
   if (params.status) q.set("status", params.status);
   if (params.payment_status) q.set("payment_status", params.payment_status);
+  if (params.dispute_decision) q.set("dispute_decision", params.dispute_decision);
   if (params.channel) q.set("channel", params.channel);
   if (params.from) q.set("from", params.from);
   if (params.to) q.set("to", params.to);
@@ -46,7 +47,6 @@ export async function updateShippingQuote(
     shipping_amount: number;
     carrier_name?: string;
     service_name?: string;
-    tracking_number?: string;
     estimated_delivery?: string;
     description?: string;
     notes?: string;
@@ -88,15 +88,25 @@ export async function createOrderShipment(
     estimated_delivery?: string;
     description?: string;
     notes?: string;
-    item_ids: string[];
+    item_ids?: string[];
   },
 ): Promise<OrderShipment> {
   return adminPost<OrderShipment>(`/admin/order/orders/${orderID}/shipments`, payload);
 }
 
+export type ShipmentStatus =
+  | "pending"
+  | "ready_to_ship"
+  | "shipped"
+  | "in_transit"
+  | "delivered"
+  | "exception"
+  | "returned"
+  | "cancelled";
+
 export async function updateOrderShipmentStatus(
   shipmentID: string,
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled",
+  status: ShipmentStatus,
 ): Promise<OrderShipment> {
   return adminPatch<OrderShipment>(`/admin/order/shipments/${shipmentID}`, { status });
 }
@@ -111,8 +121,20 @@ export async function updateOrderShipment(
     estimated_delivery?: string;
     description?: string;
     notes?: string;
-    status?: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+    status?: ShipmentStatus;
   },
 ): Promise<OrderShipment> {
   return adminPatch<OrderShipment>(`/admin/order/shipments/${shipmentID}`, payload);
+}
+
+export async function resolveOrderDisputeForSeller(orderID: string, note: string): Promise<{ data: Order }> {
+  return adminPost<{ data: Order }>(`/admin/order/orders/${orderID}/dispute/resolve-seller`, { note });
+}
+
+export async function resolveOrderDisputeForCustomer(orderID: string, note: string): Promise<{ data: Order }> {
+  return adminPost<{ data: Order }>(`/admin/order/orders/${orderID}/dispute/resolve-customer`, { note });
+}
+
+export async function markOrderDisputeRefundCompleted(orderID: string, note: string): Promise<{ data: Order }> {
+  return adminPost<{ data: Order }>(`/admin/order/orders/${orderID}/dispute/refund-completed`, { note });
 }

@@ -189,11 +189,17 @@ func (h *SettingHandler) PublicMaintenance(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	confirmationRaw, err := h.svc.GetOrDefault(ctx, "global", "order.require_customer_confirmation", []byte("false"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"index":          readBoolSetting(indexRaw),
-		"business_page":  readBoolSetting(businessRaw),
-		"product_detail": readBoolSetting(productRaw),
+		"index":                       readBoolSetting(indexRaw),
+		"business_page":               readBoolSetting(businessRaw),
+		"product_detail":              readBoolSetting(productRaw),
+		"order_customer_confirmation": readBoolSetting(confirmationRaw),
 	}})
 }
 
