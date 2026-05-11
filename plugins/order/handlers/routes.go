@@ -160,11 +160,13 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	memberBusinessOrders.DELETE("/:id/shipments/:shipment_id", memberShipmentHandler.DeleteShipment)
 
 	// Seller balance routes (member - seller view)
-	sellerBalanceHandler := NewSellerBalanceHandler(s.SellerBalance)
-	sellerWithdrawalHandler := NewSellerWithdrawalHandler(s.SellerWithdrawal)
+	sellerBalanceHandler := NewSellerBalanceHandler(s.SellerBalance, s.Catalog)
+	sellerWithdrawalHandler := NewSellerWithdrawalHandler(s.SellerWithdrawal, s.Catalog)
 	memberBusinessBalance := memberOrder.Group("/businesses/:business_id/balance")
 	memberBusinessBalance.GET("", sellerBalanceHandler.GetBalance)
 	memberBusinessBalance.GET("/mutations", sellerBalanceHandler.ListMutations)
+	memberBusinessBalance.GET("/settlements/summary", sellerBalanceHandler.MemberSettlementSummary)
+	memberBusinessBalance.GET("/settlements", sellerBalanceHandler.MemberListSettlements)
 	memberBusinessBalance.GET("/withdrawals", sellerWithdrawalHandler.ListWithdrawals)
 	memberBusinessBalance.POST("/withdrawals", sellerWithdrawalHandler.RequestWithdrawal)
 	memberBusinessBalance.GET("/withdrawals/:id", sellerWithdrawalHandler.GetWithdrawal)
@@ -180,9 +182,13 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 
 	// Admin seller balance management
 	adminSellerBalance := adminOrder.Group("/seller-balance")
+	settlementHandler := NewSellerSettlementHandler(s.SellerBalance)
 	adminSellerBalance.GET("/summary", sellerBalanceHandler.AdminGetSummary)
 	adminSellerBalance.POST("/:seller_id/credit", sellerBalanceHandler.AdminCreditBalance)
 	adminSellerBalance.POST("/:seller_id/debet", sellerBalanceHandler.AdminDebetBalance)
+	adminSellerBalance.GET("/settlements", settlementHandler.AdminListSettlements)
+	adminSellerBalance.GET("/settlements/:id", settlementHandler.AdminGetSettlement)
+	adminSellerBalance.POST("/settlements/:id/decision", settlementHandler.AdminDecideSettlement)
 
 	// Admin withdrawal management
 	adminWithdrawals := adminOrder.Group("/withdrawals")

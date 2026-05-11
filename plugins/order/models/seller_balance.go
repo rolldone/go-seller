@@ -31,6 +31,7 @@ const (
 // Source constants
 const (
 	SourceOrder       = "order"
+	SourceSettlement  = "settlement"
 	SourceWithdraw    = "withdraw"
 	SourceFee         = "fee"
 	SourceAdminAdjust = "admin_adjust"
@@ -38,9 +39,10 @@ const (
 
 // ReferenceType constants
 const (
-	ReferenceTypeOrder    = "order"
-	ReferenceTypeWithdraw = "withdrawal"
-	ReferenceTypeFee      = "fee"
+	ReferenceTypeOrder      = "order"
+	ReferenceTypeSettlement = "settlement"
+	ReferenceTypeWithdraw   = "withdrawal"
+	ReferenceTypeFee        = "fee"
 )
 
 type SellerWithdrawal struct {

@@ -4,17 +4,19 @@ import (
 	"net/http"
 	"strconv"
 
+	catalogservices "go_framework/plugins/catalog/services"
 	"go_framework/plugins/order/services"
 
 	"github.com/gin-gonic/gin"
 )
 
 type SellerWithdrawalHandler struct {
-	Service *services.SellerWithdrawalService
+	Service        *services.SellerWithdrawalService
+	CatalogService *catalogservices.CatalogService
 }
 
-func NewSellerWithdrawalHandler(svc *services.SellerWithdrawalService) *SellerWithdrawalHandler {
-	return &SellerWithdrawalHandler{Service: svc}
+func NewSellerWithdrawalHandler(svc *services.SellerWithdrawalService, catalogService *catalogservices.CatalogService) *SellerWithdrawalHandler {
+	return &SellerWithdrawalHandler{Service: svc, CatalogService: catalogService}
 }
 
 // RequestWithdrawal creates a new withdrawal request
@@ -23,6 +25,9 @@ func (h *SellerWithdrawalHandler) RequestWithdrawal(c *gin.Context) {
 	sellerID := c.Param("business_id")
 	if sellerID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seller id"})
+		return
+	}
+	if _, ok := memberBusinessAccess(c, h.CatalogService, sellerID); !ok {
 		return
 	}
 
@@ -47,6 +52,9 @@ func (h *SellerWithdrawalHandler) ListWithdrawals(c *gin.Context) {
 	sellerID := c.Param("business_id")
 	if sellerID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seller id"})
+		return
+	}
+	if _, ok := memberBusinessAccess(c, h.CatalogService, sellerID); !ok {
 		return
 	}
 
@@ -86,6 +94,9 @@ func (h *SellerWithdrawalHandler) GetWithdrawal(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	if _, ok := memberBusinessAccess(c, h.CatalogService, sellerID); !ok {
 		return
 	}
 

@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS customer_wallet_withdrawals;

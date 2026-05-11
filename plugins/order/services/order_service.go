@@ -846,7 +846,7 @@ func (s *OrderService) UpdateOrderStatus(ctx context.Context, orderID string, st
 		}
 		order.Status = normalizedStatus
 		if normalizedStatus == "completed" {
-			if err := s.creditCompletedOrderTx(tx, &order, now); err != nil {
+			if err := s.createPendingSettlementTx(tx, &order, now, "admin_status_completed"); err != nil {
 				return err
 			}
 		}

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	financemodels "go_framework/plugins/finance/models"
+	financesvc "go_framework/plugins/finance/services"
 	"go_framework/plugins/order/models"
 	pluginregistry "go_framework/plugins/plugin_registry"
 	settingmodels "go_framework/plugins/setting/models"
@@ -479,7 +481,7 @@ func (s *OrderService) hasEligibleCustomerConfirmationShipmentTx(tx *gorm.DB, or
 	return canRequestCustomerConfirmation(order.FulfillmentType, progress), nil
 }
 
-func (s *OrderService) creditCompletedOrderTx(tx *gorm.DB, order *models.Order, now time.Time) error {
+func (s *OrderService) createPendingSettlementTx(tx *gorm.DB, order *models.Order, now time.Time, trigger string) error {
 	if tx == nil || order == nil || order.BusinessID == nil {
 		return nil
 	}
@@ -494,52 +496,26 @@ func (s *OrderService) creditCompletedOrderTx(tx *gorm.DB, order *models.Order, 
 	if amount <= 0 {
 		return nil
 	}
-	refType := models.ReferenceTypeOrder
-	var existingCount int64
-	if err := tx.Model(&models.SellerBalanceMutation{}).
-		Where("seller_id = ? AND mutation_type = ? AND source = ? AND reference_type = ? AND reference_id = ?", sellerID, models.MutationTypeCredit, models.SourceOrder, refType, order.ID).
-		Count(&existingCount).Error; err != nil {
+	settlementMetadata, err := settlementMetadataSnapshot(order.ID, order.OrderNumber, trigger, strings.TrimSpace(order.PaymentStatus), strings.TrimSpace(order.DeliveryStatus), amount, models.SettlementScopeFull, now)
+	if err != nil {
 		return err
 	}
-	if existingCount > 0 {
-		return nil
-	}
-
-	var balance models.SellerBalance
-	if err := tx.Where("seller_id = ?", sellerID).First(&balance).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("failed to load seller balance: %w", err)
-		}
-		balance = models.SellerBalance{
-			SellerID:  sellerID,
-			Balance:   0,
-			UpdatedAt: now,
-		}
-		if err := tx.Create(&balance).Error; err != nil {
-			return fmt.Errorf("failed to initialize seller balance: %w", err)
-		}
-	}
-
-	newBalance := balance.Balance + amount
-	if err := tx.Model(&balance).Updates(map[string]any{"balance": newBalance, "updated_at": now}).Error; err != nil {
-		return fmt.Errorf("failed to update seller balance: %w", err)
-	}
-
+	refType := models.ReferenceTypeOrder
 	referenceID := order.ID
-	description := fmt.Sprintf("Payment for order %s", order.ID)
-	mutation := models.SellerBalanceMutation{
+	settlementSvc := NewSellerBalanceService(s.DB)
+	_, err = settlementSvc.CreatePendingSettlementTx(tx, CreateSettlementInput{
 		SellerID:      sellerID,
-		MutationType:  models.MutationTypeCredit,
-		Amount:        amount,
-		Source:        models.SourceOrder,
+		OrderID:       order.ID,
+		GrossAmount:   amount,
+		Source:        models.SourceSettlement,
 		ReferenceID:   &referenceID,
 		ReferenceType: &refType,
-		Description:   &description,
-		BalanceAfter:  newBalance,
+		ReleaseScope:  models.SettlementScopeFull,
+		Metadata:      settlementMetadata,
 		CreatedAt:     now,
-	}
-	if err := tx.Create(&mutation).Error; err != nil {
-		return fmt.Errorf("failed to create seller balance mutation: %w", err)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create pending settlement: %w", err)
 	}
 	return nil
 }
@@ -639,7 +615,7 @@ func (s *OrderService) ApproveCustomerConfirmation(ctx context.Context, orderID 
 		}).Error; err != nil {
 			return err
 		}
-		return s.creditCompletedOrderTx(tx, &order, now)
+		return s.createPendingSettlementTx(tx, &order, now, "customer_confirmation_approved")
 	})
 	if err != nil {
 		return nil, err
@@ -806,7 +782,7 @@ func (s *OrderService) ResolveDisputeForSeller(ctx context.Context, orderID, adm
 		}).Error; err != nil {
 			return err
 		}
-		return s.creditCompletedOrderTx(tx, &order, now)
+		return s.createPendingSettlementTx(tx, &order, now, "dispute_resolved_for_seller")
 	})
 	if err != nil {
 		return nil, err
@@ -877,6 +853,7 @@ func (s *OrderService) MarkDisputeRefundCompleted(ctx context.Context, orderID, 
 	if trimmedRefundNote == "" {
 		return nil, ErrOrderDisputeRefundNoteRequired
 	}
+	walletService := financesvc.New(s.DB, nil)
 
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
@@ -893,6 +870,13 @@ func (s *OrderService) MarkDisputeRefundCompleted(ctx context.Context, orderID, 
 		if normalizeDisputeDecision(dispute.AdminDecision) != orderDisputeDecisionCustomerWon {
 			return ErrOrderDisputeRefundNotPending
 		}
+		if order.CustomerID == nil || strings.TrimSpace(*order.CustomerID) == "" {
+			return errors.New("order has no customer_id for wallet refund")
+		}
+		refundAmount := int64(order.GrandTotal * 100)
+		if refundAmount <= 0 {
+			return errors.New("refund amount must be positive")
+		}
 		dispute.AdminDecision = orderDisputeDecisionRefunded
 		dispute.RefundNote = &trimmedRefundNote
 		dispute.RefundCompletedByAdminID = normalizeOptionalText(adminID)
@@ -903,12 +887,24 @@ func (s *OrderService) MarkDisputeRefundCompleted(ctx context.Context, orderID, 
 			return err
 		}
 
-		return tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]any{
+		if err := tx.Model(&models.Order{}).Where("id = ?", orderID).Updates(map[string]any{
 			"status":         OrderStatusRefunded,
 			"payment_status": OrderStatusRefunded,
 			"metadata":       metadataJSON,
 			"updated_at":     now,
-		}).Error
+		}).Error; err != nil {
+			return err
+		}
+
+		customerID := strings.TrimSpace(*order.CustomerID)
+		referenceID := order.ID
+		referenceType := financemodels.CustomerWalletReferenceTypeOrder
+		description := fmt.Sprintf("refund completed for order %s", order.OrderNumber)
+		if _, err := walletService.CreditCustomerWalletTx(tx, customerID, refundAmount, financemodels.CustomerWalletBalanceTypeCash, financemodels.CustomerWalletSourceRefund, &referenceID, &referenceType, &description); err != nil {
+			return fmt.Errorf("failed to credit customer wallet: %w", err)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return nil, err

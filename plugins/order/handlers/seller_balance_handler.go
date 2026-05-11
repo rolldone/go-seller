@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	catalogservices "go_framework/plugins/catalog/services"
 	"go_framework/plugins/order/services"
 
 	"github.com/gin-gonic/gin"
@@ -13,11 +14,13 @@ import (
 
 type SellerBalanceHandler struct {
 	SellerBalanceService *services.SellerBalanceService
+	CatalogService       *catalogservices.CatalogService
 }
 
-func NewSellerBalanceHandler(sbService *services.SellerBalanceService) *SellerBalanceHandler {
+func NewSellerBalanceHandler(sbService *services.SellerBalanceService, catalogService *catalogservices.CatalogService) *SellerBalanceHandler {
 	return &SellerBalanceHandler{
 		SellerBalanceService: sbService,
+		CatalogService:       catalogService,
 	}
 }
 
@@ -41,6 +44,9 @@ func (h *SellerBalanceHandler) GetBalance(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seller id"})
 		return
 	}
+	if _, ok := memberBusinessAccess(c, h.CatalogService, sellerID); !ok {
+		return
+	}
 
 	balance, err := h.SellerBalanceService.GetSellerBalance(c.Request.Context(), sellerID)
 	if err != nil {
@@ -61,6 +67,9 @@ func (h *SellerBalanceHandler) ListMutations(c *gin.Context) {
 	sellerID := c.Param("business_id")
 	if sellerID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid seller id"})
+		return
+	}
+	if _, ok := memberBusinessAccess(c, h.CatalogService, sellerID); !ok {
 		return
 	}
 
@@ -87,6 +96,72 @@ func (h *SellerBalanceHandler) ListMutations(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":  mutations,
+		"total": total,
+		"limit": limit,
+		"page":  (offset / limit) + 1,
+	})
+}
+
+// MemberSettlementSummary returns settlement totals for the current member business.
+// GET /member/businesses/:business_id/balance/settlements/summary
+func (h *SellerBalanceHandler) MemberSettlementSummary(c *gin.Context) {
+	businessID := c.Param("business_id")
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid business id"})
+		return
+	}
+	if _, ok := memberBusinessAccess(c, h.CatalogService, businessID); !ok {
+		return
+	}
+
+	summary, err := h.SellerBalanceService.GetSettlementSummary(c.Request.Context(), businessID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, summary)
+}
+
+// MemberListSettlements lists settlement history for the current member business.
+// GET /member/businesses/:business_id/balance/settlements
+func (h *SellerBalanceHandler) MemberListSettlements(c *gin.Context) {
+	businessID := c.Param("business_id")
+	if businessID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid business id"})
+		return
+	}
+	if _, ok := memberBusinessAccess(c, h.CatalogService, businessID); !ok {
+		return
+	}
+
+	status := c.Query("status")
+	limit := 20
+	if l := c.Query("limit"); l != "" {
+		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 && parsed <= 100 {
+			limit = parsed
+		}
+	}
+	offset := 0
+	if p := c.Query("page"); p != "" {
+		if parsed, err := strconv.Atoi(p); err == nil && parsed > 0 {
+			offset = (parsed - 1) * limit
+		}
+	}
+
+	settlements, total, err := h.SellerBalanceService.ListSettlements(c.Request.Context(), services.ListSettlementsInput{
+		Status:   status,
+		SellerID: businessID,
+		Limit:    limit,
+		Offset:   offset,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  settlements,
 		"total": total,
 		"limit": limit,
 		"page":  (offset / limit) + 1,

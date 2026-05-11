@@ -36,6 +36,14 @@ func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api 
 	}
 	admin.GET("/plugins/finance/health", pluginhandlers.HealthHandler)
 
+	customerWallet := api.Group("/customer/wallet")
+	customerWallet.Use(authhandlers.RequireCustomerJWT())
+	walletHandler := pluginhandlers.NewCustomerWalletHandler(p.service)
+	customerWallet.GET("/summary", walletHandler.Summary)
+	customerWallet.GET("/withdrawals", walletHandler.ListWithdrawals)
+	customerWallet.POST("/withdrawals", walletHandler.RequestWithdrawal)
+	customerWallet.GET("/withdrawals/:id", walletHandler.GetWithdrawal)
+
 	// Member routes (require member JWT)
 	memberCatalog := api.Group("/member")
 	memberCatalog.Use(authhandlers.RequireMemberJWT())

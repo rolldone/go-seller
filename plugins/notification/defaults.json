@@ -520,6 +520,110 @@
     "description": "Notifikasi member saat penarikan dana telah diproses/ditransfer (Indonesia)"
   },
   {
+    "key": "notifications.settlement_held_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Held (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} ditahan",
+      "body": "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} saat ini ditahan admin.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi member saat settlement escrow ditahan (Indonesia)"
+  },
+  {
+    "key": "notifications.settlement_held_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Held (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} ditahan",
+      "body": "Settlement escrow ditahan admin.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi admin saat settlement escrow ditahan (Indonesia)"
+  },
+  {
+    "key": "notifications.settlement_partially_released_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Partially Released (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} partial release",
+      "body": "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} telah di-partial release.\n\nSettlement ID: #{{.settlement_id}}\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi member saat settlement escrow partial release (Indonesia)"
+  },
+  {
+    "key": "notifications.settlement_partially_released_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Partially Released (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} partial release",
+      "body": "Settlement escrow telah di-partial release.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi admin saat settlement escrow partial release (Indonesia)"
+  },
+  {
+    "key": "notifications.settlement_released_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Released (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} released",
+      "body": "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} sudah direlease penuh.\n\nSettlement ID: #{{.settlement_id}}\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi member saat settlement escrow release penuh (Indonesia)"
+  },
+  {
+    "key": "notifications.settlement_released_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Released (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} released",
+      "body": "Settlement escrow telah direlease penuh.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi admin saat settlement escrow release penuh (Indonesia)"
+  },
+  {
+    "key": "notifications.settlement_refunded_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Refunded (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} refunded",
+      "body": "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} telah direfund.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi member saat settlement escrow direfund (Indonesia)"
+  },
+  {
+    "key": "notifications.settlement_refunded_admin.id",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Refunded (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} refunded",
+      "body": "Settlement escrow telah direfund.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}"
+    },
+    "description": "Notifikasi admin saat settlement escrow direfund (Indonesia)"
+  },
+  {
     "key": "notifications.withdrawal_requested_member.en",
     "scope": "global",
     "value": {
@@ -622,5 +726,109 @@
       "body": "Hi {{.seller_name}},\n\nYour withdrawal funds have been transferred.\n\nWithdrawal ID: #{{.withdrawal_id}}\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})\n\nPlease check your bank account within 1-3 business days."
     },
     "description": "Member notification when withdrawal funds have been processed/transferred (English)"
+  },
+  {
+    "key": "notifications.settlement_held_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Held (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} is on hold",
+      "body": "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} is currently on hold by admin.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Member notification when escrow settlement is put on hold (English)"
+  },
+  {
+    "key": "notifications.settlement_held_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Held (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} is on hold",
+      "body": "An escrow settlement has been put on hold by admin.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Admin notification when escrow settlement is put on hold (English)"
+  },
+  {
+    "key": "notifications.settlement_partially_released_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Partially Released (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} partially released",
+      "body": "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} has been partially released.\n\nSettlement ID: #{{.settlement_id}}\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Member notification when escrow settlement is partially released (English)"
+  },
+  {
+    "key": "notifications.settlement_partially_released_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Partially Released (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} partially released",
+      "body": "An escrow settlement has been partially released.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Admin notification when escrow settlement is partially released (English)"
+  },
+  {
+    "key": "notifications.settlement_released_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Released (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} released",
+      "body": "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} has been fully released.\n\nSettlement ID: #{{.settlement_id}}\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Member notification when escrow settlement is fully released (English)"
+  },
+  {
+    "key": "notifications.settlement_released_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Released (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} released",
+      "body": "An escrow settlement has been fully released.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Admin notification when escrow settlement is fully released (English)"
+  },
+  {
+    "key": "notifications.settlement_refunded_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Refunded (Member)",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} refunded",
+      "body": "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} has been refunded.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Member notification when escrow settlement is refunded (English)"
+  },
+  {
+    "key": "notifications.settlement_refunded_admin.en",
+    "scope": "global",
+    "value": {
+      "name": "Settlement Refunded (Admin)",
+      "audience": "admin",
+      "enabled": true,
+      "recipients": "admin@goseller.local, finance@goseller.local",
+      "subject": "[Settlement] Escrow #{{.settlement_id}} refunded",
+      "body": "An escrow settlement has been refunded.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}"
+    },
+    "description": "Admin notification when escrow settlement is refunded (English)"
   }
 ]
