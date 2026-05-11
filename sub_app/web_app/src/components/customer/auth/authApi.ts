@@ -70,6 +70,56 @@ export type CustomerAddressInput = {
   metadata?: Record<string, unknown>;
 };
 
+export type CustomerWalletSummary = {
+  customer_id: string;
+  cash_balance: number;
+  promo_balance: number;
+  available_balance: number;
+  withdrawal_total_count: number;
+  withdrawal_total_amount: number;
+  withdrawal_pending_count: number;
+  withdrawal_pending_amount: number;
+};
+
+export type CustomerWalletWithdrawal = {
+  id: number;
+  customer_id: string;
+  requested_amount: number;
+  admin_fee: number;
+  other_fee: number;
+  net_amount: number;
+  status: "submitted" | "under_review" | "awaiting_confirmation" | "approved" | "paid" | "rejected" | "canceled";
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_name: string;
+  notes?: string | null;
+  admin_notes?: string | null;
+  reviewed_by_admin_id?: string | null;
+  reviewed_at?: string | null;
+  paid_by_admin_id?: string | null;
+  paid_at?: string | null;
+  rejected_by_admin_id?: string | null;
+  rejected_at?: string | null;
+  canceled_at?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CustomerWalletWithdrawalListResponse = {
+  data: CustomerWalletWithdrawal[];
+  total: number;
+  limit: number;
+  page: number;
+};
+
+export type CustomerWalletWithdrawalInput = {
+  amount: number;
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_name: string;
+  notes?: string;
+};
+
 type CustomerApiRequestOptions = {
   redirectOnUnauthorized?: boolean;
 };
@@ -224,6 +274,34 @@ export async function setPrimaryMyCustomerAddress(addressID: string): Promise<Cu
     `/api/customer/auth/addresses/${encodeURIComponent(addressID)}/set-primary`,
     { method: "POST" },
   );
+  return payload.data;
+}
+
+export async function getMyCustomerWalletSummary(): Promise<CustomerWalletSummary> {
+  const payload = await customerApiRequest<{ data: CustomerWalletSummary }>("/api/customer/wallet/summary", { method: "GET" });
+  return payload.data;
+}
+
+export async function listMyCustomerWithdrawals(
+  status = "",
+  page = 1,
+  limit = 20,
+): Promise<CustomerWalletWithdrawalListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (status) params.set("status", status);
+  return customerApiRequest<CustomerWalletWithdrawalListResponse>(`/api/customer/wallet/withdrawals?${params.toString()}`, { method: "GET" });
+}
+
+export async function createMyCustomerWithdrawal(input: CustomerWalletWithdrawalInput): Promise<CustomerWalletWithdrawal> {
+  const payload = await customerApiRequest<{ data: CustomerWalletWithdrawal }>("/api/customer/wallet/withdrawals", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return payload.data;
+}
+
+export async function getMyCustomerWithdrawal(id: number): Promise<CustomerWalletWithdrawal> {
+  const payload = await customerApiRequest<{ data: CustomerWalletWithdrawal }>(`/api/customer/wallet/withdrawals/${id}`, { method: "GET" });
   return payload.data;
 }
 

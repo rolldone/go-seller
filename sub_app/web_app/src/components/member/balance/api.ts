@@ -3,6 +3,8 @@ import type {
 	SellerBalance,
 	SellerBalanceMutation,
 	SellerBalanceMutationListResponse,
+	SellerSettlementListResponse,
+	SellerSettlementSummary,
 	SellerWithdrawal,
 	SellerWithdrawalListResponse,
 	CreateWithdrawalPayload,
@@ -19,6 +21,23 @@ export async function listSellerMutations(
 ): Promise<SellerBalanceMutationListResponse> {
 	return memberGet<SellerBalanceMutationListResponse>(
 		`/api/member/businesses/${businessID}/balance/mutations?page=${page}&limit=${limit}`,
+	);
+}
+
+export async function getSellerSettlementSummary(businessID: string): Promise<SellerSettlementSummary> {
+	return memberGet<SellerSettlementSummary>(`/api/member/businesses/${businessID}/balance/settlements/summary`);
+}
+
+export async function listSellerSettlements(
+	businessID: string,
+	status = "",
+	page = 1,
+	limit = 20,
+): Promise<SellerSettlementListResponse> {
+	const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+	if (status) params.set("status", status);
+	return memberGet<SellerSettlementListResponse>(
+		`/api/member/businesses/${businessID}/balance/settlements?${params.toString()}`,
 	);
 }
 

@@ -235,6 +235,54 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     description: "Notifikasi admin saat penarikan dana diproses.",
   },
   {
+    id: "settlement_held_member",
+    name: "Settlement Held (Member)",
+    audience: "member",
+    description: "Notifikasi ke member saat settlement escrow ditahan.",
+  },
+  {
+    id: "settlement_held_admin",
+    name: "Settlement Held (Admin)",
+    audience: "admin",
+    description: "Notifikasi admin saat settlement escrow ditahan.",
+  },
+  {
+    id: "settlement_partially_released_member",
+    name: "Settlement Partially Released (Member)",
+    audience: "member",
+    description: "Notifikasi ke member saat settlement escrow partial release.",
+  },
+  {
+    id: "settlement_partially_released_admin",
+    name: "Settlement Partially Released (Admin)",
+    audience: "admin",
+    description: "Notifikasi admin saat settlement escrow partial release.",
+  },
+  {
+    id: "settlement_released_member",
+    name: "Settlement Released (Member)",
+    audience: "member",
+    description: "Notifikasi ke member saat settlement escrow release penuh.",
+  },
+  {
+    id: "settlement_released_admin",
+    name: "Settlement Released (Admin)",
+    audience: "admin",
+    description: "Notifikasi admin saat settlement escrow release penuh.",
+  },
+  {
+    id: "settlement_refunded_member",
+    name: "Settlement Refunded (Member)",
+    audience: "member",
+    description: "Notifikasi ke member saat settlement escrow direfund.",
+  },
+  {
+    id: "settlement_refunded_admin",
+    name: "Settlement Refunded (Admin)",
+    audience: "admin",
+    description: "Notifikasi admin saat settlement escrow direfund.",
+  },
+  {
     id: "subscription_confirmation_customer",
     name: "Subscription Confirmation",
     audience: "customer",
@@ -247,6 +295,11 @@ const TEMPLATE_META: Array<Pick<NotificationTemplate, "id" | "name" | "audience"
     description: "Notifikasi verifikasi email saat customer mendaftar.",
   },
 ];
+
+const TEMPLATE_ORDER = TEMPLATE_META.reduce<Record<string, number>>((acc, item, idx) => {
+  acc[item.id] = idx;
+  return acc;
+}, {});
 
 const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplate, "enabled" | "recipients" | "subject" | "body">>> = {
   id: {
@@ -440,6 +493,54 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       recipients: "admin@goseller.local, finance@goseller.local",
       subject: "[Penarikan Dana] Permintaan #{{.withdrawal_id}} telah diproses",
       body: "Permintaan penarikan dana telah diproses dan ditransfer.\n\nID Penarikan: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nJumlah: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})",
+    },
+    settlement_held_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} ditahan",
+      body: "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} saat ini ditahan admin.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
+    },
+    settlement_held_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} ditahan",
+      body: "Settlement escrow ditahan admin.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
+    },
+    settlement_partially_released_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} partial release",
+      body: "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} telah di-partial release.\n\nSettlement ID: #{{.settlement_id}}\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
+    },
+    settlement_partially_released_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} partial release",
+      body: "Settlement escrow telah di-partial release.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
+    },
+    settlement_released_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} released",
+      body: "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} sudah direlease penuh.\n\nSettlement ID: #{{.settlement_id}}\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
+    },
+    settlement_released_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} released",
+      body: "Settlement escrow telah direlease penuh.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nNominal release: {{.release_amount}}\nReleased total: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
+    },
+    settlement_refunded_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} refunded",
+      body: "Halo {{.seller_name}},\n\nSettlement escrow untuk order {{.order_id}} telah direfund.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
+    },
+    settlement_refunded_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} refunded",
+      body: "Settlement escrow telah direfund.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nCatatan admin: {{.admin_notes}}{{end}}",
     },
     subscription_confirmation_customer: {
       enabled: true,
@@ -646,6 +747,54 @@ const DEFAULTS_BY_LOCALE: Record<Locale, Record<string, Pick<NotificationTemplat
       subject: "[Withdrawal] Request #{{.withdrawal_id}} processed",
       body: "The withdrawal request has been processed and transferred.\n\nWithdrawal ID: #{{.withdrawal_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nAmount: {{.amount}}\nBank: {{.bank_name}} - {{.bank_account_number}} ({{.bank_account_name}})",
     },
+    settlement_held_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} is on hold",
+      body: "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} is currently on hold by admin.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
+    settlement_held_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} is on hold",
+      body: "An escrow settlement has been put on hold by admin.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nScope: {{.release_scope}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
+    settlement_partially_released_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} partially released",
+      body: "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} has been partially released.\n\nSettlement ID: #{{.settlement_id}}\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
+    settlement_partially_released_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} partially released",
+      body: "An escrow settlement has been partially released.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
+    settlement_released_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} released",
+      body: "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} has been fully released.\n\nSettlement ID: #{{.settlement_id}}\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
+    settlement_released_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} released",
+      body: "An escrow settlement has been fully released.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nReleased amount: {{.release_amount}}\nTotal released: {{.released_amount}}\nRemaining: {{.remaining_amount}}\nStatus: {{.status}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
+    settlement_refunded_member: {
+      enabled: true,
+      recipients: "{{.seller_email}}",
+      subject: "[Settlement] Escrow #{{.settlement_id}} refunded",
+      body: "Hi {{.seller_name}},\n\nThe escrow settlement for order {{.order_id}} has been refunded.\n\nSettlement ID: #{{.settlement_id}}\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
+    settlement_refunded_admin: {
+      enabled: true,
+      recipients: "admin@goseller.local, finance@goseller.local",
+      subject: "[Settlement] Escrow #{{.settlement_id}} refunded",
+      body: "An escrow settlement has been refunded.\n\nSettlement ID: #{{.settlement_id}}\nOrder ID: {{.order_id}}\nSeller: {{.seller_name}} ({{.seller_email}})\nStatus: {{.status}}\nGross: {{.gross_amount}}\nReleased: {{.released_amount}}\nRemaining: {{.remaining_amount}}{{if .admin_notes}}\n\nAdmin note: {{.admin_notes}}{{end}}",
+    },
     subscription_confirmation_customer: {
       enabled: true,
       recipients: "{{.email}}",
@@ -666,6 +815,15 @@ const placeholders = [
   "{{.customer_name}}",
   "{{.customer_email}}",
   "{{.seller_email}}",
+  "{{.seller_name}}",
+  "{{.settlement_id}}",
+  "{{.order_id}}",
+  "{{.release_scope}}",
+  "{{.gross_amount}}",
+  "{{.released_amount}}",
+  "{{.remaining_amount}}",
+  "{{.release_amount}}",
+  "{{.admin_notes}}",
   "{{.full_name}}",
   "{{.member_name}}",
   "{{.member_email}}",
@@ -706,6 +864,15 @@ const DEFAULT_TEST_VARS = {
   order_status: "processing",
   payment_status: "paid",
   seller_email: "seller@example.com",
+  seller_name: "Seller Test",
+  settlement_id: "101",
+  order_id: "ORDER-2026-0001",
+  release_scope: "partial",
+  gross_amount: "Rp 1.250.000",
+  released_amount: "Rp 500.000",
+  remaining_amount: "Rp 750.000",
+  release_amount: "Rp 500.000",
+  admin_notes: "Menunggu verifikasi final dokumen pengiriman",
   grand_total: "123.45",
   currency: "IDR",
   customer_name: "Test Customer",
@@ -830,7 +997,9 @@ export default function NotificationSettingsPage() {
       .sort((left, right) => {
         const audienceDiff = AUDIENCE_ORDER[left.audience] - AUDIENCE_ORDER[right.audience];
         if (audienceDiff !== 0) return audienceDiff;
-        return left.name.localeCompare(right.name);
+        const leftOrder = TEMPLATE_ORDER[left.id] ?? Number.MAX_SAFE_INTEGER;
+        const rightOrder = TEMPLATE_ORDER[right.id] ?? Number.MAX_SAFE_INTEGER;
+        return leftOrder - rightOrder;
       });
   }, [templates, query, audienceFilter]);
 

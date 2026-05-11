@@ -2,6 +2,20 @@ export interface AdminSellerBalanceSummary {
 	total_balance: number;
 	seller_count: number;
 	positive_balance_seller_count: number;
+	settlement_total_count: number;
+	settlement_pending_count: number;
+	settlement_pending_amount: number;
+	settlement_held_count: number;
+	settlement_held_amount: number;
+	settlement_partially_released_count: number;
+	settlement_partially_released_remaining_amount: number;
+	settlement_released_count: number;
+	settlement_released_amount: number;
+	settlement_refunded_count: number;
+	settlement_refunded_amount: number;
+	settlement_reversed_count: number;
+	settlement_reversed_amount: number;
+	settlement_locked_amount: number;
 }
 
 export interface AdminSellerBalanceSummaryResponse {
@@ -47,4 +61,49 @@ export interface AdminSellerWithdrawalAudit {
 
 export interface AdminSellerWithdrawalAuditListResponse {
 	data: AdminSellerWithdrawalAudit[];
+}
+
+export interface AdminSellerSettlement {
+	id: number;
+	seller_id: string;
+	order_id: string;
+	gross_amount: number;
+	released_amount: number;
+	release_scope: string;
+	status: "pending" | "held" | "partially_released" | "released" | "refunded" | "reversed";
+	source: string;
+	reference_id: string | null;
+	reference_type: string | null;
+	metadata?: string | null;
+	admin_id: string | null;
+	admin_note: string | null;
+	decided_at: string | null;
+	released_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface AdminSellerSettlementListResponse {
+	data: AdminSellerSettlement[];
+	total: number;
+	limit: number;
+	page: number;
+}
+
+export interface AdminSellerBalanceMutation {
+	id: number;
+	seller_id: string;
+	mutation_type: "credit" | "debet";
+	amount: number;
+	source: string;
+	reference_id: string | null;
+	reference_type: string | null;
+	description: string | null;
+	balance_after: number;
+	created_at: string;
+}
+
+export interface AdminSellerSettlementDecisionResponse {
+	settlement: AdminSellerSettlement;
+	mutation: AdminSellerBalanceMutation | null;
 }

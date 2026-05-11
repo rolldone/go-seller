@@ -48,4 +48,8 @@ export const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
 	withdrawal_approved: "Penarikan dana disetujui",
 	withdrawal_rejected: "Penarikan dana ditolak",
 	withdrawal_processed: "Penarikan dana diproses",
+	settlement_held: "Settlement escrow ditahan",
+	settlement_partially_released: "Settlement escrow partial release",
+	settlement_released: "Settlement escrow dilepas",
+	settlement_refunded: "Settlement escrow direfund",
 };

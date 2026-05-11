@@ -1,8 +1,9 @@
 /** @jsxRuntime classic */
 import React, { useEffect, useState } from "react";
-import { Package, Heart, MapPin, Settings, Bell, ChevronRight } from "lucide-react";
+import { Package, Heart, MapPin, Settings, Bell, ChevronRight, Wallet } from "lucide-react";
 import CustomerPageNav from "./CustomerPageNav";
 import ProfileSettings from "./ProfileSettings";
+import CustomerWalletSection from "./wallet/CustomerWalletSection";
 import { useTranslations } from "../../i18n";
 import {
   createMyCustomerAddress,
@@ -66,7 +67,7 @@ function mapOrderStatusClass(value?: string): string {
   return "bg-amber-50 text-amber-700";
 }
 
-export type MenuKey = "orders" | "carts" | "wishlist" | "addresses" | "notifications" | "settings";
+export type MenuKey = "orders" | "carts" | "wishlist" | "wallet" | "addresses" | "notifications" | "settings";
 
 interface CustomerDashboardProps {
   initialTab?: MenuKey;
@@ -84,7 +85,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
   const [activeMenu, setActiveMenu] = useState<MenuKey>(() => {
     if (typeof window !== "undefined") {
       const tab = new URLSearchParams(window.location.search).get("tab");
-      const validTabs: MenuKey[] = ["orders", "carts", "wishlist", "addresses", "notifications", "settings"];
+      const validTabs: MenuKey[] = ["orders", "carts", "wishlist", "wallet", "addresses", "notifications", "settings"];
       if (tab && validTabs.includes(tab as MenuKey)) return tab as MenuKey;
     }
     return initialTab;
@@ -136,6 +137,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
     { key: "orders" as MenuKey, icon: Package, label: t("ordersLabel", "Pesanan Saya") },
     { key: "carts" as MenuKey, icon: Package, label: t("cartsLabel", "Cart") },
     { key: "wishlist" as MenuKey, icon: Heart, label: t("wishlistLabel", "Wishlist") },
+    { key: "wallet" as MenuKey, icon: Wallet, label: t("walletLabel", "Wallet") },
     { key: "addresses" as MenuKey, icon: MapPin, label: t("addressesLabel", "Alamat") },
     { key: "notifications" as MenuKey, icon: Bell, label: t("notificationsLabel", "Notifikasi") },
     { key: "settings" as MenuKey, icon: Settings, label: t("settingsLabel", "Pengaturan Akun") },
@@ -381,6 +383,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
     orders: t("activeTitle.orders", "Pesanan Saya"),
     carts: t("activeTitle.carts", "Cart per Bisnis"),
     wishlist: t("activeTitle.wishlist", "Wishlist"),
+    wallet: t("activeTitle.wallet", "Wallet Saya"),
     addresses: t("activeTitle.addresses", "Alamat"),
     notifications: t("activeTitle.notifications", "Notifikasi"),
     settings: t("activeTitle.settings", "Pengaturan Akun"),
@@ -390,6 +393,7 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
     orders: t("activeDescription.orders", "Daftar transaksi terbaru dan status pengiriman Anda."),
     carts: t("activeDescription.carts", "Daftar cart Anda yang dikelompokkan per bisnis."),
     wishlist: t("activeDescription.wishlist", "Produk yang Anda simpan untuk dibeli nanti."),
+    wallet: t("activeDescription.wallet", "Pantau saldo refund cash, promo credit, dan permintaan tarik dana."),
     addresses: t("activeDescription.addresses", "Kelola alamat pengiriman untuk checkout lebih cepat."),
     notifications: t("activeDescription.notifications", "Ringkasan update order, promo, dan aktivitas akun."),
     settings: t("activeDescription.settings", "Preferensi akun personal dan pengaturan notifikasi."),
@@ -569,6 +573,10 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                   ))}
                 </div>
               </section>
+            )}
+
+            {activeMenu === "wallet" && (
+              <CustomerWalletSection />
             )}
 
             {activeMenu === "addresses" && (
