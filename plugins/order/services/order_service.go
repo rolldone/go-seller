@@ -29,6 +29,54 @@ func orderItemHasTaxColumns(tx *gorm.DB) bool {
 	return tx.Migrator().HasColumn(&models.OrderItem{}, "tax_type") && tx.Migrator().HasColumn(&models.OrderItem{}, "tax_rate")
 }
 
+func normalizeOrderNumberPrefix(prefix string) string {
+	cleaned := strings.ToUpper(strings.TrimSpace(prefix))
+	if cleaned == "" {
+		return "ORD"
+	}
+	return cleaned
+}
+
+func (s *OrderService) nextOrderNumberTx(tx *gorm.DB, prefix string, now time.Time) (string, error) {
+	prefix = normalizeOrderNumberPrefix(prefix)
+	dayKey := now.Format("20060102")
+	lockKey := fmt.Sprintf("order-number:%s:%s", prefix, dayKey)
+	if tx.Dialector.Name() == "postgres" {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(hashtext(?))", lockKey).Error; err != nil {
+			return "", err
+		}
+	}
+
+	var latest struct {
+		OrderNumber string
+	}
+	pattern := fmt.Sprintf("%s-%s-%%", prefix, dayKey)
+	if err := tx.Model(&models.Order{}).
+		Select("order_number").
+		Where("order_number LIKE ?", pattern).
+		Order("order_number DESC").
+		Limit(1).
+		Scan(&latest).Error; err != nil {
+		return "", err
+	}
+
+	seq := 1
+	if trimmed := strings.TrimSpace(latest.OrderNumber); trimmed != "" {
+		parts := strings.Split(trimmed, "-")
+		if len(parts) < 3 {
+			return "", fmt.Errorf("invalid order number format: %s", trimmed)
+		}
+		var err error
+		seq, err = strconv.Atoi(parts[len(parts)-1])
+		if err != nil {
+			return "", fmt.Errorf("invalid order number sequence: %s", trimmed)
+		}
+		seq++
+	}
+
+	return fmt.Sprintf("%s-%s-%08d", prefix, dayKey, seq), nil
+}
+
 type ShippingQuoteDetails struct {
 	ShippingAmount    float64
 	CarrierName       string
@@ -368,7 +416,6 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 		}
 		ord := models.Order{
 			ID:              uuid.NewString(),
-			OrderNumber:     "ORD-" + uuid.NewString(),
 			CustomerID:      &cart.CustomerID,
 			BusinessID:      cart.BusinessID,
 			Channel:         "web",
@@ -386,6 +433,11 @@ func (s *OrderService) CheckoutCart(ctx context.Context, cartID string, currency
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
+		orderNumber, err := s.nextOrderNumberTx(tx, "ORD", now)
+		if err != nil {
+			return err
+		}
+		ord.OrderNumber = orderNumber
 		if err := tx.Create(&ord).Error; err != nil {
 			return err
 		}
@@ -504,7 +556,6 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 		}
 		ord := models.Order{
 			ID:              uuid.NewString(),
-			OrderNumber:     "POS-" + uuid.NewString(),
 			UserID:          userID,
 			CustomerID:      customerID,
 			BusinessID:      businessID,
@@ -521,6 +572,11 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}
+		orderNumber, err := s.nextOrderNumberTx(tx, "POS", now)
+		if err != nil {
+			return err
+		}
+		ord.OrderNumber = orderNumber
 		if trimmedAdminID := strings.TrimSpace(adminID); trimmedAdminID != "" {
 			ord.CreatedByAdminID = &trimmedAdminID
 		}
@@ -555,34 +611,46 @@ func (s *OrderService) CreateOrderAsAdmin(ctx context.Context, adminID string, u
 
 // CreateDraftOrderAsAdmin creates a draft POS order with no items yet.
 func (s *OrderService) CreateDraftOrderAsAdmin(ctx context.Context, adminID string, userID *string, customerID *string, businessID *string, fulfillmentType string, currency string) (*models.Order, error) {
-	now := time.Now()
-	normalizedFulfillmentType, err := normalizeFulfillmentType(fulfillmentType)
+	var ord *models.Order
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+		normalizedFulfillmentType, err := normalizeFulfillmentType(fulfillmentType)
+		if err != nil {
+			return err
+		}
+		candidate := &models.Order{
+			ID:              uuid.NewString(),
+			UserID:          userID,
+			CustomerID:      customerID,
+			BusinessID:      businessID,
+			Channel:         "pos",
+			Status:          "draft",
+			PaymentStatus:   PaymentStatusPending,
+			Currency:        currency,
+			Subtotal:        0,
+			DiscountAmount:  0,
+			TaxAmount:       0,
+			ShippingAmount:  0,
+			FulfillmentType: normalizedFulfillmentType,
+			GrandTotal:      0,
+			CreatedAt:       now,
+			UpdatedAt:       now,
+		}
+		orderNumber, err := s.nextOrderNumberTx(tx, "POS", now)
+		if err != nil {
+			return err
+		}
+		candidate.OrderNumber = orderNumber
+		if trimmedAdminID := strings.TrimSpace(adminID); trimmedAdminID != "" {
+			candidate.CreatedByAdminID = &trimmedAdminID
+		}
+		if err := tx.Create(candidate).Error; err != nil {
+			return err
+		}
+		ord = candidate
+		return nil
+	})
 	if err != nil {
-		return nil, err
-	}
-	ord := &models.Order{
-		ID:              uuid.NewString(),
-		OrderNumber:     "POS-" + uuid.NewString(),
-		UserID:          userID,
-		CustomerID:      customerID,
-		BusinessID:      businessID,
-		Channel:         "pos",
-		Status:          "draft",
-		PaymentStatus:   PaymentStatusPending,
-		Currency:        currency,
-		Subtotal:        0,
-		DiscountAmount:  0,
-		TaxAmount:       0,
-		ShippingAmount:  0,
-		FulfillmentType: normalizedFulfillmentType,
-		GrandTotal:      0,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-	}
-	if trimmedAdminID := strings.TrimSpace(adminID); trimmedAdminID != "" {
-		ord.CreatedByAdminID = &trimmedAdminID
-	}
-	if err := s.DB.WithContext(ctx).Create(ord).Error; err != nil {
 		return nil, err
 	}
 	return ord, nil
