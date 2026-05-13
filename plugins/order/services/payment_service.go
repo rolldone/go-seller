@@ -473,8 +473,10 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 	if strings.TrimSpace(revokeOrderID) != "" {
 		_ = RevokeGuestCheckoutTokenByOrderID(ctx, revokeOrderID)
 		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", revokeOrderID)
+		NewOrderService(s.DB).sendPaymentSucceededMemberNotificationsAsync(context.Background(), revokeOrderID)
 	} else if strings.TrimSpace(failedOrderID) != "" {
 		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", failedOrderID)
+		NewOrderService(s.DB).sendPaymentFailedMemberNotificationsAsync(context.Background(), failedOrderID)
 	}
 	return nil
 }
@@ -600,6 +602,7 @@ func (s *PaymentService) uploadPaymentProof(ctx context.Context, paymentID strin
 		return nil, err
 	}
 	pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", proof.OrderID)
+	NewOrderService(s.DB).sendPaymentSucceededMemberNotificationsAsync(context.Background(), proof.OrderID)
 
 	return proof, nil
 }
@@ -834,6 +837,7 @@ func (s *PaymentService) ReviewPaymentProof(ctx context.Context, paymentID, proo
 	if strings.TrimSpace(revokeOrderID) != "" {
 		_ = RevokeGuestCheckoutTokenByOrderID(ctx, revokeOrderID)
 		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", revokeOrderID)
+		NewOrderService(s.DB).sendPaymentSucceededMemberNotificationsAsync(context.Background(), revokeOrderID)
 	}
 	return nil
 }
@@ -957,10 +961,12 @@ func (s *PaymentService) RecheckGatewayPayment(ctx context.Context, paymentID st
 	if strings.TrimSpace(revokeOrderID) != "" {
 		_ = RevokeGuestCheckoutTokenByOrderID(ctx, revokeOrderID)
 		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", revokeOrderID)
+		NewOrderService(s.DB).sendPaymentSucceededMemberNotificationsAsync(context.Background(), revokeOrderID)
 	} else if returnPayment.OrderID != "" {
 		switch normalizePaymentStatus(returnPayment.Status) {
 		case string(StatusFailed), string(StatusCancelled), string(StatusRejected):
 			pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", returnPayment.OrderID)
+			NewOrderService(s.DB).sendPaymentFailedMemberNotificationsAsync(context.Background(), returnPayment.OrderID)
 		}
 	}
 	return returnPayment, nil
@@ -1027,6 +1033,7 @@ func (s *PaymentService) CancelPayment(ctx context.Context, paymentID string, ad
 	}
 	if strings.TrimSpace(orderID) != "" {
 		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", orderID)
+		NewOrderService(s.DB).sendPaymentFailedMemberNotificationsAsync(context.Background(), orderID)
 	}
 	return nil
 }
@@ -1078,6 +1085,7 @@ func (s *PaymentService) RejectPayment(ctx context.Context, paymentID string, ad
 	}
 	if strings.TrimSpace(orderID) != "" {
 		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_failed", orderID)
+		NewOrderService(s.DB).sendPaymentFailedMemberNotificationsAsync(context.Background(), orderID)
 	}
 	return nil
 }

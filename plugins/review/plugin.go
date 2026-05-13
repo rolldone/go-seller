@@ -13,7 +13,8 @@ import (
 
 // Plugin review provides buyer review endpoints.
 type Plugin struct {
-	service *pluginservices.ReviewService
+	reviewService    *pluginservices.ReviewService
+	complaintService *pluginservices.ComplaintService
 }
 
 // New returns a new plugin instance.
@@ -22,18 +23,25 @@ func New() plugins.Plugin { return &Plugin{} }
 func (p *Plugin) ID() string { return "review" }
 
 func (p *Plugin) RegisterServices(deps plugins.ServiceDeps) error {
-	p.service = pluginservices.New(deps.DB, deps.Store)
+	p.reviewService = pluginservices.New(deps.DB, deps.Store)
+	p.complaintService = pluginservices.NewComplaintService(deps.DB)
+	p.complaintService.SetReminderRunner(pluginservices.NewComplaintReminderRunner(p.complaintService))
 	return nil
 }
 
 func (p *Plugin) RegisterMiddleware() []plugins.MiddlewareDescriptor { return nil }
 
 func (p *Plugin) RegisterRoutes(router *gin.Engine, admin *gin.RouterGroup, api *gin.RouterGroup) error {
-	if p.service == nil {
+	if p.reviewService == nil || p.complaintService == nil {
 		return fmt.Errorf("review: service not registered")
 	}
-	handler := pluginhandlers.NewReviewHandler(p.service)
-	handler.RegisterRoutes(admin, api)
+	reviewHandler := pluginhandlers.NewReviewHandler(p.reviewService)
+	reviewHandler.RegisterRoutes(admin, api)
+	complaintHandler := pluginhandlers.NewComplaintHandler(p.complaintService)
+	complaintHandler.RegisterRoutes(admin, api)
+	if err := p.complaintService.StartReminderLoop(); err != nil {
+		return err
+	}
 	_ = router
 	return nil
 }

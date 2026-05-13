@@ -26,6 +26,7 @@ var ValidNotificationEvents = []string{
 	"withdrawal_approved",
 	"withdrawal_rejected",
 	"withdrawal_processed",
+	"complaint_reminder_business",
 	"settlement_held",
 	"settlement_partially_released",
 	"settlement_released",

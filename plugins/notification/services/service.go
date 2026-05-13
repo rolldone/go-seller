@@ -52,8 +52,11 @@ var notificationTemplateAliases = map[string]string{
 	"team_member_suspended_member": "team_member_suspended_admin",
 	"team_member_suspended_admin":  "team_member_suspended_member",
 	"new_order_admin":              "order_created",
+	"new_order_member":             "order_created_member",
 	"processing_order_customer":    "payment_succeeded",
+	"order_paid_member":            "payment_succeeded_member",
 	"failed_order_admin":           "payment_failed",
+	"order_payment_failed_member":  "payment_failed_member",
 }
 
 func templateEventKeyCandidates(eventKey string) []string {
@@ -103,6 +106,14 @@ var defaultTemplates = map[string]TemplateConfig{
 		Subject:    "[Order Baru] {{.order_number}} - {{.business_name}}",
 		Body:       "Halo Admin, order baru {{.order_number}} dengan total {{.currency}} {{.grand_total}} baru saja dibuat.",
 	},
+	"order_created_member": {
+		Name:       "Order Created Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Order Baru] {{.order_number}} - {{.business_name}}",
+		Body:       "Halo {{.seller_name}}, order baru {{.order_number}} dengan total {{.currency}} {{.grand_total}} baru saja dibuat.",
+	},
 	"cancelled_order_admin": {
 		Name:       "Cancelled Order",
 		Audience:   "admin",
@@ -127,6 +138,14 @@ var defaultTemplates = map[string]TemplateConfig{
 		Subject:    "[Payment Gagal] {{.order_number}}",
 		Body:       "Payment untuk order {{.order_number}} gagal atau ditolak. Status payment: {{.payment_status}}.",
 	},
+	"payment_failed_member": {
+		Name:       "Payment Failed Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Payment Gagal] {{.order_number}}",
+		Body:       "Halo {{.seller_name}}, payment untuk order {{.order_number}} gagal atau ditolak. Status payment: {{.payment_status}}.",
+	},
 	"processing_order_customer": {
 		Name:       "Processing Order",
 		Audience:   "customer",
@@ -142,6 +161,14 @@ var defaultTemplates = map[string]TemplateConfig{
 		Recipients: "{{.customer_email}}",
 		Subject:    "Pembayaran order {{.order_number}} berhasil",
 		Body:       "Halo {{.customer_name}}, pembayaran untuk order {{.order_number}} berhasil diterima. Status saat ini: {{.payment_status}}.",
+	},
+	"payment_succeeded_member": {
+		Name:       "Payment Succeeded Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "Pembayaran order {{.order_number}} berhasil",
+		Body:       "Halo {{.seller_name}}, pembayaran untuk order {{.order_number}} berhasil diterima. Status saat ini: {{.payment_status}}.",
 	},
 	"customer_confirmation_requested": {
 		Name:       "Customer Confirmation Requested",
@@ -166,6 +193,22 @@ var defaultTemplates = map[string]TemplateConfig{
 		Recipients: "{{.seller_email}}",
 		Subject:    "[Dispute Order] {{.order_number}} dibuka customer",
 		Body:       "Halo, order {{.order_number}} masuk dispute.\n\nCustomer: {{.customer_name}}\nAlasan customer: {{.dispute_customer_reason}}{{if .dispute_confirmation_reject_reason}}\nAlasan tolak konfirmasi: {{.dispute_confirmation_reject_reason}}{{end}}{{if .dispute_seller_note}}\nCatatan seller saat ini: {{.dispute_seller_note}}{{end}}\n\nSilakan cek detail order dan lengkapi catatan dispute bila perlu.",
+	},
+	"complaint_reminder_customer": {
+		Name:       "Complaint Reminder Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.recipient_emails}}",
+		Subject:    "[Reminder Complaint] {{.order_number}} menunggu respon",
+		Body:       "Halo {{.recipient_name}}, ada pesan di complaint order {{.order_number}} yang belum dibaca.\n\nSubject: {{.complaint_subject}}\n\nSilakan buka complaint list untuk melanjutkan diskusi.{{if .complaint_link}}\n\nLink: {{.complaint_link}}{{end}}",
+	},
+	"complaint_reminder_business": {
+		Name:       "Complaint Reminder Business",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.recipient_emails}}",
+		Subject:    "[Reminder Complaint] {{.order_number}} menunggu respon seller",
+		Body:       "Halo {{.recipient_name}}, complaint order {{.order_number}} masih menunggu respon.\n\nSubject: {{.complaint_subject}}\n\nSilakan cek complaint list dan tanggapi pesan terbaru.{{if .complaint_link}}\n\nLink: {{.complaint_link}}{{end}}",
 	},
 	"order_dispute_seller_won_customer": {
 		Name:       "Order Dispute Seller Won Customer",
@@ -378,6 +421,14 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Subject:    "[New Order] {{.order_number}} - {{.business_name}}",
 		Body:       "Hello Admin, new order {{.order_number}} with total {{.currency}} {{.grand_total}} has just been created.",
 	},
+	"order_created_member": {
+		Name:       "Order Created Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[New Order] {{.order_number}} - {{.business_name}}",
+		Body:       "Hello {{.seller_name}}, new order {{.order_number}} with total {{.currency}} {{.grand_total}} has just been created.",
+	},
 	"cancelled_order_admin": {
 		Name:       "Cancelled Order",
 		Audience:   "admin",
@@ -402,6 +453,14 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Subject:    "[Payment Failed] {{.order_number}}",
 		Body:       "Payment for order {{.order_number}} failed or was rejected. Payment status: {{.payment_status}}.",
 	},
+	"payment_failed_member": {
+		Name:       "Payment Failed Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "[Payment Failed] {{.order_number}}",
+		Body:       "Hello {{.seller_name}}, payment for order {{.order_number}} failed or was rejected. Payment status: {{.payment_status}}.",
+	},
 	"processing_order_customer": {
 		Name:       "Processing Order",
 		Audience:   "customer",
@@ -417,6 +476,14 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Recipients: "{{.customer_email}}",
 		Subject:    "Payment successful - {{.order_number}}",
 		Body:       "Hi {{.customer_name}}, payment for order {{.order_number}} was successful. Current status: {{.payment_status}}.",
+	},
+	"payment_succeeded_member": {
+		Name:       "Payment Succeeded Member",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.seller_email}}",
+		Subject:    "Payment successful - {{.order_number}}",
+		Body:       "Hello {{.seller_name}}, payment for order {{.order_number}} was successful. Current status: {{.payment_status}}.",
 	},
 	"customer_confirmation_requested": {
 		Name:       "Customer Confirmation Requested",
@@ -441,6 +508,22 @@ var defaultTemplatesEN = map[string]TemplateConfig{
 		Recipients: "{{.seller_email}}",
 		Subject:    "[Order Dispute] {{.order_number}} opened by customer",
 		Body:       "Hello, order {{.order_number}} is now in dispute.\n\nCustomer: {{.customer_name}}\nCustomer reason: {{.dispute_customer_reason}}{{if .dispute_confirmation_reject_reason}}\nConfirmation rejection reason: {{.dispute_confirmation_reject_reason}}{{end}}{{if .dispute_seller_note}}\nCurrent seller note: {{.dispute_seller_note}}{{end}}\n\nPlease review the order detail and add a dispute note if needed.",
+	},
+	"complaint_reminder_customer": {
+		Name:       "Complaint Reminder Customer",
+		Audience:   "customer",
+		Enabled:    true,
+		Recipients: "{{.recipient_emails}}",
+		Subject:    "[Complaint Reminder] {{.order_number}} is waiting for a response",
+		Body:       "Hello {{.recipient_name}}, there is a complaint on order {{.order_number}} that has not been read yet.\n\nSubject: {{.complaint_subject}}\n\nPlease open the complaint list and continue the discussion.{{if .complaint_link}}\n\nLink: {{.complaint_link}}{{end}}",
+	},
+	"complaint_reminder_business": {
+		Name:       "Complaint Reminder Business",
+		Audience:   "member",
+		Enabled:    true,
+		Recipients: "{{.recipient_emails}}",
+		Subject:    "[Complaint Reminder] {{.order_number}} is waiting for seller response",
+		Body:       "Hello {{.recipient_name}}, complaint for order {{.order_number}} is still waiting for a response.\n\nSubject: {{.complaint_subject}}\n\nPlease check the complaint list and reply to the latest message.{{if .complaint_link}}\n\nLink: {{.complaint_link}}{{end}}",
 	},
 	"order_dispute_seller_won_customer": {
 		Name:       "Order Dispute Seller Won Customer",
@@ -731,6 +814,7 @@ func (s *Service) BuildTestPayload(overrides map[string]string) map[string]inter
 		"customer_name":                      "Test Customer",
 		"customer_email":                     "test@example.com",
 		"customer_locale":                    "id",
+		"seller_name":                        "Test Seller",
 		"seller_email":                       "seller@example.com",
 		"business_name":                      "Go Seller",
 		"delivery_status":                    "ready_to_ship",

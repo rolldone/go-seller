@@ -39,6 +39,45 @@
     "description": "Template notifikasi admin saat payment gagal (Indonesia)"
   },
   {
+    "key": "notifications.order_created_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Order Created Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Order Baru] {{.order_number}} - {{.business_name}}",
+      "body": "Halo {{.seller_name}}, order baru {{.order_number}} dengan total {{.currency}} {{.grand_total}} baru saja dibuat."
+    },
+    "description": "Template notifikasi member saat order baru masuk (Indonesia)"
+  },
+  {
+    "key": "notifications.payment_succeeded_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Payment Succeeded Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "Pembayaran order {{.order_number}} berhasil",
+      "body": "Halo {{.seller_name}}, pembayaran untuk order {{.order_number}} berhasil diterima. Status saat ini: {{.payment_status}}."
+    },
+    "description": "Template notifikasi member saat pembayaran berhasil (Indonesia)"
+  },
+  {
+    "key": "notifications.payment_failed_member.id",
+    "scope": "global",
+    "value": {
+      "name": "Payment Failed Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Payment Gagal] {{.order_number}}",
+      "body": "Halo {{.seller_name}}, payment untuk order {{.order_number}} gagal atau ditolak. Status payment: {{.payment_status}}."
+    },
+    "description": "Template notifikasi member saat pembayaran gagal (Indonesia)"
+  },
+  {
     "key": "notifications.processing_order_customer.id",
     "scope": "global",
     "value": {
@@ -219,6 +258,45 @@
       "body": "Payment for order {{.order_number}} failed or was rejected. Payment status: {{.payment_status}}."
     },
     "description": "Admin notification template when payment fails (English)"
+  },
+  {
+    "key": "notifications.order_created_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Order Created Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[New Order] {{.order_number}} - {{.business_name}}",
+      "body": "Hello {{.seller_name}}, new order {{.order_number}} with total {{.currency}} {{.grand_total}} has just been created."
+    },
+    "description": "Member notification template when a new order is created (English)"
+  },
+  {
+    "key": "notifications.payment_succeeded_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Payment Succeeded Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "Payment successful - {{.order_number}}",
+      "body": "Hello {{.seller_name}}, payment for order {{.order_number}} was successful. Current status: {{.payment_status}}."
+    },
+    "description": "Member notification template when payment succeeds (English)"
+  },
+  {
+    "key": "notifications.payment_failed_member.en",
+    "scope": "global",
+    "value": {
+      "name": "Payment Failed Member",
+      "audience": "member",
+      "enabled": true,
+      "recipients": "{{.seller_email}}",
+      "subject": "[Payment Failed] {{.order_number}}",
+      "body": "Hello {{.seller_name}}, payment for order {{.order_number}} failed or was rejected. Payment status: {{.payment_status}}."
+    },
+    "description": "Member notification template when payment fails (English)"
   },
   {
     "key": "notifications.processing_order_customer.en",

@@ -414,28 +414,7 @@ func (s *OrderService) buildDisputeNotificationPayload(ctx context.Context, orde
 }
 
 func (s *OrderService) sendDisputeMemberEventAsync(ctx context.Context, order *models.Order, eventKey string) {
-	if order == nil || order.BusinessID == nil {
-		return
-	}
-	businessID := strings.TrimSpace(*order.BusinessID)
-	if businessID == "" {
-		return
-	}
-
-	recipients, err := s.loadBusinessNotificationRecipients(ctx, businessID, eventKey)
-	if err != nil || len(recipients) == 0 {
-		owner, ownerErr := s.lookupBusinessNotificationOwner(ctx, businessID)
-		if ownerErr == nil && strings.TrimSpace(owner.Email) != "" {
-			recipients = []orderNotificationRecipient{owner}
-		}
-	}
-	for _, recipient := range recipients {
-		if strings.TrimSpace(recipient.Email) == "" {
-			continue
-		}
-		payload := s.buildDisputeNotificationPayload(ctx, order, recipient)
-		pluginregistry.SendTemplateEventAsync(ctx, s.DB, eventKey+"_member", payload)
-	}
+	s.sendBusinessMemberNotifications(ctx, order, eventKey, s.buildDisputeNotificationPayload)
 }
 
 func (s *OrderService) sendDisputeOpenedNotifications(ctx context.Context, order *models.Order) {
