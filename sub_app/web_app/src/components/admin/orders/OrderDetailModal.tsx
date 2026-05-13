@@ -1677,6 +1677,12 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
               >
                 {downloadingInvoice ? "Downloading..." : "Download Invoice PDF"}
               </button>
+              <a
+                href={`/admin/complaints?order_id=${encodeURIComponent(displayOrder.id)}`}
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
+              >
+                Complaint List
+              </a>
               <p className="text-xs text-slate-500">PDF digenerate oleh backend lewat service wkhtml.</p>
             </div>
           </section>

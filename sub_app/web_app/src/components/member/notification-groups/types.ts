@@ -44,6 +44,7 @@ export const NOTIFICATION_EVENT_LABELS: Record<string, string> = {
 	order_created: "Order baru dibuat",
 	payment_succeeded: "Pembayaran berhasil",
 	payment_failed: "Pembayaran gagal",
+	complaint_reminder_business: "Complaint reminder ke bisnis",
 	withdrawal_requested: "Penarikan dana diajukan",
 	withdrawal_approved: "Penarikan dana disetujui",
 	withdrawal_rejected: "Penarikan dana ditolak",

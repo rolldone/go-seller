@@ -81,7 +81,9 @@ export default function OrdersTable({ items, loading, error, onView }: Props) {
           {items.map((item) => (
             <tr key={item.id} className="hover:bg-slate-50">
               <td className="px-4 py-3">
-                <p className="text-sm font-medium text-slate-900">{item.order_number}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-900">{item.order_number}</p>
+                </div>
                 <p className="text-xs text-slate-500">{item.id}</p>
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">{item.business_id || "-"}</td>

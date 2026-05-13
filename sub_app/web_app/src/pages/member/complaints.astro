@@ -1,0 +1,19 @@
+---
+import MemberLayout from "../../layouts/MemberLayout.astro";
+import ComplaintListPage from "@/components/complaints/ComplaintListPage";
+
+export const prerender = false;
+
+const orderID = Astro.url.searchParams.get("order_id")?.trim() || "";
+---
+
+<MemberLayout title="Complaint List" subtitle="Daftar complaint untuk member." locale="id">
+  <ComplaintListPage
+    client:load
+    scope="member"
+    orderID={orderID}
+    backHref={orderID ? `/member/orders/${orderID}` : "/member/orders"}
+    title={orderID ? `Order ${orderID}` : "Complaint List"}
+    subtitle={orderID ? "Daftar complaint untuk order ini." : "Daftar complaint member."}
+  />
+</MemberLayout>

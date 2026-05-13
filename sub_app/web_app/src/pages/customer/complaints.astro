@@ -1,0 +1,30 @@
+---
+export const prerender = false;
+
+import "../../styles/front.css";
+import ComplaintListPage from "@/components/complaints/ComplaintListPage";
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro";
+
+const customerSession = Astro.locals.customerSession ?? null;
+const orderID = Astro.url.searchParams.get("order_id")?.trim() || "";
+---
+
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Complaint List | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body>
+    <ComplaintListPage
+      client:only="react"
+      scope="customer"
+      orderID={orderID}
+      backHref={orderID ? `/order/${orderID}` : "/customer/dashboard"}
+      title={orderID ? `Order ${orderID}` : "Complaint List"}
+      subtitle={orderID ? "Daftar complaint untuk order ini." : "Daftar complaint customer."}
+      locale="id"
+    />
+  </body>
+</html>

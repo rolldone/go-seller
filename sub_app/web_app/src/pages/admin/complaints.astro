@@ -1,0 +1,19 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import ComplaintListPage from "@/components/complaints/ComplaintListPage";
+
+export const prerender = false;
+
+const orderID = Astro.url.searchParams.get("order_id")?.trim() || "";
+---
+
+<AdminLayout title="Complaint List">
+  <ComplaintListPage
+    client:load
+    scope="admin"
+    orderID={orderID}
+    backHref={orderID ? `/admin/orders/${orderID}` : "/admin/orders"}
+    title={orderID ? `Order ${orderID}` : "Complaint List"}
+    subtitle={orderID ? "Daftar complaint untuk order ini." : "Daftar complaint admin."}
+  />
+</AdminLayout>

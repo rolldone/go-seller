@@ -1,0 +1,24 @@
+---
+export const prerender = false;
+
+import "../../../../styles/front.css";
+import ComplaintThreadPage from "@/components/complaints/ComplaintThreadPage";
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro";
+import { buildLocalizedPath, normalizeLocale } from "@/lib/siteLocale";
+
+const locale = normalizeLocale(Astro.params.lang);
+const { id = "" } = Astro.params;
+const customerSession = Astro.locals.customerSession ?? null;
+---
+
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Complaint Thread | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body>
+    <ComplaintThreadPage client:only="react" scope="customer" orderID={id} backHref={buildLocalizedPath(`/customer/complaints?order_id=${id}`, locale)} title={`Order ${id}`} subtitle="Thread complaint pribadi untuk order ini." />
+  </body>
+</html>

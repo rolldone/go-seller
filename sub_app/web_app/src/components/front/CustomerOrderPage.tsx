@@ -1639,6 +1639,12 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                 >
                   {downloadingInvoice ? t("downloadingInvoice", "Mengunduh invoice...") : t("downloadInvoice", "Unduh Invoice")}
                 </button>
+                <a
+                  href={buildLocalizedPath(`/customer/complaints?order_id=${encodeURIComponent(order.id)}`, typeof window !== "undefined" ? window.location.pathname : null)}
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                >
+                  {t("openComplaintList", "Buka Complaint List")}
+                </a>
               </section>
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

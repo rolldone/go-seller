@@ -1,0 +1,32 @@
+---
+export const prerender = false;
+
+import "../../../styles/front.css";
+import ComplaintListPage from "@/components/complaints/ComplaintListPage";
+import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro";
+import { buildLocalizedPath, normalizeLocale } from "@/lib/siteLocale";
+
+const locale = normalizeLocale(Astro.params.lang);
+const customerSession = Astro.locals.customerSession ?? null;
+const orderID = Astro.url.searchParams.get("order_id")?.trim() || "";
+---
+
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Complaint List | GoSeller</title>
+    <CustomerSessionBootstrap session={customerSession} />
+  </head>
+  <body>
+    <ComplaintListPage
+      client:only="react"
+      scope="customer"
+      orderID={orderID}
+      backHref={orderID ? buildLocalizedPath(`/order/${orderID}`, locale) : buildLocalizedPath("/customer/dashboard", locale)}
+      title={orderID ? `Order ${orderID}` : "Complaint List"}
+      subtitle={orderID ? "Daftar complaint untuk order ini." : "Daftar complaint customer."}
+      locale={locale}
+    />
+  </body>
+</html>

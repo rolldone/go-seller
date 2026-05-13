@@ -1,0 +1,12 @@
+---
+import MemberLayout from "../../../../layouts/MemberLayout.astro";
+import ComplaintThreadPage from "@/components/complaints/ComplaintThreadPage";
+
+export const prerender = false;
+
+const { id = "" } = Astro.params;
+---
+
+<MemberLayout title="Complaint Thread" subtitle="Diskusi complaint berbasis order untuk member." locale="id">
+  <ComplaintThreadPage client:load scope="member" orderID={id} backHref={`/member/complaints?order_id=${encodeURIComponent(id)}`} title={`Order ${id}`} subtitle="Thread complaint internal untuk order bisnis ini." />
+</MemberLayout>

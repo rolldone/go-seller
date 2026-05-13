@@ -686,6 +686,11 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 					<button type="button" onClick={() => void refreshOrder()} className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
 						Refresh
 					</button>
+						{displayOrder?.id ? (
+							<a href={`/member/complaints?order_id=${encodeURIComponent(displayOrder.id)}`} className="rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100">
+								Complaint List
+							</a>
+						) : null}
 					<button type="button" onClick={() => void handleDownloadInvoice()} disabled={invoiceDownloading} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-70">
 						{invoiceDownloading ? "Downloading..." : "Download Invoice"}
 					</button>

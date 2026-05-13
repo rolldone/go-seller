@@ -67,6 +67,14 @@ function GroupFormModal({
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	useEffect(() => {
+		setName(existing?.name ?? "");
+		setMemberIds(existing?.members?.map((member) => member.user_id).filter((value): value is string => Boolean(value)) ?? []);
+		setSelectedEvents(existing?.event_types ? existing.event_types.split(",").filter(Boolean) : []);
+		setIsActive(existing?.is_active ?? true);
+		setError(null);
+	}, [businessID, existing]);
+
 	const selectedMembers = memberIds
 		.map((memberID) => availableMembers.find((member) => member.user_id === memberID))
 		.filter((member): member is TeamMember => Boolean(member));
@@ -164,8 +172,18 @@ function GroupFormModal({
 									{availableMembers.map((member) => {
 										const checked = memberIds.includes(member.user_id);
 										return (
-											<label
+											<div
 												key={member.user_id}
+												role="checkbox"
+												tabIndex={0}
+												aria-checked={checked}
+												onClick={() => toggleMember(member.user_id)}
+												onKeyDown={(event) => {
+													if (event.key === "Enter" || event.key === " ") {
+														event.preventDefault();
+														toggleMember(member.user_id);
+													}
+												}}
 												className={`flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2 text-sm transition-colors ${
 													checked ? "border-emerald-300 bg-emerald-50" : "border-[#e5ded3] bg-white hover:bg-[#f8f6f2]"
 												}`}
@@ -173,14 +191,15 @@ function GroupFormModal({
 												<input
 													type="checkbox"
 													checked={checked}
-													onChange={() => toggleMember(member.user_id)}
-													className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+													readOnly
+													tabIndex={-1}
+													className="pointer-events-none mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
 												/>
 												<div className="min-w-0">
 													<p className="font-medium text-slate-900">{member.user?.full_name?.trim() || member.user?.email?.trim() || member.user_id}</p>
 													<p className="text-xs text-slate-500">{member.user?.email?.trim() || member.user_id}</p>
 												</div>
-											</label>
+											</div>
 										);
 									})}
 								</div>
@@ -429,6 +448,7 @@ export default function NotificationGroupManager({ businessID }: Props) {
 
 			{showModal && (
 				<GroupFormModal
+					key={`${businessID}:${editing?.id ?? "new"}`}
 					businessID={businessID}
 					availableMembers={availableMembers}
 					loadingMembers={loadingMembers}

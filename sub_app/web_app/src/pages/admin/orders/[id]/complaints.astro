@@ -1,0 +1,12 @@
+---
+import AdminLayout from "../../../../layouts/AdminLayout.astro";
+import ComplaintThreadPage from "@/components/complaints/ComplaintThreadPage";
+
+export const prerender = false;
+
+const { id = "" } = Astro.params;
+---
+
+<AdminLayout title="Complaint Thread">
+  <ComplaintThreadPage client:load scope="admin" orderID={id} backHref={`/admin/complaints?order_id=${encodeURIComponent(id)}`} title={`Order ${id}`} subtitle="Thread complaint administratif untuk order ini." />
+</AdminLayout>

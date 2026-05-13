@@ -1,6 +1,6 @@
 /** @jsxRuntime classic */
 import React, { useEffect, useState } from "react";
-import { Package, Heart, MapPin, Settings, Bell, ChevronRight, Wallet } from "lucide-react";
+import { Package, Heart, MapPin, Settings, Bell, ChevronRight, Wallet, MessageSquareText } from "lucide-react";
 import CustomerPageNav from "./CustomerPageNav";
 import ProfileSettings from "./ProfileSettings";
 import CustomerWalletSection from "./wallet/CustomerWalletSection";
@@ -448,6 +448,17 @@ export default function CustomerDashboard({ initialTab = "orders", customerSessi
                 </button>
               ))}
             </nav>
+
+            <a
+              href={buildLocalizedPath("/customer/complaints", typeof window !== "undefined" ? window.location.pathname : null)}
+              className="mt-4 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+            >
+              <span className="flex items-center gap-2">
+                <MessageSquareText className="h-4 w-4" />
+                Complaint List
+              </span>
+              <ChevronRight className="h-4 w-4 text-rose-400" />
+            </a>
           </aside>
 
           {/* Content */}
