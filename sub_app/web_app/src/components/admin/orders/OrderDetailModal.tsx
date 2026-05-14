@@ -15,6 +15,7 @@ import {
   markOrderDisputeRefundCompleted,
   resolveOrderDisputeForCustomer,
   resolveOrderDisputeForSeller,
+  validateOrderPaymentFromHistory,
   updateOrderShipment,
   updateOrderShippingAddress,
   updateShippingQuote,
@@ -57,6 +58,11 @@ const formatTaxPercent = (rate?: number | null) => {
 const formatTaxMode = (taxType?: string | null, taxRate?: number | null) => {
   const mode = String(taxType || "").toLowerCase() === "include" ? "Include" : "Exclude";
   return `${mode} ${formatTaxPercent(taxRate)}`;
+};
+
+const isSuccessfulPayment = (payment: Payment) => {
+  const status = String(payment.status || "").toLowerCase();
+  return ["paid", "success", "succeeded", "settled", "completed"].includes(status);
 };
 
 type ShippingQuoteFormState = {
@@ -178,6 +184,7 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   const [checkoutURL, setCheckoutURL] = useState("");
   const [proofsByPaymentID, setProofsByPaymentID] = useState<Record<string, PaymentProof[]>>({});
   const [openingProofKey, setOpeningProofKey] = useState("");
+  const [manualValidationKey, setManualValidationKey] = useState("");
   const [expandedPayments, setExpandedPayments] = useState<Record<string, boolean>>({});
   const [localOrder, setLocalOrder] = useState<Order | null>(order);
   const [manageProofPaymentID, setManageProofPaymentID] = useState("");
@@ -272,6 +279,10 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   const disputeDecision = String(dispute?.admin_decision || "").toLowerCase();
   const canResolveOpenDispute = displayOrderStatus === "in_dispute" && (!disputeDecision || disputeDecision === "open");
   const canMarkRefundCompleted = displayOrderStatus === "in_dispute" && disputeDecision === "customer_won_pending_refund";
+  const needsManualPaymentValidation = useMemo(
+    () => Boolean(displayOrder && String(displayOrder.payment_status || "").toLowerCase() !== "paid" && sortedPayments.some((payment) => isSuccessfulPayment(payment))),
+    [displayOrder, sortedPayments],
+  );
 
   const sortedPayments = useMemo(() => {
     const payments = displayOrder?.payments || [];
@@ -356,6 +367,29 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
       notifyError(err instanceof Error ? err.message : "Gagal membuka bukti transfer");
     } finally {
       setOpeningProofKey("");
+    }
+  };
+
+  const manualValidatePayment = async (paymentID: string) => {
+    if (!displayOrder?.id) return;
+    const payment = sortedPayments.find((item) => item.id === paymentID) || null;
+    if (!payment || !isSuccessfulPayment(payment)) {
+      notifyError("Payment source harus berstatus sukses");
+      return;
+    }
+    const note = window.prompt("Catatan validasi manual (opsional):", "");
+    if (note === null) return;
+    const confirmMessage = `Validasi manual payment ${paymentID} untuk order ${displayOrder.order_number || displayOrder.id} dan sinkronkan status order?`;
+    if (!window.confirm(confirmMessage)) return;
+    setManualValidationKey(paymentID);
+    try {
+      await validateOrderPaymentFromHistory(displayOrder.id, paymentID, { note: note.trim() || undefined });
+      notifySuccess("Order berhasil divalidasi manual");
+      await refreshOrder();
+    } catch (err) {
+      notifyError(err instanceof Error ? err.message : "Gagal validasi manual payment");
+    } finally {
+      setManualValidationKey("");
     }
   };
 
@@ -1093,6 +1127,11 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
 
           <section className="rounded-xl border border-slate-200 bg-white p-4">
             <h4 className="text-sm font-semibold text-slate-900">Payment History</h4>
+            {needsManualPaymentValidation ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Ada payment sukses tetapi order masih belum paid. Gunakan Validasi Manual pada payment source yang benar.
+              </div>
+            ) : null}
             {sortedPayments && sortedPayments.length > 0 ? (
               <div className="mt-3 space-y-3">
                 {sortedPayments.map((payment) => {
@@ -1108,6 +1147,7 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                   const isCollapsible = isBankTransfer && (status === "rejected" || status === "cancelled" || status === "canceled");
                   const expanded = !!expandedPayments[payment.id];
                   const classes = statusClasses(payment.status);
+                  const canManualValidate = isSuccessfulPayment(payment) && String(displayOrder?.payment_status || "").toLowerCase() !== "paid";
 
                   return (
                     <div key={payment.id} className={`rounded-lg border ${classes.wrapper}`}>
@@ -1123,6 +1163,16 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
+                          {canManualValidate ? (
+                            <button
+                              type="button"
+                              onClick={() => void manualValidatePayment(payment.id)}
+                              disabled={manualValidationKey === payment.id}
+                              className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                            >
+                              {manualValidationKey === payment.id ? "Memvalidasi..." : "Validasi Manual"}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => refreshPayment(payment.id)}
@@ -1723,7 +1773,17 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                           <div className="truncate font-medium">{proof.id || "Proof file"}</div>
                           <div className="text-slate-500">{proof.status || "uploaded"}</div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          {isSuccessfulPayment(payment) && String(displayOrder?.payment_status || "").toLowerCase() !== "paid" ? (
+                            <button
+                              type="button"
+                              onClick={() => void manualValidatePayment(payment.id)}
+                              disabled={manualValidationKey === payment.id}
+                              className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                            >
+                              {manualValidationKey === payment.id ? "Memvalidasi..." : "Validasi Manual"}
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => openProof(proof.payment_id, proof.id)}

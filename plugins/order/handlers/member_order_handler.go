@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +26,10 @@ type memberCreateDraftOrderReq struct {
 	CustomerID      *string `json:"customer_id"`
 	FulfillmentType string  `json:"fulfillment_type"`
 	Currency        string  `json:"currency"`
+}
+
+type memberManualValidatePaymentReq struct {
+	Note *string `json:"note"`
 }
 
 func NewMemberOrderHandler(svc *ordersvc.OrderService, paymentSvc *ordersvc.PaymentService, catalogSvc *catalogservices.CatalogService, authSvc *authservices.AuthService) *MemberOrderHandler {
@@ -127,6 +132,151 @@ func (h *MemberOrderHandler) DownloadInvoice(c *gin.Context) {
 	}
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	c.Data(http.StatusOK, "application/pdf", pdfBytes)
+}
+
+func (h *MemberOrderHandler) ManualValidatePaymentFromHistory(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	orderID := strings.TrimSpace(c.Param("id"))
+	paymentID := strings.TrimSpace(c.Param("payment_id"))
+	if _, ok := memberOrderAccess(c, h.svc, h.catalogSvc, businessID, orderID); !ok {
+		return
+	}
+	var req memberManualValidatePaymentReq
+	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	memberID, ok := memberIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing member context"})
+		return
+	}
+	memberIDPtr := &memberID
+	updated, err := h.paymentSvc.ValidateOrderPaymentFromHistory(c.Request.Context(), orderID, paymentID, "member", memberIDPtr, ordersvc.ManualOrderPaymentValidationInput{Note: req.Note})
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not successful") || strings.Contains(strings.ToLower(err.Error()), "payment not found") || strings.Contains(strings.ToLower(err.Error()), "order expired") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": updated})
+}
+
+func (h *MemberOrderHandler) ListPaymentProofs(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	orderID := strings.TrimSpace(c.Param("id"))
+	paymentID := strings.TrimSpace(c.Param("payment_id"))
+	if paymentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment_id is required"})
+		return
+	}
+
+	ord, ok := memberOrderAccess(c, h.svc, h.catalogSvc, businessID, orderID)
+	if !ok {
+		return
+	}
+	if h.paymentSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "payment service not configured"})
+		return
+	}
+
+	paymentOwned := false
+	for _, payment := range ord.Payments {
+		if strings.TrimSpace(payment.ID) == paymentID {
+			paymentOwned = true
+			break
+		}
+	}
+	if !paymentOwned {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		return
+	}
+
+	proofs, err := h.paymentSvc.ListPaymentProofs(c.Request.Context(), paymentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": proofs})
+}
+
+func (h *MemberOrderHandler) PaymentProofAccess(c *gin.Context) {
+	businessID := strings.TrimSpace(c.Param("business_id"))
+	orderID := strings.TrimSpace(c.Param("id"))
+	paymentID := strings.TrimSpace(c.Param("payment_id"))
+	proofID := strings.TrimSpace(c.Param("proof_id"))
+	if paymentID == "" || proofID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "payment_id and proof_id are required"})
+		return
+	}
+
+	ord, ok := memberOrderAccess(c, h.svc, h.catalogSvc, businessID, orderID)
+	if !ok {
+		return
+	}
+	if h.paymentSvc == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "payment service not configured"})
+		return
+	}
+
+	paymentOwned := false
+	for _, payment := range ord.Payments {
+		if strings.TrimSpace(payment.ID) == paymentID {
+			paymentOwned = true
+			break
+		}
+	}
+	if !paymentOwned {
+		c.JSON(http.StatusNotFound, gin.H{"error": "payment not found"})
+		return
+	}
+
+	var proof ordermodels.PaymentProof
+	if err := h.paymentSvc.DB.WithContext(c.Request.Context()).Where("id = ? AND payment_id = ? AND deleted_at IS NULL", proofID, paymentID).First(&proof).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "proof not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.paymentSvc.Store == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "storage not configured"})
+		return
+	}
+	if strings.TrimSpace(proof.StorageKey) == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no storage key for proof"})
+		return
+	}
+
+	rc, err := h.paymentSvc.Store.Get(c.Request.Context(), proof.StorageKey)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "failed to retrieve proof from storage"})
+		return
+	}
+	defer rc.Close()
+
+	if proof.MimeType != "" {
+		c.Header("Content-Type", proof.MimeType)
+	} else {
+		c.Header("Content-Type", "application/octet-stream")
+	}
+	if proof.FileSize > 0 {
+		c.Header("Content-Length", fmt.Sprintf("%d", proof.FileSize))
+	}
+	filename := proof.StorageKey
+	if idx := strings.LastIndex(proof.StorageKey, "/"); idx >= 0 && idx+1 < len(proof.StorageKey) {
+		filename = proof.StorageKey[idx+1:]
+	}
+	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%q", filename))
+
+	if _, err := io.Copy(c.Writer, rc); err != nil {
+		c.Error(err)
+		return
+	}
 }
 
 func (h *MemberOrderHandler) CreateDraft(c *gin.Context) {

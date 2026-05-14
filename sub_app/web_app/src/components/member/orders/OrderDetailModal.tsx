@@ -8,7 +8,10 @@ import {
 	deleteMemberOrderShipment,
 	downloadMemberOrderInvoice,
 	listMemberOrderShipments,
+	listMemberOrderPaymentProofs,
 	listMemberShippableItems,
+	getMemberOrderPaymentProofBlob,
+	validateMemberOrderPaymentFromHistory,
 	replaceMemberOrderExtraCharges,
 	requestMemberOrderCustomerConfirmation,
 	upsertMemberOrderDisputeNote,
@@ -16,7 +19,7 @@ import {
 	updateMemberOrderShippingQuote,
 	updateMemberOrderShipment,
 } from "./api";
-import type { Order, OrderExtraCharge, OrderItem, OrderShipment } from "./types";
+import type { Order, OrderExtraCharge, OrderItem, OrderShipment, Payment, PaymentProof } from "./types";
 
 type Props = {
 	open: boolean;
@@ -108,11 +111,33 @@ const emptyEditShipmentForm: EditShipmentForm = {
 	notes: "",
 };
 
-function formatDateTime(value?: string | null) {
+const PAYMENT_HISTORY_BATCH_SIZE = 3;
+
+function getMemberLocaleFromPathname(pathname?: string | null): "id" | "en" {
+	const firstSegment = String(pathname || "").split("/").filter(Boolean)[0] || "";
+	return firstSegment.toLowerCase() === "en" ? "en" : "id";
+}
+
+function formatDateTime(value?: string | null, locale: "id" | "en" = "id") {
 	if (!value) return "-";
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return value;
-	return date.toLocaleString();
+	return date.toLocaleString(locale === "en" ? "en-US" : "id-ID");
+}
+
+function requiresPaymentProof(payment: Payment): boolean {
+	return String(payment.provider_key || "").trim().toLowerCase() === "bank_transfer";
+}
+
+function isSuccessfulPayment(payment: Payment): boolean {
+	const status = String(payment.status || "").trim().toLowerCase();
+	return ["paid", "success", "succeeded", "settled", "completed"].includes(status);
+}
+
+function getPaymentSortTime(payment: Payment): number {
+	const timestamp = payment.created_at || payment.updated_at || "";
+	const date = new Date(timestamp);
+	return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }
 
 function money(currency: string, amount: number) {
@@ -222,6 +247,10 @@ const makeTempID = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)
 
 export default function OrderDetailModal({ open, loading, order, businessID, businessName, onClose, onRefresh }: Props) {
 	const [invoiceDownloading, setInvoiceDownloading] = useState(false);
+	const [visiblePaymentCount, setVisiblePaymentCount] = useState(PAYMENT_HISTORY_BATCH_SIZE);
+	const [proofsByPaymentID, setProofsByPaymentID] = useState<Record<string, PaymentProof[]>>({});
+	const [openingProofKey, setOpeningProofKey] = useState("");
+	const [manualValidationKey, setManualValidationKey] = useState("");
 	const [shipments, setShipments] = useState<OrderShipment[]>([]);
 	const [loadingShipments, setLoadingShipments] = useState(false);
 	const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
@@ -247,11 +276,22 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 	const [requestingCustomerConfirmation, setRequestingCustomerConfirmation] = useState(false);
 
 	const displayOrder = order;
+	const uiLocale = typeof window === "undefined" ? "id" : getMemberLocaleFromPathname(window.location.pathname);
 	const orderMetadata = useMemo(() => parseOrderMetadata(displayOrder?.metadata), [displayOrder?.metadata]);
 	const customerConfirmation = useMemo(() => parseCustomerConfirmation(displayOrder?.metadata), [displayOrder?.metadata]);
 	const dispute = useMemo(() => parseDisputeMetadata(displayOrder?.metadata), [displayOrder?.metadata]);
 	const shippingQuote = orderMetadata?.shipping_quote || orderMetadata?.shippingQuote || null;
 	const shippingAddress = orderMetadata?.shipping_address || orderMetadata?.shippingAddress || null;
+	const payments = useMemo(
+		() => [...(displayOrder?.payments || [])].sort((left, right) => getPaymentSortTime(right) - getPaymentSortTime(left)),
+		[displayOrder?.payments],
+	);
+	const visiblePayments = payments.slice(0, visiblePaymentCount);
+	const canLoadMorePayments = visiblePaymentCount < payments.length;
+	const needsManualPaymentValidation = useMemo(
+		() => Boolean(displayOrder && String(displayOrder.payment_status || "").toLowerCase() !== "paid" && payments.some((payment) => isSuccessfulPayment(payment))),
+		[displayOrder, payments],
+	);
 
 	useEffect(() => {
 		if (!open) {
@@ -274,6 +314,9 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 			setSavingShipment(false);
 			setEditingShipmentID("");
 			setEditShipmentModalOpen(false);
+			setVisiblePaymentCount(PAYMENT_HISTORY_BATCH_SIZE);
+			setProofsByPaymentID({});
+			setOpeningProofKey("");
 		}
 	}, [open, order?.id]);
 
@@ -347,6 +390,47 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 		};
 	}, [open, displayOrder?.id, businessID]);
 
+	useEffect(() => {
+		if (!open || !displayOrder?.id || payments.length === 0) {
+			setProofsByPaymentID({});
+			return;
+		}
+
+		let cancelled = false;
+
+		const run = async () => {
+			const proofPayments = payments.filter((payment) => requiresPaymentProof(payment));
+			if (proofPayments.length === 0) {
+				setProofsByPaymentID({});
+				return;
+			}
+
+			const entries = await Promise.all(
+				proofPayments.map(async (payment) => {
+					try {
+						const result = await listMemberOrderPaymentProofs(businessID, displayOrder.id, payment.id);
+						return [payment.id, (result.data || []) as PaymentProof[]] as const;
+					} catch {
+						return [payment.id, [] as PaymentProof[]] as const;
+					}
+				}),
+			);
+
+			if (!cancelled) {
+				const next: Record<string, PaymentProof[]> = {};
+				entries.forEach(([paymentID, list]) => {
+					next[paymentID] = list;
+				});
+				setProofsByPaymentID(next);
+			}
+		};
+
+		void run();
+		return () => {
+			cancelled = true;
+		};
+	}, [open, displayOrder?.id, businessID, payments]);
+
 	const refreshOrder = async () => {
 		if (onRefresh) {
 			await onRefresh();
@@ -365,6 +449,45 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 			notifyError(err instanceof Error ? err.message : "Gagal download invoice");
 		} finally {
 			setInvoiceDownloading(false);
+		}
+	};
+
+	const openProof = async (paymentID: string, proofID: string) => {
+		if (!displayOrder?.id) return;
+		const opKey = `${paymentID}:${proofID}`;
+		setOpeningProofKey(opKey);
+		try {
+			const blob = await getMemberOrderPaymentProofBlob(businessID, displayOrder.id, paymentID, proofID);
+			const objectURL = URL.createObjectURL(blob);
+			window.open(objectURL, "_blank", "noopener,noreferrer");
+			setTimeout(() => URL.revokeObjectURL(objectURL), 120_000);
+		} catch (err) {
+			notifyError(err instanceof Error ? err.message : "Gagal membuka bukti pembayaran");
+		} finally {
+			setOpeningProofKey("");
+		}
+	};
+
+	const manualValidatePayment = async (paymentID: string) => {
+		if (!displayOrder?.id) return;
+		const payment = payments.find((item) => item.id === paymentID) || null;
+		if (!payment || !isSuccessfulPayment(payment)) {
+			notifyError("Payment source harus berstatus sukses");
+			return;
+		}
+		const note = window.prompt("Catatan validasi manual (opsional):", "");
+		if (note === null) return;
+		const confirmMessage = `Validasi manual payment ${paymentID} untuk order ${displayOrder.order_number || displayOrder.id} dan sinkronkan status order?`;
+		if (!window.confirm(confirmMessage)) return;
+		setManualValidationKey(paymentID);
+		try {
+			await validateMemberOrderPaymentFromHistory(businessID, displayOrder.id, paymentID, { note: note.trim() || undefined });
+			notifySuccess("Order berhasil divalidasi manual");
+			await refreshOrder();
+		} catch (err) {
+			notifyError(err instanceof Error ? err.message : "Gagal validasi manual payment");
+		} finally {
+			setManualValidationKey("");
 		}
 	};
 
@@ -669,7 +792,6 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 	};
 
 	const orderItems = displayOrder?.order_items || [];
-	const payments = displayOrder?.payments || [];
 
 	return (
 		<>
@@ -769,9 +891,9 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 								<div className="mt-3 space-y-2 text-xs text-slate-600">
 									<div>Pembayaran: <span className="font-medium text-slate-800">{displayOrder.payment_status}</span></div>
 									<div>Shipment siap: <span className="font-medium text-slate-800">{hasEligibleShipment ? "Ya" : "Belum"}</span></div>
-									{customerConfirmation?.requested_at ? <div>Diajukan: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.requested_at)}</span></div> : null}
-									{customerConfirmation?.approved_at ? <div>Disetujui: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.approved_at)}</span></div> : null}
-									{customerConfirmation?.rejected_at ? <div>Ditolak: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.rejected_at)}</span></div> : null}
+									{customerConfirmation?.requested_at ? <div>Diajukan: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.requested_at, uiLocale)}</span></div> : null}
+									{customerConfirmation?.approved_at ? <div>Disetujui: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.approved_at, uiLocale)}</span></div> : null}
+									{customerConfirmation?.rejected_at ? <div>Ditolak: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.rejected_at, uiLocale)}</span></div> : null}
 									{customerConfirmation?.reject_reason ? (
 										<div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">
 											Alasan customer: {customerConfirmation.reject_reason}
@@ -781,14 +903,14 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 										<div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-rose-700">
 											<div className="text-[11px] font-semibold uppercase tracking-wide text-rose-700">Dispute</div>
 											<div className="mt-1">Alasan customer: {dispute.customer_reason}</div>
-											{dispute.opened_at ? <div className="mt-1 text-[11px] text-rose-600">Dibuka: {formatDateTime(dispute.opened_at)}</div> : null}
+												{dispute.opened_at ? <div className="mt-1 text-[11px] text-rose-600">Dibuka: {formatDateTime(dispute.opened_at, uiLocale)}</div> : null}
 										</div>
 									) : null}
 									{dispute?.seller_note ? (
 										<div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700">
 											<div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Catatan Seller</div>
 											<div className="mt-1 whitespace-pre-wrap">{dispute.seller_note}</div>
-											{dispute.seller_note_at ? <div className="mt-1 text-[11px] text-slate-500">Diperbarui: {formatDateTime(dispute.seller_note_at)}</div> : null}
+												{dispute.seller_note_at ? <div className="mt-1 text-[11px] text-slate-500">Diperbarui: {formatDateTime(dispute.seller_note_at, uiLocale)}</div> : null}
 										</div>
 									) : null}
 									{dispute?.admin_decision ? (
@@ -797,8 +919,8 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 											<div className="mt-1 font-medium text-slate-800">{dispute.admin_decision}</div>
 											{dispute.admin_note ? <div className="mt-1 whitespace-pre-wrap">{dispute.admin_note}</div> : null}
 											{dispute.refund_note ? <div className="mt-1 whitespace-pre-wrap">Refund: {dispute.refund_note}</div> : null}
-											{dispute.resolved_at ? <div className="mt-1 text-[11px] text-slate-500">Diputuskan: {formatDateTime(dispute.resolved_at)}</div> : null}
-											{dispute.refund_completed_at ? <div className="mt-1 text-[11px] text-slate-500">Refund selesai: {formatDateTime(dispute.refund_completed_at)}</div> : null}
+												{dispute.resolved_at ? <div className="mt-1 text-[11px] text-slate-500">Diputuskan: {formatDateTime(dispute.resolved_at, uiLocale)}</div> : null}
+												{dispute.refund_completed_at ? <div className="mt-1 text-[11px] text-slate-500">Refund selesai: {formatDateTime(dispute.refund_completed_at, uiLocale)}</div> : null}
 										</div>
 									) : null}
 									{!customerConfirmationFeatureEnabled ? (
@@ -889,17 +1011,91 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 					<section className="grid gap-4 xl:grid-cols-2">
 						<div className="rounded-2xl border border-slate-200 bg-white p-4">
 							<h4 className="text-sm font-semibold text-slate-900">Payments</h4>
-							<div className="mt-3 space-y-3">
+							{needsManualPaymentValidation ? (
+								<div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+									Ada payment sukses tetapi order masih belum paid. Gunakan Validasi Manual pada payment source yang benar.
+								</div>
+							) : null}
+							<div className="mt-3 max-h-[32rem] space-y-3 overflow-y-auto pr-1" style={{ colorScheme: "light" }}>
 								{payments.length === 0 ? <p className="text-sm text-slate-500">No payments found.</p> : null}
-								{payments.map((payment) => (
-									<div key={payment.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-										<div className="flex items-center justify-between gap-3">
-											<p className="font-medium text-slate-900">{payment.payment_method || payment.gateway_name || payment.provider_key || payment.id}</p>
-											<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.status)}`}>{payment.status}</span>
+								{visiblePayments.map((payment) => {
+									const proofRequired = requiresPaymentProof(payment);
+									const paymentProofs = proofsByPaymentID[payment.id] || [];
+									const canManualValidate = isSuccessfulPayment(payment) && String(displayOrder?.payment_status || "").toLowerCase() !== "paid";
+									return (
+										<div key={payment.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+												<div>
+													<p className="font-medium text-slate-900">{payment.payment_method || payment.gateway_name || payment.provider_key || payment.id}</p>
+													<p className="mt-1 text-xs text-slate-500">{payment.id}</p>
+													<p className="mt-1 text-xs text-slate-500">Payment time: {formatDateTime(payment.created_at || payment.updated_at, uiLocale)}</p>
+												</div>
+												<div className="text-right">
+													<p className="text-sm font-semibold text-slate-900">{money(payment.currency, payment.amount)}</p>
+													<div className="mt-2 flex items-center justify-end gap-2">
+														<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.status)}`}>{payment.status}</span>
+														{proofRequired ? (
+															<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.proof_status)}`}>{payment.proof_status}</span>
+														) : null}
+													</div>
+													{canManualValidate ? (
+														<div className="mt-2 flex justify-end">
+															<button
+																type="button"
+																onClick={() => void manualValidatePayment(payment.id)}
+																disabled={manualValidationKey === payment.id}
+																className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+															>
+																{manualValidationKey === payment.id ? "Memvalidasi..." : "Validasi Manual"}
+															</button>
+														</div>
+													) : null}
+												</div>
+											</div>
+											{proofRequired && paymentProofs.length > 0 ? (
+												<div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+													<div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Bukti Transfer</div>
+													<div className="mt-2 space-y-2">
+														{paymentProofs.map((proof) => {
+															const opKey = `${payment.id}:${proof.id}`;
+															return (
+																<div key={proof.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs">
+																	<div className="min-w-0">
+																		<div className="truncate font-medium text-slate-800">{proof.id}</div>
+																		<div className="text-slate-500">{proof.status} · {formatDateTime(proof.created_at, uiLocale)}</div>
+																	</div>
+																	<button
+																		type="button"
+																		onClick={() => void openProof(payment.id, proof.id)}
+																		disabled={openingProofKey === opKey}
+																		className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+																	>
+																		{openingProofKey === opKey ? "Membuka..." : "Lihat"}
+																	</button>
+																</div>
+															);
+														})}
+													</div>
+												</div>
+											) : proofRequired ? (
+												<div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-500">
+													Belum ada file bukti pembayaran pada transaksi ini.
+												</div>
+											) : null}
 										</div>
-										<p className="mt-1 text-xs text-slate-500">{money(payment.currency, payment.amount)} · {payment.external_reference || payment.provider_transaction_id || "-"}</p>
+									);
+								})}
+								{canLoadMorePayments ? (
+									<div className="flex justify-center pt-1">
+										<button
+											type="button"
+											onClick={() => setVisiblePaymentCount((current) => current + PAYMENT_HISTORY_BATCH_SIZE)}
+											className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+										>
+											Muat lebih banyak
+										</button>
 									</div>
-								))}
+								) : null}
 							</div>
 						</div>
 					</section>
@@ -939,7 +1135,7 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 											</span>
 										</div>
 										<p className="mt-1 truncate text-xs text-slate-500">{latestShipment.carrier_name || "Carrier"}{latestShipment.service_name ? ` - ${latestShipment.service_name}` : ""}</p>
-										<p className="mt-1 text-[11px] text-slate-500">Update terakhir: {formatDateTime(latestShipment.updated_at)}</p>
+												<p className="mt-1 text-[11px] text-slate-500">Update terakhir: {formatDateTime(latestShipment.updated_at, uiLocale)}</p>
 									</>
 								) : displayedTrackingNumber ? (
 									<>

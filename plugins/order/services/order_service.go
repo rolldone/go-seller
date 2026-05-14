@@ -314,7 +314,7 @@ func (s *OrderService) getOrderExpiryHours(ctx context.Context) (int, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return defaultOrderExpiryHours, nil
 		}
-		return 0, err
+		return 0, nil
 	}
 	hours := parseOrderExpiryHours(setting.Value)
 	if hours < 0 {
@@ -1248,7 +1248,7 @@ func (s *OrderService) GetOrderByID(ctx context.Context, id string) (*models.Ord
 	var o models.Order
 	if err := s.DB.WithContext(ctx).
 		Preload("OrderItems").
-		Preload("Payments").
+		Preload("Payments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at DESC") }).
 		Preload("OrderCoupons").
 		Preload("ExtraCharges", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("Shipments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
@@ -1778,7 +1778,7 @@ func (s *OrderService) ListOrders(ctx context.Context, f OrderListFilter) ([]mod
 		}
 	}
 
-	if err := q.Preload("OrderItems").Preload("Payments").Preload("Customer").Order(orderClause).Limit(f.Limit).Offset((f.Page - 1) * f.Limit).Find(&orders).Error; err != nil {
+	if err := q.Preload("OrderItems").Preload("Payments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at DESC") }).Preload("Customer").Order(orderClause).Limit(f.Limit).Offset((f.Page - 1) * f.Limit).Find(&orders).Error; err != nil {
 		return nil, 0, err
 	}
 	return orders, total, nil

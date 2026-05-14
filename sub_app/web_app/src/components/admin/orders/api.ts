@@ -66,6 +66,14 @@ export async function listPaymentProofs(paymentID: string): Promise<PaymentProof
   return adminGet<PaymentProofListResponse>(`/admin/order/payments/${paymentID}/proofs`);
 }
 
+export async function validateOrderPaymentFromHistory(
+  orderID: string,
+  paymentID: string,
+  payload: { note?: string },
+): Promise<{ data: Order }> {
+  return adminPost<{ data: Order }>(`/admin/order/orders/${orderID}/payments/${paymentID}/validate`, payload);
+}
+
 export async function downloadOrderInvoice(orderID: string): Promise<Blob> {
   return adminGetBlob(`/admin/order/orders/${orderID}/invoice`);
 }

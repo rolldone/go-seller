@@ -13,6 +13,7 @@ import type {
 	MemberUpdateShippingQuotePayload,
 	Order,
 	OrderShipment,
+	PaymentProof,
 } from "./types";
 
 function getApiUrl() {
@@ -47,6 +48,30 @@ async function memberGetBlob(path: string): Promise<Blob> {
 		throw new Error(payload?.error || payload?.message || `HTTP ${response.status}`);
 	}
 	return response.blob();
+}
+
+export async function listMemberOrderPaymentProofs(businessID: string, orderID: string, paymentID: string): Promise<{ data: PaymentProof[] }> {
+	return memberGet<{ data: PaymentProof[] }>(
+		`/api/member/businesses/${encodeURIComponent(businessID)}/orders/${encodeURIComponent(orderID)}/payments/${encodeURIComponent(paymentID)}/proofs`,
+	);
+}
+
+export async function getMemberOrderPaymentProofBlob(businessID: string, orderID: string, paymentID: string, proofID: string): Promise<Blob> {
+	return memberGetBlob(
+		`/api/member/businesses/${encodeURIComponent(businessID)}/orders/${encodeURIComponent(orderID)}/payments/${encodeURIComponent(paymentID)}/proofs/${encodeURIComponent(proofID)}/access`,
+	);
+}
+
+export async function validateMemberOrderPaymentFromHistory(
+	businessID: string,
+	orderID: string,
+	paymentID: string,
+	payload: { note?: string },
+): Promise<{ data: Order }> {
+	return memberPost<{ data: Order }>(
+		`/api/member/businesses/${encodeURIComponent(businessID)}/orders/${encodeURIComponent(orderID)}/payments/${encodeURIComponent(paymentID)}/validate`,
+		payload,
+	);
 }
 
 export async function listMemberOrders(businessID: string, params: MemberOrderListParams): Promise<MemberOrderListResponse> {

@@ -431,6 +431,10 @@ type updateShippingQuoteReq struct {
 	Notes             string  `json:"notes"`
 }
 
+type manualValidatePaymentReq struct {
+	Note *string `json:"note"`
+}
+
 // SetStatus allows admins to set the order status directly.
 func (h *OrderHandler) SetStatus(c *gin.Context) {
 	orderID := c.Param("id")
@@ -1341,6 +1345,31 @@ func (h *OrderHandler) DownloadInvoice(c *gin.Context) {
 
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	c.Data(http.StatusOK, "application/pdf", pdfBytes)
+}
+
+func (h *OrderHandler) ManualValidatePaymentFromHistory(c *gin.Context) {
+	orderID := strings.TrimSpace(c.Param("id"))
+	paymentID := strings.TrimSpace(c.Param("payment_id"))
+	var req manualValidatePaymentReq
+	if err := c.ShouldBindJSON(&req); err != nil && err.Error() != "EOF" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	adminID := strings.TrimSpace(c.GetString("admin_id"))
+	var adminIDPtr *string
+	if adminID != "" {
+		adminIDPtr = &adminID
+	}
+	updated, err := h.paymentSvc.ValidateOrderPaymentFromHistory(c.Request.Context(), orderID, paymentID, "admin", adminIDPtr, ordersvc.ManualOrderPaymentValidationInput{Note: req.Note})
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "not successful") || strings.Contains(strings.ToLower(err.Error()), "payment not found") || strings.Contains(strings.ToLower(err.Error()), "order expired") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": updated})
 }
 
 func (h *OrderHandler) AdminList(c *gin.Context) {

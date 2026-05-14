@@ -96,6 +96,10 @@ type RecheckGatewayPaymentInput struct {
 	Notes                 *string
 }
 
+type ManualOrderPaymentValidationInput struct {
+	Note *string
+}
+
 type PaymentReconciliationFilter struct {
 	BusinessID  *string
 	ProviderKey string
@@ -481,6 +485,140 @@ func (s *PaymentService) UpdatePaymentStatus(ctx context.Context, paymentID, sta
 	return nil
 }
 
+func (s *PaymentService) ValidateOrderPaymentFromHistory(ctx context.Context, orderID, paymentID string, actorType string, actorID *string, input ManualOrderPaymentValidationInput) (*models.Order, error) {
+	trimmedOrderID := strings.TrimSpace(orderID)
+	trimmedPaymentID := strings.TrimSpace(paymentID)
+	if trimmedOrderID == "" {
+		return nil, errors.New("order_id is required")
+	}
+	if trimmedPaymentID == "" {
+		return nil, errors.New("payment_id is required")
+	}
+
+	now := time.Now()
+	normalizedActorType := strings.TrimSpace(actorType)
+	if normalizedActorType == "" {
+		normalizedActorType = "admin"
+	}
+
+	var orderChanged bool
+	var paymentChanged bool
+	var shouldNotify bool
+
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var payment models.Payment
+		if err := tx.Where("id = ?", trimmedPaymentID).First(&payment).Error; err != nil {
+			return err
+		}
+		if strings.TrimSpace(payment.OrderID) != trimmedOrderID {
+			return errors.New("payment not found for order")
+		}
+		if normalizePaymentStatus(payment.Status) != string(StatusSucceeded) {
+			return errors.New("payment is not successful")
+		}
+
+		var order models.Order
+		if err := tx.Where("id = ?", trimmedOrderID).First(&order).Error; err != nil {
+			return err
+		}
+		if isOrderExpiredOrCancelled(order) {
+			return errors.New("order expired")
+		}
+
+		paymentPaidAt := payment.PaidAt
+		if paymentPaidAt == nil {
+			paymentPaidAt = &now
+		}
+
+		paymentUpdates := map[string]any{
+			"status":        string(StatusSucceeded),
+			"reconciled_at": now,
+			"updated_at":    now,
+			"paid_at":       paymentPaidAt,
+		}
+		if normalizePaymentStatus(payment.Status) != string(StatusSucceeded) {
+			paymentChanged = true
+		}
+		if payment.ReconciledAt == nil {
+			paymentChanged = true
+		}
+		if err := tx.Model(&models.Payment{}).Where("id = ?", trimmedPaymentID).Updates(paymentUpdates).Error; err != nil {
+			return err
+		}
+
+		orderUpdates := map[string]any{"updated_at": now}
+		if !strings.EqualFold(strings.TrimSpace(order.PaymentStatus), PaymentStatusPaid) {
+			orderUpdates["payment_status"] = PaymentStatusPaid
+			orderChanged = true
+		}
+		if order.PaidAt == nil {
+			orderUpdates["paid_at"] = paymentPaidAt
+			orderChanged = true
+		}
+		if nextStatus := nextPaidOrderStatus(order.Status); nextStatus != "" && nextStatus != normalizeOrderStatus(order.Status) {
+			orderUpdates["status"] = nextStatus
+			orderChanged = true
+		}
+		if orderChanged {
+			if err := tx.Model(&models.Order{}).Where("id = ?", trimmedOrderID).Updates(orderUpdates).Error; err != nil {
+				return err
+			}
+			shouldNotify = true
+		}
+
+		note := strings.TrimSpace(strValue(input.Note))
+		payload := map[string]any{
+			"order_id":        trimmedOrderID,
+			"payment_id":      trimmedPaymentID,
+			"actor_type":      normalizedActorType,
+			"actor_id":        strValue(actorID),
+			"note":            note,
+			"order_changed":   orderChanged,
+			"payment_changed": paymentChanged,
+			"order_status":    order.Status,
+			"payment_status":  payment.Status,
+		}
+		if orderChanged {
+			payload["next_order_status"] = nextPaidOrderStatus(order.Status)
+		}
+		payloadJSON, _ := json.Marshal(payload)
+		eventStatus := string(StatusSucceeded)
+		history := &models.PaymentGatewayHistory{
+			ID:                uuid.NewString(),
+			PaymentID:         trimmedPaymentID,
+			ProviderKey:       payment.ProviderKey,
+			EventType:         "manual_validated",
+			EventStatus:       &eventStatus,
+			ProviderReference: payment.ProviderTransactionID,
+			Payload:           payloadJSON,
+			ActorType:         &normalizedActorType,
+			ActorID:           actorID,
+			OccurredAt:        &now,
+			ReceivedAt:        &now,
+			CreatedAt:         now,
+		}
+		if err := tx.Create(history).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	updatedOrder, err := NewOrderService(s.DB).GetOrderByID(ctx, trimmedOrderID)
+	if err != nil {
+		return nil, err
+	}
+	if shouldNotify {
+		_ = RevokeGuestCheckoutTokenByOrderID(ctx, trimmedOrderID)
+		pluginregistry.SendOrderEventAsync(context.Background(), s.DB, "payment_succeeded", trimmedOrderID)
+		NewOrderService(s.DB).sendPaymentSucceededMemberNotificationsAsync(context.Background(), trimmedOrderID)
+	}
+	return updatedOrder, nil
+}
+
 func (s *PaymentService) UploadPaymentProof(ctx context.Context, paymentID string, adminID *string, fileHeader *multipart.FileHeader, notes *string) (*models.PaymentProof, error) {
 	return s.uploadPaymentProof(ctx, paymentID, adminID, fileHeader, notes, "admin", adminID)
 }
@@ -494,9 +632,23 @@ func (s *PaymentService) UploadPaymentProofAsGuest(ctx context.Context, paymentI
 	return s.uploadPaymentProof(ctx, paymentID, nil, fileHeader, notes, "customer", customerIDPtr)
 }
 
+func paymentRequiresProof(providerKey *string) bool {
+	if providerKey == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(*providerKey), "bank_transfer")
+}
+
 func (s *PaymentService) uploadPaymentProof(ctx context.Context, paymentID string, uploadedByAdminID *string, fileHeader *multipart.FileHeader, notes *string, actorType string, actorID *string) (*models.PaymentProof, error) {
 	if s.Store == nil {
 		return nil, errors.New("storage is not configured")
+	}
+	var payment models.Payment
+	if err := s.DB.WithContext(ctx).Select("id", "provider_key", "order_id").Where("id = ?", paymentID).First(&payment).Error; err != nil {
+		return nil, err
+	}
+	if !paymentRequiresProof(payment.ProviderKey) {
+		return nil, errors.New("payment proof is only allowed for bank transfer payments")
 	}
 	if fileHeader == nil {
 		return nil, errors.New("proof file is required")
@@ -559,10 +711,6 @@ func (s *PaymentService) uploadPaymentProof(ctx context.Context, paymentID strin
 	}
 
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var payment models.Payment
-		if err := tx.Where("id = ?", paymentID).First(&payment).Error; err != nil {
-			return err
-		}
 		proof.OrderID = payment.OrderID
 
 		if err := tx.Create(proof).Error; err != nil {

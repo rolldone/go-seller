@@ -8,7 +8,7 @@ import { useTranslations } from "../../i18n";
 import { buildCustomerAuthLoginUrl } from "../../lib/customerAuthRedirect";
 import { getCustomerAuthToken, listMyCustomerAddresses, type CustomerAddress } from "../customer/auth/authApi";
 import { notifyError, notifySuccess } from "../../lib/notification";
-import { buildLocalizedPath } from "../../lib/siteLocale";
+import { buildLocalizedPath, getLocaleFromPathname } from "../../lib/siteLocale";
 import { formatAmount } from "../../lib/amountFormat";
 import {
   approveMyOrderCustomerConfirmation,
@@ -53,6 +53,7 @@ type ReviewAttachmentMeta = {
 const MAX_REVIEW_ATTACHMENTS = 5;
 const MAX_REVIEW_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 const EMPTY_PAYMENTS: Payment[] = [];
+const PAYMENT_HISTORY_BATCH_SIZE = 3;
 
 function createEmptyReviewDraft(existing?: Partial<ReviewDraft>): ReviewDraft {
   return {
@@ -142,11 +143,11 @@ function formatTaxMode(taxType?: string | null, taxRate?: number | null): string
   return `${mode} ${formatTaxPercent(taxRate)}`;
 }
 
-function formatDateTime(value?: string | null): string {
+function formatDateTime(value?: string | null, locale: "id" | "en" = "id"): string {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("id-ID", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
@@ -300,6 +301,10 @@ function isTerminalPaymentState(value?: string | null): boolean {
   return TERMINAL_PAYMENT_STATUSES.has(normalizePaymentState(value));
 }
 
+function requiresPaymentProof(payment: Payment): boolean {
+  return String(payment.provider_key || "").trim().toLowerCase() === "bank_transfer";
+}
+
 function shouldMonitorPaymentStatus(
   orderStatus?: string | null,
   paymentStatus?: string | null,
@@ -315,7 +320,7 @@ function shouldMonitorPaymentStatus(
 }
 
 
-function PaymentInstructionPanel({ instruction, onClose }: { instruction: PaymentInstruction; onClose: () => void }) {
+function PaymentInstructionPanel({ instruction, onClose, locale }: { instruction: PaymentInstruction; onClose: () => void; locale: "id" | "en" }) {
   const [qrDataUrl, setQrDataUrl] = React.useState<string | null>(null);
   const [copied, setCopied] = React.useState(false);
 
@@ -337,7 +342,7 @@ function PaymentInstructionPanel({ instruction, onClose }: { instruction: Paymen
   };
 
   const expiredAtLabel = instruction.expired_at
-    ? new Date(instruction.expired_at).toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" })
+    ? formatDateTime(instruction.expired_at, locale)
     : null;
 
   const paymentCode = (() => {
@@ -449,6 +454,11 @@ interface CustomerOrderPageProps {
 }
 
 export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPageProps) {
+  const uiLocale = useMemo<"id" | "en">(() => {
+    if (typeof window === "undefined") return "id";
+    return getLocaleFromPathname(window.location.pathname);
+  }, []);
+
   const resolvedOrderID = useMemo(() => {
     if (orderID.trim()) return orderID.trim();
     if (typeof window === "undefined") return "";
@@ -487,6 +497,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const [submittingReviewItemID, setSubmittingReviewItemID] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [paymentPollingEnabled, setPaymentPollingEnabled] = useState(false);
+  const [visiblePaymentCount, setVisiblePaymentCount] = useState(PAYMENT_HISTORY_BATCH_SIZE);
 
   const t = useTranslations();
 
@@ -545,7 +556,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
       }
       setTransferAmount(String(Math.max(0, response.data.order.grand_total || 0)));
       setTransferredAt(new Date().toISOString().slice(0, 16));
-      if (response.data?.order?.id) {
+      if (response.data?.order?.id && String(response.data.order.status || "").trim().toLowerCase() === "completed") {
         const reviewRows = await listMyOrderReviewableItems(response.data.order.id);
         const rows = reviewRows.data || [];
         setReviewableItems(rows);
@@ -563,6 +574,10 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
           });
           return next;
         });
+      } else {
+        setReviewableItems([]);
+        setReviewDrafts({});
+        setReviewError("");
       }
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : t("failedLoadOrderDetail", "Gagal memuat detail order");
@@ -625,7 +640,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   };
 
   const handleSubmitReview = async (itemID: string) => {
-    if (!order?.id) return;
+    if (!order?.id || !showBuyerReviews) return;
     const draft = reviewDrafts[itemID];
     if (!draft) return;
     setSubmittingReviewItemID(itemID);
@@ -744,6 +759,20 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const order = detail?.order ?? null;
   const business = (detail?.business as PublicBusiness | null | undefined) ?? null;
   const payments = detail?.payments ?? EMPTY_PAYMENTS;
+  const sortedPayments = useMemo(
+    () =>
+      [...payments].sort((a, b) => {
+        const aTime = Date.parse(a.created_at || "") || 0;
+        const bTime = Date.parse(b.created_at || "") || 0;
+        return bTime - aTime;
+      }),
+    [payments],
+  );
+  const visiblePayments = useMemo(
+    () => sortedPayments.slice(0, Math.max(PAYMENT_HISTORY_BATCH_SIZE, visiblePaymentCount)),
+    [sortedPayments, visiblePaymentCount],
+  );
+  const canLoadMorePayments = sortedPayments.length > visiblePayments.length;
   const providers = detail?.providers || [];
   const appliedCoupons = order?.applied_coupons || [];
   const selectedMethod = paymentMethods.find((m) => m.id === selectedMethodID) || null;
@@ -761,10 +790,16 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
   const shippingQuoteReady = Boolean(shippingQuote?.ready);
   const shippingAddressLocked = shippingQuoteReady;
   const awaitingShippingQuote = isAwaitingShippingQuote(order?.status, order?.payment_status, shippingQuoteReady, Boolean(shippingAddressID));
+  const isOrderCompleted = String(order?.status || "").trim().toLowerCase() === "completed";
+  const showBuyerReviews = isOrderCompleted;
   const isWaitingCustomerConfirmation = String(order?.status || "").trim().toLowerCase() === "waiting_customer_confirmation";
   const isOrderInDispute = String(order?.status || "").trim().toLowerCase() === "in_dispute";
   const isOrderRefunded = String(order?.status || "").trim().toLowerCase() === "refunded";
   const disputeDecision = String(dispute?.admin_decision || "").trim().toLowerCase();
+
+  useEffect(() => {
+    setVisiblePaymentCount(PAYMENT_HISTORY_BATCH_SIZE);
+  }, [order?.id]);
 
   useEffect(() => {
     if (shippingAddressID) {
@@ -859,8 +894,14 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
         return;
       }
 
+      const proofPayments = payments.filter((payment) => requiresPaymentProof(payment));
+      if (proofPayments.length === 0) {
+        setProofsByPaymentID({});
+        return;
+      }
+
       const entries = await Promise.all(
-        payments.map(async (payment) => {
+        proofPayments.map(async (payment) => {
           try {
             const result = await listMyOrderPaymentProofs(order.id, payment.id);
             return [payment.id, (result.data || []) as PaymentProof[]] as const;
@@ -1035,7 +1076,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
           <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{statusMessage}</div>
         ) : null}
         {paymentInstruction ? (
-          <PaymentInstructionPanel instruction={paymentInstruction} onClose={() => setPaymentInstruction(null)} />
+          <PaymentInstructionPanel instruction={paymentInstruction} locale={uiLocale} onClose={() => setPaymentInstruction(null)} />
         ) : null}
 
         {loading ? (
@@ -1089,6 +1130,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                 </div>
               </div>
 
+              {showBuyerReviews ? (
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="text-lg font-bold text-slate-900">{t("orderItemsTitle", "Item Order")}</h2>
                 <div className="mt-4 overflow-x-auto">
@@ -1128,6 +1170,7 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                   </table>
                 </div>
               </section>
+              ) : null}
 
               <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 className="text-lg font-bold text-slate-900">{t("buyerReviews", "Review Pembeli")}</h2>
@@ -1306,16 +1349,19 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                 {payments.length === 0 ? (
                   <p className="mt-3 text-sm text-slate-500">{t("noPayments", "Belum ada pembayaran untuk order ini.")}</p>
                 ) : (
-                  <div className="mt-4 space-y-3">
-                    {payments.map((payment: Payment) => {
+                  <div className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto pr-1" style={{ colorScheme: "light" }}>
+                    {visiblePayments.map((payment: Payment) => {
                       const metadata = parseMetadata(payment.metadata);
                       const bankTransfer = metadata?.bank_transfer as Record<string, any> | undefined;
+                      const proofRequired = requiresPaymentProof(payment);
+                      const paymentProofs = proofsByPaymentID[payment.id] || [];
                       return (
                         <article key={payment.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                               <div className="text-sm font-semibold text-slate-900">{payment.payment_method || payment.gateway_name || payment.provider_key || t("paymentFallback", "Payment")}</div>
                               <div className="mt-1 text-xs text-slate-500">{payment.id}</div>
+                              <div className="mt-1 text-xs text-slate-500">{t("paymentTime", "Waktu")} : {formatDateTime(payment.created_at || payment.updated_at, uiLocale)}</div>
                             </div>
                             <div className="text-right">
                               <div className="text-sm font-semibold text-slate-900">{toCurrency(payment.amount, payment.currency)}</div>
@@ -1323,9 +1369,11 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                 <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${mapStatusClass(payment.status)}`}>
                                   {translateStatus(payment.status)}
                                 </span>
-                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${mapStatusClass(payment.proof_status)}`}>
-                                  {t("proofLabel", "Bukti:")} {translateStatus(payment.proof_status)}
-                                </span>
+                                {proofRequired ? (
+                                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${mapStatusClass(payment.proof_status)}`}>
+                                    {t("proofLabel", "Bukti:")} {translateStatus(payment.proof_status)}
+                                  </span>
+                                ) : null}
                               </div>
                             </div>
                           </div>
@@ -1345,17 +1393,17 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                               </div>
                             </div>
                           ) : null}
-                          {(proofsByPaymentID[payment.id] || []).length > 0 ? (
+                          {proofRequired && paymentProofs.length > 0 ? (
                               <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
                               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{t("transferProofTitle", "Bukti Transfer")}</div>
                               <div className="mt-2 space-y-2">
-                                {(proofsByPaymentID[payment.id] || []).map((proof) => {
+                                {paymentProofs.map((proof) => {
                                   const opKey = `${payment.id}:${proof.id}`;
                                   return (
                                     <div key={proof.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs">
                                       <div className="min-w-0">
                                         <div className="truncate font-medium text-slate-800">{proof.id}</div>
-                                        <div className="text-slate-500">{proof.status} · {formatDateTime(proof.created_at)}</div>
+                                        <div className="text-slate-500">{proof.status} · {formatDateTime(proof.created_at, uiLocale)}</div>
                                       </div>
                                       <button
                                         type="button"
@@ -1370,14 +1418,25 @@ export default function CustomerOrderPage({ orderID = "" }: CustomerOrderPagePro
                                 })}
                               </div>
                             </div>
-                          ) : (
+                          ) : proofRequired ? (
                             <div className="mt-3 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-xs text-slate-500">
                               {t("noPaymentProofs", "Belum ada file bukti pembayaran pada transaksi ini.")}
                             </div>
-                          )}
+                          ) : null}
                         </article>
                       );
                     })}
+                    {canLoadMorePayments ? (
+                      <div className="flex justify-center pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setVisiblePaymentCount((current) => current + PAYMENT_HISTORY_BATCH_SIZE)}
+                          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                        >
+                          {t("loadMore", "Muat lebih banyak")}
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </section>

@@ -89,6 +89,7 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	adminOrder.GET("/orders", pluginregistry.RequirePermission("orders.view"), orderHandler.AdminList)
 	adminOrder.GET("/orders/:id", pluginregistry.RequirePermission("orders.view"), orderHandler.GetByID)
 	adminOrder.GET("/orders/:id/invoice", pluginregistry.RequirePermission("orders.view"), orderHandler.DownloadInvoice)
+	adminOrder.POST("/orders/:id/payments/:payment_id/validate", pluginregistry.RequirePermission("orders.manage"), orderHandler.ManualValidatePaymentFromHistory)
 	// create/manage orders
 	adminOrder.POST("/orders", pluginregistry.RequirePermission("orders.manage"), orderHandler.AdminCreate)
 	adminOrder.PATCH("/orders/:id", pluginregistry.RequirePermission("orders.manage"), orderHandler.Update)
@@ -138,6 +139,9 @@ func RegisterRoutes(s *services.Services, authSvc *authservices.AuthService, adm
 	memberBusinessOrders.POST("", memberOrderHandler.CreateDraft)
 	memberBusinessOrders.GET("/:id", memberOrderHandler.GetByID)
 	memberBusinessOrders.GET("/:id/invoice", memberOrderHandler.DownloadInvoice)
+	memberBusinessOrders.POST("/:id/payments/:payment_id/validate", memberOrderHandler.ManualValidatePaymentFromHistory)
+	memberBusinessOrders.GET("/:id/payments/:payment_id/proofs", memberOrderHandler.ListPaymentProofs)
+	memberBusinessOrders.GET("/:id/payments/:payment_id/proofs/:proof_id/access", memberOrderHandler.PaymentProofAccess)
 	memberBusinessOrders.PATCH("/:id", memberOrderHandler.Update)
 	memberBusinessOrders.POST("/:id/items", memberOrderHandler.AddItem)
 	memberBusinessOrders.DELETE("/:id/items/:item_id", memberOrderHandler.DeleteItem)
