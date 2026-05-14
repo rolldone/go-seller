@@ -179,6 +179,32 @@ const statusClasses = (status?: string) => {
   }
 };
 
+const shipmentStatusMeta = (status?: string | null) => {
+  const value = String(status || "").toLowerCase();
+  switch (value) {
+    case "delivered":
+      return { label: "Terkirim", className: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+    case "shipped":
+    case "in_transit":
+      return { label: value === "in_transit" ? "Dalam Pengiriman" : "Dikirim", className: "bg-indigo-100 text-indigo-700 border-indigo-200" };
+    case "ready_to_ship":
+      return { label: "Siap Kirim", className: "bg-sky-100 text-sky-700 border-sky-200" };
+    case "pending":
+      return { label: "Belum Aktif", className: "bg-amber-100 text-amber-700 border-amber-200" };
+    case "exception":
+      return { label: "Masalah", className: "bg-rose-100 text-rose-700 border-rose-200" };
+    case "returned":
+      return { label: "Dikembalikan", className: "bg-orange-100 text-orange-700 border-orange-200" };
+    case "cancelled":
+    case "canceled":
+      return { label: "Dibatalkan", className: "bg-slate-100 text-slate-700 border-slate-200" };
+    case "processing":
+      return { label: "Diproses", className: "bg-amber-100 text-amber-700 border-amber-200" };
+    default:
+      return { label: value || "-", className: "bg-slate-100 text-slate-700 border-slate-200" };
+  }
+};
+
 export default function OrderDetailModal({ open, loading, order, customersByID, onClose, onRefresh }: Props) {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [checkoutURL, setCheckoutURL] = useState("");
@@ -279,10 +305,6 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
   const disputeDecision = String(dispute?.admin_decision || "").toLowerCase();
   const canResolveOpenDispute = displayOrderStatus === "in_dispute" && (!disputeDecision || disputeDecision === "open");
   const canMarkRefundCompleted = displayOrderStatus === "in_dispute" && disputeDecision === "customer_won_pending_refund";
-  const needsManualPaymentValidation = useMemo(
-    () => Boolean(displayOrder && String(displayOrder.payment_status || "").toLowerCase() !== "paid" && sortedPayments.some((payment) => isSuccessfulPayment(payment))),
-    [displayOrder, sortedPayments],
-  );
 
   const sortedPayments = useMemo(() => {
     const payments = displayOrder?.payments || [];
@@ -292,6 +314,11 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
       return tb - ta;
     });
   }, [displayOrder?.payments]);
+
+  const needsManualPaymentValidation = useMemo(
+    () => Boolean(displayOrder && String(displayOrder.payment_status || "").toLowerCase() !== "paid" && sortedPayments.some((payment) => isSuccessfulPayment(payment))),
+    [displayOrder, sortedPayments],
+  );
 
   useEffect(() => {
     if (!open || !order?.payments?.length) {
@@ -573,6 +600,20 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
     const metadata = parseOrderMetadata(displayOrder?.metadata);
     return (metadata?.shipping_quote || metadata?.shippingQuote || null) as Record<string, any> | null;
   }, [displayOrder?.metadata]);
+
+  const shipmentStatusCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const shipment of shipments) {
+      const key = String(shipment.status || "pending").toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([status, count]) => ({ status, count, meta: shipmentStatusMeta(status) }));
+  }, [shipments]);
+
+  const shipmentStatusSummary = useMemo(() => {
+    if (shipments.length === 0) return "Belum ada shipment";
+    return shipmentStatusCounts.map(({ count, meta }) => `${count} ${meta.label}`).join(" · ");
+  }, [shipments.length, shipmentStatusCounts]);
 
   const shippingAddressMetadata = useMemo(() => {
     const metadata = parseOrderMetadata(displayOrder?.metadata);
@@ -1422,13 +1463,23 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                   <>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       <p className="text-base font-semibold text-slate-900">{shipments.length} resi</p>
-                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${latestShipmentStatusMeta.className}`}>
-                        {latestShipmentStatusMeta.label}
+                      <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${shipmentStatusMeta(latestShipment.status).className}`}>
+                        {shipmentStatusMeta(latestShipment.status).label}
                       </span>
                     </div>
+                    {shipments.length > 1 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {shipmentStatusCounts.map(({ status, count, meta }) => (
+                          <span key={status} className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${meta.className}`}>
+                            {count} {meta.label}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                     <p className="mt-1 truncate text-xs text-slate-500">
                       {latestShipment.carrier_name || "Carrier"}{latestShipment.service_name ? ` - ${latestShipment.service_name}` : ""}
                     </p>
+                    <p className="mt-1 text-[11px] text-slate-500">{shipmentStatusSummary}</p>
                     <p className="mt-1 text-[11px] text-slate-500">Update terakhir: {formatDateTime(latestShipment.updated_at)}</p>
                   </>
                 ) : displayedTrackingNumber ? (
@@ -1690,7 +1741,12 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="text-sm text-slate-800">
                             <p className="font-semibold text-slate-900">{shipment.carrier_name || "Carrier"} {shipment.service_name ? `- ${shipment.service_name}` : ""}</p>
-                            <p className="text-xs text-slate-500">Resi: {shipment.tracking_number || "-"} | Status: {shipment.status || "pending"}</p>
+                            <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                              <span>Resi: {shipment.tracking_number || "-"}</span>
+                              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${shipmentStatusMeta(shipment.status).className}`}>
+                                {shipmentStatusMeta(shipment.status).label}
+                              </span>
+                            </p>
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">{shipment.items?.length || 0} item</span>
@@ -1774,16 +1830,6 @@ export default function OrderDetailModal({ open, loading, order, customersByID, 
                           <div className="text-slate-500">{proof.status || "uploaded"}</div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {isSuccessfulPayment(payment) && String(displayOrder?.payment_status || "").toLowerCase() !== "paid" ? (
-                            <button
-                              type="button"
-                              onClick={() => void manualValidatePayment(payment.id)}
-                              disabled={manualValidationKey === payment.id}
-                              className="rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-                            >
-                              {manualValidationKey === payment.id ? "Memvalidasi..." : "Validasi Manual"}
-                            </button>
-                          ) : null}
                           <button
                             type="button"
                             onClick={() => openProof(proof.payment_id, proof.id)}

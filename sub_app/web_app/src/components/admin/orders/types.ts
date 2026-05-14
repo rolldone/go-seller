@@ -96,6 +96,7 @@ export type Order = {
   updated_at: string;
   order_items?: OrderItem[];
   payments?: Payment[];
+  shipments?: OrderShipment[];
   customer?: {
     id: string;
     name?: string;

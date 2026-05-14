@@ -312,7 +312,7 @@ func (s *OrderService) getOrderExpiryHours(ctx context.Context) (int, error) {
 	err := s.DB.WithContext(ctx).Where("scope = ? AND key = ?", "global", orderExpiryHoursSettingKey).First(&setting).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return defaultOrderExpiryHours, err
+			return defaultOrderExpiryHours, nil
 		}
 		return 0, err
 	}
@@ -1778,7 +1778,7 @@ func (s *OrderService) ListOrders(ctx context.Context, f OrderListFilter) ([]mod
 		}
 	}
 
-	if err := q.Preload("OrderItems").Preload("Payments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at DESC") }).Preload("Customer").Order(orderClause).Limit(f.Limit).Offset((f.Page - 1) * f.Limit).Find(&orders).Error; err != nil {
+	if err := q.Preload("OrderItems").Preload("Payments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at DESC") }).Preload("Shipments", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).Preload("Customer").Order(orderClause).Limit(f.Limit).Offset((f.Page - 1) * f.Limit).Find(&orders).Error; err != nil {
 		return nil, 0, err
 	}
 	return orders, total, nil

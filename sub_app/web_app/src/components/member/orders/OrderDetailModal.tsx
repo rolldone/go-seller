@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { notifyError, notifySuccess } from "../../../lib/notification";
 import { formatAmount } from "../../../lib/amountFormat";
 import { fetchStoreMaintenanceInfo } from "../../../lib/storeMaintenance";
+import { useTranslations } from "../../../i18n";
 import MemberModal from "../ui/MemberModal";
 import {
 	createMemberOrderShipment,
@@ -213,6 +214,68 @@ function parseDisputeMetadata(raw: unknown): {
 	};
 }
 
+function normalizePaymentStatus(status?: string | null) {
+	return String(status || "").trim().toLowerCase();
+}
+
+function translateOrderStatus(t: ReturnType<typeof useTranslations>, status?: string | null) {
+	const value = String(status || "").trim().toLowerCase() === "confirmed" ? "processing" : String(status || "").trim().toLowerCase();
+	const statusKeyMap: Record<string, string> = {
+		awaiting_quote: "orderStatus.awaitingQuote",
+		shipped: "orderStatus.shipped",
+		waiting_customer_confirmation: "orderStatus.waitingCustomerConfirmation",
+		in_dispute: "orderStatus.inDispute",
+		refunded: "orderStatus.refunded",
+		quote_ready: "orderStatus.quoteReady",
+		paid: "orderStatus.paid",
+		processing: "orderStatus.processing",
+		completed: "orderStatus.completed",
+		verification: "orderStatus.verification",
+		expired: "orderStatus.expired",
+		cancelled: "orderStatus.cancelled",
+		canceled: "orderStatus.cancelled",
+		pending: "orderStatus.pending",
+		delivered: "orderStatus.completed",
+	};
+	const key = statusKeyMap[value];
+	return key ? t(key, value.replace(/_/g, " ")) : value || "-";
+}
+
+function translatePaymentStatus(t: ReturnType<typeof useTranslations>, status?: string | null) {
+	const value = normalizePaymentStatus(status);
+	const statusKeyMap: Record<string, string> = {
+		pending: "paymentStatus.pending",
+		unpaid: "paymentStatus.unpaid",
+		paid: "paymentStatus.paid",
+		failed: "paymentStatus.failed",
+		refunded: "paymentStatus.refunded",
+		cancelled: "paymentStatus.cancelled",
+		canceled: "paymentStatus.cancelled",
+		expired: "paymentStatus.expired",
+	};
+	const key = statusKeyMap[value];
+	return key ? t(key, value.replace(/_/g, " ")) : value || "-";
+}
+
+function translateDeliveryStatus(t: ReturnType<typeof useTranslations>, status?: string | null) {
+	const value = String(status || "").trim().toLowerCase();
+	const statusKeyMap: Record<string, string> = {
+		not_applicable: "deliveryStatus.notApplicable",
+		pending: "deliveryStatus.pending",
+		ready_to_ship: "deliveryStatus.readyToShip",
+		partially_shipped: "deliveryStatus.partiallyShipped",
+		shipped: "deliveryStatus.shipped",
+		in_transit: "deliveryStatus.shipped",
+		delivered: "deliveryStatus.delivered",
+		exception: "deliveryStatus.exception",
+		returned: "deliveryStatus.returned",
+		cancelled: "deliveryStatus.cancelled",
+		canceled: "deliveryStatus.cancelled",
+	};
+	const key = statusKeyMap[value];
+	return key ? t(key, value.replace(/_/g, " ")) : value || "-";
+}
+
 function orderStatusBadge(status: string) {
 	const value = String(status || "").toLowerCase() === "confirmed" ? "processing" : String(status || "").toLowerCase();
 	if (["waiting_customer_confirmation"].includes(value)) return "bg-sky-50 text-sky-700 border-sky-200";
@@ -277,6 +340,7 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 
 	const displayOrder = order;
 	const uiLocale = typeof window === "undefined" ? "id" : getMemberLocaleFromPathname(window.location.pathname);
+	const t = useTranslations("common", uiLocale);
 	const orderMetadata = useMemo(() => parseOrderMetadata(displayOrder?.metadata), [displayOrder?.metadata]);
 	const customerConfirmation = useMemo(() => parseCustomerConfirmation(displayOrder?.metadata), [displayOrder?.metadata]);
 	const dispute = useMemo(() => parseDisputeMetadata(displayOrder?.metadata), [displayOrder?.metadata]);
@@ -842,9 +906,9 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 						<div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
 							<p className="text-xs uppercase tracking-wide text-slate-500">Status</p>
 							<div className="mt-2 flex flex-wrap gap-2">
-								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(displayOrder.status)}`}>{displayOrder.status}</span>
-								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(displayOrder.payment_status)}`}>{displayOrder.payment_status}</span>
-								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${shipmentStatusBadge(displayOrder.delivery_status || "")}`}>{displayOrder.delivery_status || "-"}</span>
+								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(displayOrder.status)}`}>{translateOrderStatus(t, displayOrder.status)}</span>
+								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(displayOrder.payment_status)}`}>{translatePaymentStatus(t, displayOrder.payment_status)}</span>
+								<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${shipmentStatusBadge(displayOrder.delivery_status || "")}`}>{translateDeliveryStatus(t, displayOrder.delivery_status || "")}</span>
 							</div>
 						</div>
 					</section>
@@ -886,10 +950,10 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 							<div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
 								<div className="flex items-center justify-between gap-3">
 									<span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current State</span>
-									<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(displayOrder.status)}`}>{displayOrder.status}</span>
+									<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(displayOrder.status)}`}>{translateOrderStatus(t, displayOrder.status)}</span>
 								</div>
 								<div className="mt-3 space-y-2 text-xs text-slate-600">
-									<div>Pembayaran: <span className="font-medium text-slate-800">{displayOrder.payment_status}</span></div>
+									<div>Pembayaran: <span className="font-medium text-slate-800">{translatePaymentStatus(t, displayOrder.payment_status)}</span></div>
 									<div>Shipment siap: <span className="font-medium text-slate-800">{hasEligibleShipment ? "Ya" : "Belum"}</span></div>
 									{customerConfirmation?.requested_at ? <div>Diajukan: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.requested_at, uiLocale)}</span></div> : null}
 									{customerConfirmation?.approved_at ? <div>Disetujui: <span className="font-medium text-slate-800">{formatDateTime(customerConfirmation.approved_at, uiLocale)}</span></div> : null}
@@ -1033,9 +1097,9 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 												<div className="text-right">
 													<p className="text-sm font-semibold text-slate-900">{money(payment.currency, payment.amount)}</p>
 													<div className="mt-2 flex items-center justify-end gap-2">
-														<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.status)}`}>{payment.status}</span>
+														<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.status || "")}`}>{translatePaymentStatus(t, payment.status)}</span>
 														{proofRequired ? (
-															<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.proof_status)}`}>{payment.proof_status}</span>
+															<span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${orderStatusBadge(payment.proof_status || "")}`}>{payment.proof_status}</span>
 														) : null}
 													</div>
 													{canManualValidate ? (
