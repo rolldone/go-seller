@@ -312,9 +312,9 @@ func (s *OrderService) getOrderExpiryHours(ctx context.Context) (int, error) {
 	err := s.DB.WithContext(ctx).Where("scope = ? AND key = ?", "global", orderExpiryHoursSettingKey).First(&setting).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return defaultOrderExpiryHours, nil
+			return defaultOrderExpiryHours, err
 		}
-		return 0, nil
+		return 0, err
 	}
 	hours := parseOrderExpiryHours(setting.Value)
 	if hours < 0 {
