@@ -250,6 +250,8 @@ export default function MemberProductsPage() {
 			} else if (formMode === "create") {
 				product = await createMemberProduct(payload);
 				notifySuccess("Product created");
+				setSelected(product);
+				setFormMode("edit");
 			} else if (selected) {
 				product = await updateMemberProduct(selected.id, payload);
 				notifySuccess("Product updated");

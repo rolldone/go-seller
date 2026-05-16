@@ -14,6 +14,8 @@ type SeoContent = {
 type Props = {
 	value?: SeoContent | null;
 	onChange?: (value: SeoContent | null) => void;
+	sourceTitle?: string;
+	sourceDescription?: string;
 };
 
 function normalizeIncoming(value?: SeoContent | null): SeoContent | null {
@@ -30,7 +32,7 @@ function normalizeIncoming(value?: SeoContent | null): SeoContent | null {
 	};
 }
 
-export default function MemberSeoSegment({ value, onChange }: Props) {
+export default function MemberSeoSegment({ value, onChange, sourceTitle, sourceDescription }: Props) {
 	const inputClass =
 		"w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 shadow-sm transition focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100";
 	const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500";
@@ -63,6 +65,16 @@ export default function MemberSeoSegment({ value, onChange }: Props) {
 
 	const lastEmittedRef = useRef<string>("");
 	const skipEmitRef = useRef(false);
+	const canApplyFromProduct = Boolean(String(sourceTitle || "").trim() || String(sourceDescription || "").trim());
+
+	const applyFromProduct = () => {
+		if (String(sourceTitle || "").trim()) {
+			setTitle(String(sourceTitle || "").trim());
+		}
+		if (String(sourceDescription || "").trim()) {
+			setDescription(String(sourceDescription || "").trim());
+		}
+	};
 
 	useEffect(() => {
 		const v = value ?? null;
@@ -209,7 +221,20 @@ export default function MemberSeoSegment({ value, onChange }: Props) {
 
 	return (
 		<div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-			<h4 className="mb-3 text-sm font-semibold text-slate-900">SEO Metadata</h4>
+			<div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+				<div>
+					<h4 className="text-sm font-semibold text-slate-900">SEO Metadata</h4>
+					<p className="mt-1 text-xs text-slate-500">Tombol di sini mengisi Title dan Description dari data produk.</p>
+				</div>
+				<button
+					type="button"
+					onClick={applyFromProduct}
+					disabled={!canApplyFromProduct}
+					className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+				>
+					Ambil dari produk
+				</button>
+			</div>
 
 			<div className="mb-3 flex items-center gap-3">
 				<label className="inline-flex items-center gap-2 text-sm">
