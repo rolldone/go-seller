@@ -11,7 +11,7 @@ import { normalizeLocale } from "@/lib/siteLocale"
 
 const locale = normalizeLocale(Astro.params.lang);
 const customerSession = Astro.locals.customerSession ?? null;
-const contact = await fetchStoreContactInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch }).catch(() => ({
+const contact = await fetchStoreContactInfo({ fetchImpl: fetch }).catch(() => ({
   storeName: "",
   address: "",
   phone: "",

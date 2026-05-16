@@ -7,7 +7,7 @@ import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBoots
 import { fetchStoreContactInfo } from "@/lib/storeContact"
 
 const customerSession = Astro.locals.customerSession ?? null;
-const contact = await fetchStoreContactInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch, timeoutMs: 1500 }).catch(() => ({
+const contact = await fetchStoreContactInfo({ fetchImpl: fetch, timeoutMs: 1500 }).catch(() => ({
   storeName: "",
   address: "",
   phone: "",
