@@ -36,7 +36,10 @@ async function loadCartBusinesses(session: typeof customerSession): Promise<Cart
 	}
 }
 
-const maintenance = await fetchStoreMaintenanceInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch });
+const maintenance = await fetchStoreMaintenanceInfo({
+	fetchImpl: fetch,
+	keys: ["index"],
+});
 const initialBusinesses = maintenance.index ? [] : await loadCartBusinesses(customerSession);
 ---
 

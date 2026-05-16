@@ -7,27 +7,33 @@ import MaintenanceNotice from "@/components/front/MaintenanceNotice.astro"
 import { fetchStoreMaintenanceInfo } from "@/lib/storeMaintenance"
 import { buildBusinessStore } from "@/pages/b/store"
 import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
+import type { PublicBusinessProduct, PublicBusinessStore } from "@/components/front/business/types"
 
 const { merchant = "", slug = "" } = Astro.params;
 const locale = Astro.url.searchParams.get("locale") || undefined;
-const maintenance = await fetchStoreMaintenanceInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch });
+const maintenance = await fetchStoreMaintenanceInfo({
+  fetchImpl: fetch,
+  keys: ["product_detail"],
+});
 const customerSession = Astro.locals.customerSession ?? null;
-let store = null;
-let product = null;
-let relatedProducts = [];
+let store: PublicBusinessStore | null = null;
+let product: PublicBusinessProduct | null = null;
+let relatedProducts: PublicBusinessProduct[] = [];
 let title = "Halaman detail produk sedang dalam maintenance";
 let description = "Halaman detail produk sedang ditutup sementara. Silakan kembali lagi nanti.";
 
 if (!maintenance.product_detail) {
   const result = await buildBusinessStore(merchant, locale);
   store = result.store;
-  product = (store.products || []).find((item) => item.slug === slug);
+  const foundProduct = (store.products || []).find((item) => item.slug === slug) as PublicBusinessProduct | undefined;
 
-  if (!product) {
+  if (!foundProduct) {
     return Astro.redirect(locale ? `/b/${merchant}?locale=${encodeURIComponent(locale)}` : `/b/${merchant}`, 302);
   }
 
-  relatedProducts = (store.products || []).filter((item) => item.slug !== product.slug).slice(0, 4);
+  product = foundProduct;
+
+  relatedProducts = (store.products || []).filter((item) => item.slug !== foundProduct.slug).slice(0, 4);
   title = `${product.title} | ${store.business.name} | Go Seller`;
   description = product.description_plain || product.description || product.excerpt || "";
 }
@@ -47,8 +53,8 @@ if (!maintenance.product_detail) {
         title="Halaman detail produk sedang dalam maintenance"
         description="Halaman detail produk sedang ditutup sementara. Silakan kembali lagi nanti."
       />
-    ) : (
-      <ProductDetailPage client:only="react" store={store} product={product} relatedProducts={relatedProducts} locale={locale} customerSession={customerSession} />
-    )}
+    ) : product ? (
+      <ProductDetailPage client:only="react" store={store!} product={product} relatedProducts={relatedProducts} locale={locale} customerSession={customerSession} />
+    ) : null}
   </body>
 </html>ok

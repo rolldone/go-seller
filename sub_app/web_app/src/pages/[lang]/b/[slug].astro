@@ -9,6 +9,7 @@ import { buildBusinessStore } from "@/pages/b/store"
 import { getFallbackBusinessStore } from "@/components/front/business/mockData"
 import CustomerSessionBootstrap from "@/components/customer/CustomerSessionBootstrap.astro"
 import { normalizeLocale } from "@/lib/siteLocale"
+import type { PublicBusinessStore } from "@/components/front/business/types"
 
 const TAB_KEYS = ["beranda", "produk", "ulasan", "tentang"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
@@ -19,9 +20,12 @@ const { slug = "", tab } = Astro.params;
 const requestedTab = typeof tab === "string" ? tab : undefined;
 const initialTab: TabKey = isTabKey(requestedTab) ? requestedTab : "beranda";
 
-const maintenance = await fetchStoreMaintenanceInfo({ baseUrl: Astro.url.origin, fetchImpl: fetch });
+const maintenance = await fetchStoreMaintenanceInfo({
+	fetchImpl: fetch,
+	keys: ["business_page"],
+});
 const customerSession = Astro.locals.customerSession ?? null;
-let store = null;
+let store: PublicBusinessStore | null = null;
 let fetchErrorMessage = "";
 let title = "Halaman toko sedang dalam maintenance";
 let description = "Halaman toko sedang ditutup sementara. Silakan kembali lagi nanti.";
@@ -58,7 +62,7 @@ if (!maintenance.business_page) {
 				description="Halaman toko sedang ditutup sementara. Silakan kembali lagi nanti."
 			/>
 		) : (
-			<BusinessStoreFrontPage client:only="react" store={store} initialTab={initialTab} locale={locale} customerSession={customerSession} />
+			<BusinessStoreFrontPage client:only="react" store={store!} initialTab={initialTab} locale={locale} customerSession={customerSession} />
 		)}
 	</body>
 </html>

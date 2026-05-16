@@ -412,7 +412,7 @@ export default function OrderDetailModal({ open, loading, order, businessID, bus
 	useEffect(() => {
 		if (!open) return;
 		let active = true;
-		void fetchStoreMaintenanceInfo().then((info) => {
+		void fetchStoreMaintenanceInfo({ keys: ["order_customer_confirmation"] }).then((info) => {
 			if (active) {
 				setCustomerConfirmationFeatureEnabled(Boolean(info.order_customer_confirmation));
 			}

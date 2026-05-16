@@ -138,3 +138,43 @@ func (s *Service) GetOrDefault(ctx context.Context, scope string, key string, de
 	}
 	return st.Value, nil
 }
+
+// GetMany returns raw stored values for multiple keys in a single call.
+// Missing keys are filled from the provided defaults map (if present) or with JSON null.
+// It returns an error only for unexpected DB errors.
+func (s *Service) GetMany(ctx context.Context, scope string, keys []string, defaults map[string][]byte) (map[string][]byte, error) {
+	scope = normalizeScope(scope)
+	out := make(map[string][]byte, len(keys))
+	if len(keys) == 0 {
+		return out, nil
+	}
+
+	// protect against overly large IN queries
+	const maxKeys = 100
+	if len(keys) > maxKeys {
+		keys = keys[:maxKeys]
+	}
+
+	var items []models.Setting
+	if err := s.db.WithContext(ctx).Where("scope = ? AND key IN ?", scope, keys).Find(&items).Error; err != nil {
+		return nil, err
+	}
+
+	for _, it := range items {
+		out[it.Key] = it.Value
+	}
+
+	for _, k := range keys {
+		if _, ok := out[k]; !ok {
+			if defaults != nil {
+				if d, has := defaults[k]; has {
+					out[k] = d
+					continue
+				}
+			}
+			out[k] = []byte("null")
+		}
+	}
+
+	return out, nil
+}

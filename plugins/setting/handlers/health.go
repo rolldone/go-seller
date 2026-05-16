@@ -11,6 +11,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var publicMaintenanceKeyMap = map[string]string{
+	"index":                       "maintenance.index",
+	"business_page":               "maintenance.business_page",
+	"product_detail":              "maintenance.product_detail",
+	"order_customer_confirmation": "order.require_customer_confirmation",
+}
+
 type SettingHandler struct {
 	svc *pluginservices.Service
 }
@@ -174,33 +181,46 @@ func readBoolSetting(raw []byte) bool {
 
 func (h *SettingHandler) PublicMaintenance(c *gin.Context) {
 	ctx := c.Request.Context()
-	indexRaw, err := h.svc.GetOrDefault(ctx, "global", "maintenance.index", []byte("false"))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+	wantedKeys := []string{"index", "business_page", "product_detail", "order_customer_confirmation"}
+	if queryKeys := strings.TrimSpace(c.Query("keys")); queryKeys != "" {
+		parsed := strings.Split(queryKeys, ",")
+		wantedKeys = wantedKeys[:0]
+		for _, key := range parsed {
+			trimmed := strings.TrimSpace(key)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := publicMaintenanceKeyMap[trimmed]; !ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "invalid keys parameter"})
+				return
+			}
+			wantedKeys = append(wantedKeys, trimmed)
+		}
+		if len(wantedKeys) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "keys parameter is required"})
+			return
+		}
 	}
-	businessRaw, err := h.svc.GetOrDefault(ctx, "global", "maintenance.business_page", []byte("false"))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+
+	settingKeys := make([]string, 0, len(wantedKeys))
+	defaults := make(map[string][]byte, len(wantedKeys))
+	for _, publicKey := range wantedKeys {
+		settingKeys = append(settingKeys, publicMaintenanceKeyMap[publicKey])
+		defaults[publicKey] = []byte("false")
 	}
-	productRaw, err := h.svc.GetOrDefault(ctx, "global", "maintenance.product_detail", []byte("false"))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	confirmationRaw, err := h.svc.GetOrDefault(ctx, "global", "order.require_customer_confirmation", []byte("false"))
+
+	values, err := h.svc.GetMany(ctx, "global", settingKeys, defaults)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": gin.H{
-		"index":                       readBoolSetting(indexRaw),
-		"business_page":               readBoolSetting(businessRaw),
-		"product_detail":              readBoolSetting(productRaw),
-		"order_customer_confirmation": readBoolSetting(confirmationRaw),
-	}})
+	data := gin.H{}
+	for _, publicKey := range wantedKeys {
+		data[publicKey] = readBoolSetting(values[publicMaintenanceKeyMap[publicKey]])
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": data})
 }
 
 func (h *SettingHandler) Upsert(c *gin.Context) {

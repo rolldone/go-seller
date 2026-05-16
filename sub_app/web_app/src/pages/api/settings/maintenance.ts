@@ -4,7 +4,7 @@ function getApiBase(): string {
   return import.meta.env.PUBLIC_API_URL ? String(import.meta.env.PUBLIC_API_URL).replace(/\/$/, "") : "";
 }
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ url }) => {
   const apiBase = getApiBase();
   if (!apiBase) {
     return new Response(JSON.stringify({ error: "PUBLIC_API_URL belum dikonfigurasi" }), {
@@ -16,7 +16,13 @@ export const GET: APIRoute = async () => {
     });
   }
 
-  const response = await fetch(`${apiBase}/api/settings/maintenance`, {
+  const upstreamUrl = new URL(`${apiBase}/api/settings/maintenance`);
+  const keys = url.searchParams.get("keys");
+  if (keys) {
+    upstreamUrl.searchParams.set("keys", keys);
+  }
+
+  const response = await fetch(upstreamUrl, {
     headers: { Accept: "application/json" },
   });
 
